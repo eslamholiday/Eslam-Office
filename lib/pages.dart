@@ -1,0 +1,734 @@
+import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'domain.dart';
+import 'store.dart';
+import 'ui.dart';
+import 'forms.dart';
+import 'reports.dart';
+
+String entryLabel(Store s, Entry e) => s.name(e.data['customer']).isNotEmpty
+    ? s.name(e.data['customer'])
+    : s.name(e.data['supplier']).isNotEmpty
+    ? s.name(e.data['supplier'])
+    : e.data['notes'] ?? '';
+
+class EntryTile extends StatelessWidget {
+  final Store s;
+  final Entry e;
+  const EntryTile(this.s, this.e, {super.key});
+  @override
+  Widget build(BuildContext c) => Card(
+    child: ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      leading: CircleAvatar(
+        backgroundColor: kindColor(e.kind).withValues(alpha: .1),
+        child: Icon(kindIcon(e.kind), color: kindColor(e.kind)),
+      ),
+      title: Text(
+        '${types[e.kind]} • ${entryLabel(s, e)}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(
+        '#${e.id} • ${e.date}${e.posted ? '' : ' • مسودة'}${e.data['pnr'] == null || e.data['pnr'] == '' ? '' : ' • ${e.data['pnr']}'}',
+      ),
+      trailing: Text(
+        s.settings['hideAmounts'] == true
+            ? '••••'
+            : e.currency.format(e.data['amount'] as int? ?? e.sale),
+        textDirection: TextDirection.ltr,
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
+      onTap: () => Navigator.push(
+        c,
+        MaterialPageRoute(builder: (_) => EntryDetail(s, e)),
+      ),
+    ),
+  );
+}
+
+class EntriesPage extends StatefulWidget {
+  final Store s;
+  final String? kind;
+  const EntriesPage(this.s, {super.key, this.kind});
+  @override
+  State<EntriesPage> createState() => _EntriesPageState();
+}
+
+class _EntriesPageState extends State<EntriesPage> {
+  String query = '';
+  String? currency, kind;
+  bool drafts = false;
+  @override
+  void initState() {
+    super.initState();
+    kind = widget.kind;
+  }
+
+  @override
+  Widget build(BuildContext c) => AnimatedBuilder(
+    animation: widget.s,
+    builder: (c, _) {
+      final entries = widget.s.entries
+          .where(
+            (e) =>
+                (kind == null || e.kind == kind) &&
+                (currency == null || e.currency.name == currency) &&
+                (!drafts || !e.posted) &&
+                normalize(
+                  '${e.id} ${entryLabel(widget.s, e)} ${e.data['pnr'] ?? ''} ${e.data['notes'] ?? ''}',
+                ).contains(query),
+          )
+          .toList();
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(widget.kind == null ? 'العمليات' : types[widget.kind]!),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () => newEntry(c, widget.s, kind ?? 'ticket'),
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: TextField(
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.search),
+                  hintText: 'اسم، PNR، رقم العملية',
+                ),
+                onChanged: (v) => setState(() => query = normalize(v)),
+              ),
+            ),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    FilterChip(
+                      label: const Text('المسودات'),
+                      selected: drafts,
+                      onSelected: (v) => setState(() => drafts = v),
+                    ),
+                    const SizedBox(width: 8),
+                    ...Currency.values.map(
+                      (v) => Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: FilterChip(
+                          label: Text(v.name),
+                          selected: currency == v.name,
+                          onSelected: (b) =>
+                              setState(() => currency = b ? v.name : null),
+                        ),
+                      ),
+                    ),
+                    if (widget.kind == null)
+                      ...types.entries.map(
+                        (e) => Padding(
+                          padding: const EdgeInsets.only(left: 8),
+                          child: FilterChip(
+                            label: Text(e.value),
+                            selected: kind == e.key,
+                            onSelected: (b) =>
+                                setState(() => kind = b ? e.key : null),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            Expanded(
+              child: entries.isEmpty
+                  ? const Center(
+                      child: EmptyState(
+                        'لا توجد عمليات',
+                        'أضف أول عملية لتظهر هنا.',
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(12),
+                      itemCount: entries.length,
+                      itemBuilder: (c, i) => EntryTile(widget.s, entries[i]),
+                    ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+class EntryDetail extends StatelessWidget {
+  final Store s;
+  final Entry e;
+  const EntryDetail(this.s, this.e, {super.key});
+  @override
+  Widget build(BuildContext c) {
+    final sale = ['ticket', 'hotel', 'visa', 'refund'].contains(e.kind);
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('${types[e.kind]} #${e.id}'),
+        actions: [
+          if (e.posted && ['ticket', 'hotel', 'visa'].contains(e.kind))
+            IconButton(
+              tooltip: 'تصحيح العملية مع حفظ تاريخها',
+              icon: const Icon(Icons.edit_note),
+              onPressed: () async {
+                await newEntry(
+                  c,
+                  s,
+                  e.kind,
+                  draft: Entry({
+                    ...e.data,
+                    'posted': false,
+                    'corrects': e.id,
+                    'date': day(DateTime.now()),
+                  }),
+                );
+                if (c.mounted) Navigator.pop(c);
+              },
+            ),
+          if (!e.posted)
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              onPressed: () async {
+                await newEntry(c, s, e.kind, draft: e);
+                if (c.mounted) Navigator.pop(c);
+              },
+            ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          Section(e.posted ? 'عملية معتمدة' : 'مسودة', [
+            Text('التاريخ: ${e.date} • ${e.currency.name}'),
+            if (e.data['customer'] != null)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text('الزبون: ${s.name(e.data['customer'])}'),
+                trailing: const Icon(Icons.chevron_left),
+                onTap: () => Navigator.push(
+                  c,
+                  MaterialPageRoute(
+                    builder: (_) => AccountPage(s, e.data['customer']),
+                  ),
+                ),
+              ),
+            if (e.data['supplier'] != null)
+              Text('جهة الإصدار: ${s.name(e.data['supplier'])}'),
+            if (e.data['airline'] != null)
+              Text('الطيران: ${s.reference(e.data['airline'])}'),
+            if (e.data['pnr'] != null && e.data['pnr'] != '')
+              SelectableText('PNR: ${e.data['pnr']}'),
+            if (sale) ...[
+              const SizedBox(height: 16),
+              pair(
+                AmountBox('البيع', e.currency.format(e.sale)),
+                AmountBox('التسديد', e.currency.format(e.cost)),
+              ),
+              AmountBox('الربح', e.currency.format(e.profit)),
+              if (e.kind == 'ticket')
+                Text(
+                  'العمولة المثبتة: ${((e.data['rate'] ?? 0) / 100)}% • ${e.currency.format(e.data['commission'] ?? 0)}',
+                ),
+            ] else
+              AmountBox('المبلغ', e.currency.format(e.data['amount'] ?? 0)),
+            if (e.kind == 'ticket')
+              ...((e.data['lines'] as List? ?? [])
+                  .asMap()
+                  .entries
+                  .where((r) => r.value['qty'] > 0)
+                  .map(
+                    (r) => Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Text(
+                        '${['بالغ', 'طفل', 'رضيع'][r.key]} × ${r.value['qty']} • بيع الوحدة ${e.currency.format(r.value['sell'])}',
+                      ),
+                    ),
+                  )),
+            if (e.kind == 'visa')
+              Text('العدد: ${e.data['qty']} • ${e.data['visaType'] ?? ''}'),
+            if (e.kind == 'hotel')
+              Text(
+                '${e.data['hotelName'] ?? ''}\n${e.data['checkIn'] ?? ''} — ${e.data['checkOut'] ?? ''}',
+              ),
+            if (e.data['notes'] != null && e.data['notes'] != '')
+              Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: Text(e.data['notes']),
+              ),
+          ]),
+          if ((e.data['attachments'] as List? ?? []).isNotEmpty)
+            Section(
+              'المرفقات',
+              List<String>.from(e.data['attachments'])
+                  .map(
+                    (path) => ListTile(
+                      leading: const Icon(Icons.attach_file),
+                      title: const Text('فتح المرفق'),
+                      onTap: () => openAttachment(c, path),
+                    ),
+                  )
+                  .toList(),
+            ),
+          if (e.posted && ['ticket', 'hotel', 'visa'].contains(e.kind))
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: OutlinedButton.icon(
+                onPressed: () => refundDialog(c, s, e),
+                icon: const Icon(Icons.undo),
+                label: const Text('استرجاع كامل أو جزئي'),
+              ),
+            ),
+          if (!e.posted)
+            TextButton(
+              onPressed: () async {
+                final yes = await showDialog<bool>(
+                  context: c,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('حذف المسودة؟'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('إلغاء'),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('حذف'),
+                      ),
+                    ],
+                  ),
+                );
+                if (yes == true) {
+                  await s.deleteDraft(e);
+                  if (c.mounted) Navigator.pop(c);
+                }
+              },
+              child: const Text('حذف المسودة'),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class PartiesPage extends StatefulWidget {
+  final Store s;
+  final String kind;
+  const PartiesPage(this.s, this.kind, {super.key});
+  @override
+  State<PartiesPage> createState() => _PartiesPageState();
+}
+
+class _PartiesPageState extends State<PartiesPage> {
+  String query = '';
+  @override
+  Widget build(BuildContext c) => AnimatedBuilder(
+    animation: widget.s,
+    builder: (c, _) {
+      final rows = widget.s
+          .list(widget.kind)
+          .where((r) => normalize('${r['name']} ${r['phone']}').contains(query))
+          .toList();
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(
+            {
+              'customer': 'الزبائن',
+              'supplier': 'جهات الإصدار',
+              'passenger': 'المسافرون',
+              'family': 'العائلات',
+            }[widget.kind]!,
+          ),
+          actions: [
+            IconButton(
+              onPressed: () => editParty(c, widget.s, widget.kind),
+              icon: const Icon(Icons.person_add_alt),
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: TextField(
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.search),
+                  hintText: 'بحث بالاسم أو رقم الهاتف',
+                ),
+                onChanged: (v) => setState(() => query = normalize(v)),
+              ),
+            ),
+            Expanded(
+              child: rows.isEmpty
+                  ? EmptyState(
+                      'قائمتك فارغة',
+                      'أضف حساباتك لتبدأ العمل.',
+                      icon: Icons.people_outline,
+                      action: () => editParty(c, widget.s, widget.kind),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(12),
+                      itemCount: rows.length,
+                      itemBuilder: (c, i) {
+                        final r = rows[i];
+                        return Card(
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              child: Text(
+                                (r['name'] as String).characters.first,
+                              ),
+                            ),
+                            title: Text(r['name']),
+                            subtitle: Text(
+                              r['phone'] == ''
+                                  ? (r['notes'] ?? '')
+                                  : r['phone'],
+                            ),
+                            trailing: const Icon(Icons.chevron_left),
+                            onTap: () => Navigator.push(
+                              c,
+                              MaterialPageRoute(
+                                builder: (_) => AccountPage(widget.s, r['id']),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+class AccountPage extends StatelessWidget {
+  final Store s;
+  final int id;
+  const AccountPage(this.s, this.id, {super.key});
+  @override
+  Widget build(BuildContext c) => AnimatedBuilder(
+    animation: s,
+    builder: (c, _) {
+      final p = s.parties.firstWhere((r) => r['id'] == id);
+      final financial = ['customer', 'supplier'].contains(p['kind']);
+      final history = s.history(id);
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(p['name']),
+          actions: [
+            IconButton(
+              onPressed: () => editParty(c, s, p['kind'], party: p),
+              icon: const Icon(Icons.edit_outlined),
+            ),
+          ],
+        ),
+        body: ListView(
+          padding: const EdgeInsets.all(12),
+          children: [
+            Section('ملف الحساب', [
+              if (p['phone'] != '')
+                Wrap(
+                  spacing: 12,
+                  children: [
+                    ActionChip(
+                      avatar: const Icon(Icons.phone_outlined),
+                      label: Text(p['phone']),
+                      onPressed: () =>
+                          launchUrl(Uri(scheme: 'tel', path: p['phone'])),
+                    ),
+                    ActionChip(
+                      avatar: const Icon(Icons.chat_outlined),
+                      label: const Text('WhatsApp'),
+                      onPressed: () {
+                        var phone = normalize(
+                          p['phone'],
+                        ).replaceAll(RegExp(r'\D'), '');
+                        if (phone.startsWith('0')) {
+                          phone = '964${phone.substring(1)}';
+                        }
+                        launchUrl(
+                          Uri.parse('https://wa.me/$phone'),
+                          mode: LaunchMode.externalApplication,
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              if (p['notes'] != null && p['notes'] != '') Text(p['notes']),
+              if (p['family'] != null) Text('العائلة: ${s.name(p['family'])}'),
+              if (financial)
+                FutureBuilder<List<int>>(
+                  future: Future.wait(
+                    Currency.values.map((v) => s.balance(id, v)),
+                  ),
+                  builder: (c, snapshot) => Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: pair(
+                      AmountBox(
+                        'رصيد USD',
+                        snapshot.hasData
+                            ? Currency.USD.format(snapshot.data![0])
+                            : '…',
+                      ),
+                      AmountBox(
+                        'رصيد IQD',
+                        snapshot.hasData
+                            ? Currency.IQD.format(snapshot.data![1])
+                            : '…',
+                      ),
+                    ),
+                  ),
+                ),
+              if (financial)
+                const Text('الموجب مستحق؛ السالب رصيد لصالح الحساب.'),
+            ]),
+            if (financial)
+              Wrap(
+                spacing: 8,
+                children: [
+                  FilledButton.icon(
+                    onPressed: () => newEntry(
+                      c,
+                      s,
+                      'settlement',
+                      party: id,
+                      supplier: p['kind'] == 'supplier',
+                    ),
+                    icon: const Icon(Icons.swap_horiz),
+                    label: const Text('تسوية'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.push(
+                      c,
+                      MaterialPageRoute(builder: (_) => StatementPage(s, id)),
+                    ),
+                    icon: const Icon(Icons.description_outlined),
+                    label: const Text('كشف الحساب'),
+                  ),
+                  TextButton(
+                    onPressed: () => newEntry(
+                      c,
+                      s,
+                      'opening',
+                      party: id,
+                      supplier: p['kind'] == 'supplier',
+                    ),
+                    child: const Text('رصيد افتتاحي'),
+                  ),
+                ],
+              ),
+            if (!financial)
+              ...s.parties
+                  .where((r) => r['family'] == id || r['customer'] == id)
+                  .map(
+                    (r) => ListTile(
+                      title: Text(r['name']),
+                      onTap: () => Navigator.push(
+                        c,
+                        MaterialPageRoute(
+                          builder: (_) => AccountPage(s, r['id']),
+                        ),
+                      ),
+                    ),
+                  ),
+            if (financial)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'حركة الحساب',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'تبديل عرض الجدول',
+                      onPressed: () =>
+                          s.set('table_$id', s.settings['table_$id'] != true),
+                      icon: const Icon(Icons.table_chart_outlined),
+                    ),
+                  ],
+                ),
+              ),
+            if (s.settings['table_$id'] == true)
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  columns: const [
+                    DataColumn(label: Text('التاريخ')),
+                    DataColumn(label: Text('العملية')),
+                    DataColumn(label: Text('الحركة')),
+                  ],
+                  rows: history
+                      .map(
+                        (e) => DataRow(
+                          cells: [
+                            DataCell(Text(e.date)),
+                            DataCell(
+                              Text('#${e.id} ${types[e.kind]}'),
+                              onTap: () => Navigator.push(
+                                c,
+                                MaterialPageRoute(
+                                  builder: (_) => EntryDetail(s, e),
+                                ),
+                              ),
+                            ),
+                            DataCell(
+                              Text(e.currency.format(s.movement(e, id))),
+                            ),
+                          ],
+                        ),
+                      )
+                      .toList(),
+                ),
+              )
+            else
+              ...history.reversed.map((e) => EntryTile(s, e)),
+            if ((p['attachments'] as List? ?? []).isNotEmpty)
+              Section(
+                'المرفقات',
+                List<String>.from(p['attachments'])
+                    .map(
+                      (path) => ListTile(
+                        title: const Text('فتح المرفق'),
+                        leading: const Icon(Icons.attach_file),
+                        onTap: () => openAttachment(c, path),
+                      ),
+                    )
+                    .toList(),
+              ),
+            TextButton(
+              onPressed: () async {
+                final yes = await showDialog<bool>(
+                  context: c,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('أرشفة الحساب؟'),
+                    content: const Text(
+                      'يبقى تاريخه المالي محفوظًا ويمكن استعادته من المحذوفات.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('إلغاء'),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('أرشفة'),
+                      ),
+                    ],
+                  ),
+                );
+                if (yes == true) {
+                  await s.archiveParty(id, true);
+                  if (c.mounted) Navigator.pop(c);
+                }
+              },
+              child: const Text('أرشفة الحساب'),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+class SearchPage extends StatefulWidget {
+  final Store s;
+  const SearchPage(this.s, {super.key});
+  @override
+  State<SearchPage> createState() => _SearchPageState();
+}
+
+class _SearchPageState extends State<SearchPage> {
+  String query = '';
+  @override
+  Widget build(BuildContext c) {
+    final s = widget.s;
+    final tokens = normalize(
+      query,
+    ).split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+    bool matches(String v) => tokens.every((t) => normalize(v).contains(t));
+    final parties = query.trim().isEmpty
+        ? <Map<String, dynamic>>[]
+        : s.parties
+              .where(
+                (r) =>
+                    r['archived'] == 0 && matches('${r['name']} ${r['phone']}'),
+              )
+              .toList();
+    final entries = query.trim().isEmpty
+        ? <Entry>[]
+        : s.entries.where((e) {
+            final d = e.data;
+            final customer = s.parties
+                .where((p) => p['id'] == d['customer'])
+                .firstOrNull;
+            return matches(
+              '${e.id} ${types[e.kind]} ${customer?['name'] ?? ''} ${customer?['phone'] ?? ''} ${s.name(d['supplier'])} ${d['pnr'] ?? ''} ${d['hotelName'] ?? ''} ${s.reference(d['airline'])} ${s.reference(d['city'])} ${s.reference(d['from'])} ${s.reference(d['to'])}',
+            );
+          }).toList();
+    return Scaffold(
+      appBar: AppBar(title: const Text('البحث الموحّد')),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: TextField(
+              autofocus: true,
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                hintText: 'اسم، هاتف، PNR، أو رقم العملية',
+              ),
+              onChanged: (v) => setState(() => query = v),
+            ),
+          ),
+          Expanded(
+            child: query.trim().isEmpty
+                ? const EmptyState(
+                    'كل مكتبك في بحث واحد',
+                    'ابحث عن حساب أو عملية وافتح النتيجة مباشرة.',
+                    icon: Icons.search_rounded,
+                  )
+                : parties.isEmpty && entries.isEmpty
+                ? const EmptyState(
+                    'لا توجد نتائج',
+                    'جرّب جزءًا من الاسم أو الرقم.',
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: parties.length + entries.length,
+                    itemBuilder: (c, i) {
+                      if (i < parties.length) {
+                        final p = parties[i];
+                        return Card(
+                          child: ListTile(
+                            leading: const Icon(Icons.person_outline),
+                            title: Text(p['name']),
+                            subtitle: Text(p['phone']),
+                            onTap: () => Navigator.push(
+                              c,
+                              MaterialPageRoute(
+                                builder: (_) => AccountPage(s, p['id']),
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+                      return EntryTile(s, entries[i - parties.length]);
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
