@@ -457,13 +457,19 @@ class _PartiesPageState extends State<PartiesPage> {
       final rows = widget.s
           .list(widget.kind)
           .where((r) => normalize('${r['name']} ${r['phone']}').contains(query))
-          .toList();
+          .toList()
+        ..sort((a, b) {
+          final favorite = (b['favorite'] == true ? 1 : 0)
+              .compareTo(a['favorite'] == true ? 1 : 0);
+          if (favorite != 0) return favorite;
+          return partyDisplayName(a).compareTo(partyDisplayName(b));
+        });
       return Scaffold(
         appBar: AppBar(
           title: Text(
             {
               'customer': 'الزبائن',
-              'supplier': 'جهات الإصدار',
+              'supplier': 'جهات الإصدار / الموردون',
               'passenger': 'المسافرون',
               'family': 'العائلات',
             }[widget.kind]!,
@@ -507,12 +513,25 @@ class _PartiesPageState extends State<PartiesPage> {
                               avatar: r['avatar'],
                             ),
                             title: Text(partyDisplayName(r)),
-                            subtitle: Text(
-                              r['phone'] == ''
-                                  ? (r['notes'] ?? '')
-                                  : r['phone'],
+                            subtitle: r['phone'] == ''
+                                ? Text(r['notes'] ?? '')
+                                : InkWell(
+                                    onTap: () => phoneActions(c, r['phone']),
+                                    child: Text(
+                                      r['phone'],
+                                      style: const TextStyle(
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                  ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (r['favorite'] == true)
+                                  const Icon(Icons.star, color: Colors.amber, size: 20),
+                                const Icon(Icons.chevron_left),
+                              ],
                             ),
-                            trailing: const Icon(Icons.chevron_left),
                             onTap: () => Navigator.push(
                               c,
                               MaterialPageRoute(
@@ -544,8 +563,20 @@ class AccountPage extends StatelessWidget {
       final history = s.history(id);
       return Scaffold(
         appBar: AppBar(
-          title: Text(p['name']),
+          title: Text(partyDisplayName(p)),
           actions: [
+            if (financial)
+              IconButton(
+                tooltip: p['favorite'] == true ? 'إزالة من المفضلة' : 'إضافة للمفضلة',
+                onPressed: () => s.saveParty(
+                  {...p, 'favorite': p['favorite'] != true},
+                  id: id,
+                ),
+                icon: Icon(
+                  p['favorite'] == true ? Icons.star : Icons.star_border,
+                  color: p['favorite'] == true ? Colors.amber : null,
+                ),
+              ),
             IconButton(
               onPressed: () => editParty(c, s, p['kind'], party: p),
               icon: const Icon(Icons.edit_outlined),
@@ -847,9 +878,22 @@ class _SearchPageState extends State<SearchPage> {
                         final p = parties[i];
                         return Card(
                           child: ListTile(
-                            leading: const Icon(Icons.person_outline),
-                            title: Text(p['name']),
-                            subtitle: Text(p['phone']),
+                            leading: ProfileAvatar(
+                              imagePath: p['profileImage'],
+                              avatar: p['avatar'],
+                            ),
+                            title: Text(partyDisplayName(p)),
+                            subtitle: p['phone'] == ''
+                                ? null
+                                : InkWell(
+                                    onTap: () => phoneActions(c, p['phone']),
+                                    child: Text(
+                                      p['phone'],
+                                      style: const TextStyle(
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                  ),
                             onTap: () => Navigator.push(
                               c,
                               MaterialPageRoute(
