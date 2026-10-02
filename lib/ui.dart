@@ -173,8 +173,9 @@ class ThousandsSeparatorFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    final normalized = normalize(newValue.text);
-    final digits = normalized.replaceAll(RegExp(r'[^0-9]'), '');
+    final normalized = normalize(newValue.text).replaceAll('٫', '.');
+    final whole = normalized.split('.').first;
+    final digits = whole.replaceAll(RegExp(r'[^0-9]'), '');
     if (digits.isEmpty) {
       return const TextEditingValue(text: '');
     }
