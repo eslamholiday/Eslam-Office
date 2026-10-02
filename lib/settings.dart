@@ -809,7 +809,7 @@ class ReferencePage extends StatelessWidget {
                   if (mode == 'percent')
                     textField(rate, 'العمولة الافتراضية %', number: true)
                   else
-                    textField(fee, 'رسم الإصدار للوحدة', number: true),
+                    textField(fee, 'رسم الإصدار للوحدة', number: true, grouped: true),
                 ],
               ],
             ),
@@ -946,7 +946,7 @@ class _RulesPageState extends State<RulesPage> {
               onChanged: (v) => setState(() => currency = v!),
             ),
             const SizedBox(height: 12),
-            textField(fee, 'رسم إصدار التذكرة الواحدة', number: true),
+            textField(fee, 'رسم إصدار التذكرة الواحدة', number: true, grouped: true),
           ],
           FilledButton(
             onPressed: () => guarded(c, () async {
