@@ -26,6 +26,33 @@ int displayConvert(
       : roundedRatio(amount * 10000, dinarsPer100Dollars);
 }
 
+List<String?> quickDateRange(String key) {
+  final now = DateTime.now();
+  DateTime? start;
+  DateTime? end;
+  switch (key) {
+    case 'today':
+      start = DateTime(now.year, now.month, now.day);
+      end = start;
+    case 'week':
+      start = DateTime(now.year, now.month, now.day)
+          .subtract(Duration(days: now.weekday - 1));
+      end = DateTime(now.year, now.month, now.day);
+    case 'month':
+      start = DateTime(now.year, now.month, 1);
+      end = DateTime(now.year, now.month + 1, 0);
+    case 'previous':
+      start = DateTime(now.year, now.month - 1, 1);
+      end = DateTime(now.year, now.month, 0);
+    case 'year':
+      start = DateTime(now.year, 1, 1);
+      end = DateTime(now.year, 12, 31);
+    default:
+      return <String?>[null, null];
+  }
+  return <String?>[day(start), day(end)];
+}
+
 class StatementPage extends StatefulWidget {
   final Store s;
   final int party;
@@ -36,7 +63,17 @@ class StatementPage extends StatefulWidget {
 
 class _StatementPageState extends State<StatementPage> {
   String mode = 'original';
+  String quickRange = 'all';
   String? from, to;
+
+  void applyQuickRange(String key) {
+    final values = quickDateRange(key);
+    setState(() {
+      quickRange = key;
+      from = values[0];
+      to = values[1];
+    });
+  }
   final rate = TextEditingController(text: '150000'),
       fee = TextEditingController(text: '0');
   @override
@@ -191,9 +228,42 @@ class _StatementPageState extends State<StatementPage> {
             onChanged: (v) => setState(() => mode = v!),
           ),
           const SizedBox(height: 18),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: const {
+              'all': 'من البداية',
+              'today': 'اليوم',
+              'week': 'هذا الأسبوع',
+              'month': 'هذا الشهر',
+              'previous': 'الشهر السابق',
+              'year': 'هذه السنة',
+            }.entries.map(
+              (item) => ChoiceChip(
+                label: Text(item.value),
+                selected: quickRange == item.key,
+                onSelected: (_) => applyQuickRange(item.key),
+              ),
+            ).toList(),
+          ),
+          const SizedBox(height: 12),
           pair(
-            DateField('من تاريخ', from, (v) => setState(() => from = v)),
-            DateField('إلى تاريخ', to, (v) => setState(() => to = v)),
+            DateField(
+              'من تاريخ',
+              from,
+              (v) => setState(() {
+                from = v;
+                quickRange = 'custom';
+              }),
+            ),
+            DateField(
+              'إلى تاريخ',
+              to,
+              (v) => setState(() {
+                to = v;
+                quickRange = 'custom';
+              }),
+            ),
           ),
           if (mode.startsWith('all'))
             pair(
@@ -474,8 +544,18 @@ class ReportsPage extends StatefulWidget {
 
 class _ReportsPageState extends State<ReportsPage> {
   Currency currency = Currency.USD;
+  String quickRange = 'all';
   String? from, to, kind;
   int? customer, supplier;
+
+  void applyQuickRange(String key) {
+    final values = quickDateRange(key);
+    setState(() {
+      quickRange = key;
+      from = values[0];
+      to = values[1];
+    });
+  }
   @override
   Widget build(BuildContext c) {
     final rows = widget.s.entries
@@ -572,9 +652,42 @@ class _ReportsPageState extends State<ReportsPage> {
               onSelectionChanged: (v) => setState(() => currency = v.first),
             ),
             const SizedBox(height: 16),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: const {
+                'all': 'الكل',
+                'today': 'اليوم',
+                'week': 'هذا الأسبوع',
+                'month': 'هذا الشهر',
+                'previous': 'الشهر السابق',
+                'year': 'هذه السنة',
+              }.entries.map(
+                (item) => ChoiceChip(
+                  label: Text(item.value),
+                  selected: quickRange == item.key,
+                  onSelected: (_) => applyQuickRange(item.key),
+                ),
+              ).toList(),
+            ),
+            const SizedBox(height: 12),
             pair(
-              DateField('من تاريخ', from, (v) => setState(() => from = v)),
-              DateField('إلى تاريخ', to, (v) => setState(() => to = v)),
+              DateField(
+                'من تاريخ',
+                from,
+                (v) => setState(() {
+                  from = v;
+                  quickRange = 'custom';
+                }),
+              ),
+              DateField(
+                'إلى تاريخ',
+                to,
+                (v) => setState(() {
+                  to = v;
+                  quickRange = 'custom';
+                }),
+              ),
             ),
             PickField(
               'الزبون',
