@@ -396,11 +396,11 @@ class _HomePageState extends State<HomePage> {
               ),
               child: Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        const Text(
                           'أهلًا إسلام',
                           style: TextStyle(
                             color: Colors.white,
@@ -408,20 +408,22 @@ class _HomePageState extends State<HomePage> {
                             fontWeight: FontWeight.w800,
                           ),
                         ),
-                        SizedBox(height: 6),
-                        Text(
+                        const SizedBox(height: 6),
+                        const Text(
                           'مكتبك، حساباتك، وكل تفاصيل السفر',
                           style: TextStyle(color: Colors.white70, fontSize: 12),
                         ),
-                        SizedBox(height: 14),
-                        Text(
-                          'E S L A M   O F F I C E',
-                          style: TextStyle(
-                            color: gold,
-                            fontSize: 10,
-                            letterSpacing: 1,
+                        if (s.settings['showEnglishLabels'] != false) ...[
+                          const SizedBox(height: 14),
+                          const Text(
+                            'E S L A M   O F F I C E',
+                            style: TextStyle(
+                              color: gold,
+                              fontSize: 10,
+                              letterSpacing: 1,
+                            ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
                   ),
@@ -479,6 +481,20 @@ class _HomePageState extends State<HomePage> {
                   )
                   .toList(),
             ),
+            if (s.settings['showHomeStats'] != false) ...[
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  Chip(label: Text('${s.entries.where((e) => e.posted).length} عملية')),
+                  Chip(label: Text('${s.entries.where((e) => e.posted && e.kind == 'ticket').length} تذكرة')),
+                  Chip(label: Text('${s.entries.where((e) => e.posted && e.kind == 'hotel').length} فندق')),
+                  Chip(label: Text('${s.entries.where((e) => e.posted && e.kind == 'visa').length} فيزا')),
+                  Chip(label: Text('${s.list('customer').length} زبون')),
+                ],
+              ),
+            ],
             const SizedBox(height: 24),
             Row(
               children: [
