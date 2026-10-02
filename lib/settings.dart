@@ -338,6 +338,12 @@ class LayoutPage extends StatelessWidget {
       final cards = List<String>.from(
         s.settings['homeCards'] ?? ['owed', 'credit', 'profit', 'sale'],
       );
+      final hiddenCards = List<String>.from(
+        s.settings['homeCardsHidden'] ?? const <String>[],
+      );
+      final hiddenShortcuts = List<String>.from(
+        s.settings['homeShortcutHidden'] ?? const <String>[],
+      );
       return Scaffold(
         appBar: AppBar(title: const Text('الرئيسية والتنقل')),
         body: ListView(
@@ -388,7 +394,7 @@ class LayoutPage extends StatelessWidget {
                     .toList(),
               ),
             ]),
-            Section('ترتيب بطاقات الرئيسية بالسحب', [
+            Section('ترتيب وإظهار بطاقات الرئيسية', [
               ReorderableListView(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -400,9 +406,9 @@ class LayoutPage extends StatelessWidget {
                 },
                 children: cards
                     .map(
-                      (key) => ListTile(
+                      (key) => CheckboxListTile(
                         key: ValueKey(key),
-                        leading: const Icon(Icons.drag_handle),
+                        secondary: const Icon(Icons.drag_handle),
                         title: Text(
                           {
                             'owed': 'المطلوب من الزبائن',
@@ -411,14 +417,42 @@ class LayoutPage extends StatelessWidget {
                             'sale': 'مبيعات الخدمات',
                           }[key]!,
                         ),
+                        value: !hiddenCards.contains(key),
+                        onChanged: (v) {
+                          v == true ? hiddenCards.remove(key) : hiddenCards.add(key);
+                          s.set('homeCardsHidden', hiddenCards);
+                        },
                       ),
                     )
                     .toList(),
               ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('إظهار الإحصاءات المختصرة'),
+                value: s.settings['showHomeStats'] != false,
+                onChanged: (v) => s.set('showHomeStats', v),
+              ),
+            ]),
+            Section('اختصارات الإضافة على الرئيسية', [
+              for (final key in ['ticket', 'hotel', 'visa', 'settlement', 'expense'])
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(types[key]!),
+                  value: !hiddenShortcuts.contains(key),
+                  onChanged: (v) {
+                    v == true
+                        ? hiddenShortcuts.remove(key)
+                        : hiddenShortcuts.add(key);
+                    s.set('homeShortcutHidden', hiddenShortcuts);
+                  },
+                ),
             ]),
             OutlinedButton(
               onPressed: () async {
                 await s.set('homeCards', ['owed', 'credit', 'profit', 'sale']);
+                await s.set('homeCardsHidden', []);
+                await s.set('homeShortcutHidden', []);
+                await s.set('showHomeStats', true);
                 await s.set('navOrder', navLabels.keys.toList());
                 await s.set('navHidden', []);
                 await s.set('start', 'home');
