@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:open_filex/open_filex.dart';
@@ -163,10 +165,33 @@ Widget pair(Widget a, Widget b) => Padding(
     ],
   ),
 );
+class ThousandsSeparatorFormatter extends TextInputFormatter {
+  const ThousandsSeparatorFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final normalized = normalize(newValue.text);
+    final digits = normalized.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) {
+      return const TextEditingValue(text: '');
+    }
+    final value = int.tryParse(digits) ?? 0;
+    final formatted = NumberFormat('#,##0', 'en').format(value);
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
 Widget textField(
   TextEditingController controller,
   String label, {
   bool number = false,
+  bool grouped = false,
   ValueChanged<String>? onChanged,
   int lines = 1,
 }) => Padding(
@@ -178,6 +203,7 @@ Widget textField(
         ? const TextInputType.numberWithOptions(decimal: true)
         : null,
     textDirection: number ? TextDirection.ltr : null,
+    inputFormatters: grouped ? const [ThousandsSeparatorFormatter()] : null,
     scrollPadding: const EdgeInsets.only(bottom: 140),
     onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
     onChanged: onChanged,
