@@ -99,7 +99,7 @@ class EntryTile extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
       ),
       subtitle: Text(
-        '#${e.id} • ${e.date} • ${entryStatus(s, e)}'
+        '#${e.id} • ${displayDate(e.date)} • ${entryStatus(s, e)}'
         '${(e.data['attachments'] as List? ?? const []).isEmpty ? '' : ' • 📎 ${(e.data['attachments'] as List).length}'}',
       ),
       trailing: Text(
@@ -276,7 +276,7 @@ class EntryDetail extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         children: [
           Section(e.posted ? 'عملية معتمدة' : 'مسودة', [
-            Text('التاريخ: ${e.date} • ${e.currency.name}'),
+            Text('التاريخ: ${displayDate(e.date)} • ${e.currency.name}'),
             if (e.data['customer'] != null)
               ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -739,7 +739,7 @@ class AccountPage extends StatelessWidget {
                       .map(
                         (e) => DataRow(
                           cells: [
-                            DataCell(Text(e.date)),
+                            DataCell(Text(displayDate(e.date, weekday: false))),
                             DataCell(
                               Text('#${e.id} ${types[e.kind]}'),
                               onTap: () => Navigator.push(
