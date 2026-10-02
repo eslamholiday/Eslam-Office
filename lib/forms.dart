@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_contacts/flutter_contacts.dart';
 import 'domain.dart';
 import 'store.dart';
 import 'ui.dart';
@@ -35,6 +34,8 @@ class _PartyFormState extends State<PartyForm> {
   late List<String> attachments = List<String>.from(
     widget.party?['attachments'] ?? [],
   );
+  late String? profileImage = widget.party?['profileImage'];
+  late String? avatar = widget.party?['avatar'];
   bool busy = false;
   @override
   void dispose() {
@@ -53,40 +54,13 @@ class _PartyFormState extends State<PartyForm> {
       ),
     ),
     body: ListView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.all(12),
       children: [
         Section('البيانات الأساسية', [
           textField(name, 'الاسم'),
           if (widget.kind != 'family') ...[
-            Row(
-              children: [
-                Expanded(child: textField(phone, 'رقم الهاتف', number: true)),
-                IconButton(
-                  tooltip: 'اختيار من جهات الاتصال',
-                  onPressed: () => guarded(c, () async {
-                    if (!await FlutterContacts.requestPermission(
-                      readonly: true,
-                    )) {
-                      return;
-                    }
-                    final picked = await FlutterContacts.openExternalPick();
-                    if (picked != null) {
-                      final full = await FlutterContacts.getContact(
-                        picked.id,
-                        withProperties: true,
-                      );
-                      if (full != null) {
-                        setState(() {
-                          if (name.text.isEmpty) name.text = full.displayName;
-                          phone.text = full.phones.firstOrNull?.number ?? '';
-                        });
-                      }
-                    }
-                  }),
-                  icon: const Icon(Icons.contacts_outlined),
-                ),
-              ],
-            ),
+            textField(phone, 'رقم الهاتف', number: true),
             if (widget.kind != 'supplier')
               PickField(
                 'العائلة',
@@ -108,6 +82,17 @@ class _PartyFormState extends State<PartyForm> {
           ],
           textField(notes, 'ملاحظات', lines: 3),
         ]),
+        if (widget.kind == 'customer' || widget.kind == 'supplier')
+          Section('صورة / شخصية الحساب', [
+            ProfilePicker(
+              imagePath: profileImage,
+              avatar: avatar,
+              onChanged: (image, selectedAvatar) => setState(() {
+                profileImage = image;
+                avatar = selectedAvatar;
+              }),
+            ),
+          ]),
         Section('المرفقات', [
           Attachments(attachments, (v) => setState(() => attachments = v)),
         ]),
@@ -133,6 +118,8 @@ class _PartyFormState extends State<PartyForm> {
                       'family': family,
                       'customer': customer,
                       'attachments': attachments,
+                      'profileImage': profileImage,
+                      'avatar': avatar,
                     }, id: widget.party?['id']);
                     if (c.mounted) Navigator.pop(c, id);
                   } catch (e) {
@@ -202,7 +189,6 @@ class _EntryFormState extends State<EntryForm> {
       d[widget.supplier ? 'supplier' : 'customer'] = widget.party;
     }
     for (final key in [
-      'pnr',
       'notes',
       'hotelName',
       'meals',
@@ -258,7 +244,6 @@ class _EntryFormState extends State<EntryForm> {
   Map<String, dynamic> collect() {
     final v = Map<String, dynamic>.from(d);
     for (final key in [
-      'pnr',
       'notes',
       'hotelName',
       'meals',
@@ -356,7 +341,6 @@ class _EntryFormState extends State<EntryForm> {
       'to': pick('to', 'مدينة الوصول', 'city'),
       'depart': date('depart', 'تاريخ الذهاب'),
       'return': date('return', 'تاريخ العودة'),
-      'pnr': field('pnr', 'PNR (اختياري)'),
       'city': pick('city', 'المدينة', 'city'),
       'meals': field('meals', 'الوجبات'),
       'rooms': field('rooms', 'عدد الغرف', number: true),
@@ -375,8 +359,7 @@ class _EntryFormState extends State<EntryForm> {
         'to',
         'depart',
         'return',
-        'pnr',
-      ],
+        ],
       'hotel' => ['passenger', 'country', 'city', 'rooms', 'people', 'meals'],
       'visa' => [
         'passenger',
