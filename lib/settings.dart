@@ -977,7 +977,11 @@ class AuditPage extends StatelessWidget {
       final payload = Map<String, dynamic>.from(
         jsonDecode((row['payload'] ?? '{}').toString()),
       );
-      return payload['undoType'] == 'forceDeleteEntry';
+      return const {
+        'forceDeleteEntry',
+        'restoreParty',
+        'restoreRef',
+      }.contains(payload['undoType']);
     } catch (_) {
       return false;
     }
@@ -1006,6 +1010,31 @@ class AuditPage extends StatelessWidget {
                   subtitle: Text(
                     r['date'].toString().substring(0, 16).replaceAll('T', ' '),
                   ),
+                  onTap: () {
+                    try {
+                      final payload = Map<String, dynamic>.from(
+                        jsonDecode((r['payload'] ?? '{}').toString()),
+                      );
+                      if (payload['before'] == null && payload['after'] == null) return;
+                      showDialog<void>(
+                        context: c,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('تفاصيل التعديل'),
+                          content: SingleChildScrollView(
+                            child: SelectableText(
+                              'قبل:\n${payload['before'] ?? '—'}\n\nبعد:\n${payload['after'] ?? '—'}',
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('إغلاق'),
+                            ),
+                          ],
+                        ),
+                      );
+                    } catch (_) {}
+                  },
                   trailing: canUndo(r)
                       ? TextButton.icon(
                           onPressed: () => guarded(c, () async {
