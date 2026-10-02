@@ -14,7 +14,8 @@ extension CurrencyInfo on Currency {
 
   /// Monetary inputs are intentionally shown as whole units in the UI.
   /// The ledger still stores USD as integer cents and IQD as integer dinars.
-  String input(int minor) => roundedRatio(minor, scale).toString();
+  String input(int minor) =>
+      NumberFormat('#,##0', 'en').format(roundedRatio(minor, scale));
 }
 
 String normalize(String s) {
