@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' show NumberFormat;
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:open_filex/open_filex.dart';
@@ -390,7 +390,7 @@ class ProfileAvatar extends StatelessWidget {
     return CircleAvatar(
       radius: radius,
       backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: .12),
-      backgroundImage: hasImage ? FileImage(file!) : null,
+      backgroundImage: hasImage ? FileImage(file) : null,
       child: hasImage
           ? null
           : Text(
