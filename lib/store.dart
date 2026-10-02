@@ -15,9 +15,16 @@ class Store extends ChangeNotifier {
     final db = await f.openDatabase(
       location,
       options: OpenDatabaseOptions(
-        version: 1,
+        version: 2,
         onConfigure: (d) async {
           await d.execute('PRAGMA foreign_keys=ON');
+        },
+        onUpgrade: (d, oldVersion, newVersion) async {
+          if (oldVersion < 2) {
+            await d.execute(
+              "ALTER TABLE audit ADD COLUMN payload TEXT NOT NULL DEFAULT '{}'",
+            );
+          }
         },
         onCreate: (d, v) async {
           await d.execute(
@@ -45,7 +52,7 @@ class Store extends ChangeNotifier {
             'CREATE TABLE settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)',
           );
           await d.execute(
-            'CREATE TABLE audit(id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, action TEXT NOT NULL, target TEXT NOT NULL)',
+            "CREATE TABLE audit(id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, action TEXT NOT NULL, target TEXT NOT NULL, payload TEXT NOT NULL DEFAULT '{}')",
           );
           for (final pair in {
             'airline': [
@@ -183,16 +190,22 @@ class Store extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> audit(DatabaseExecutor d, String action, String target) =>
+  Future<void> audit(
+    DatabaseExecutor d,
+    String action,
+    String target, {
+    Map<String, dynamic>? payload,
+  }) =>
       d.insert('audit', {
         'date': DateTime.now().toIso8601String(),
         'action': action,
         'target': target,
+        'payload': jsonEncode(payload ?? const <String, dynamic>{}),
       });
   Future<int> saveParty(Map<String, dynamic> p, {int? id}) async {
     final values = {
       'kind': p['kind'],
-      'name': p['name'] ?? 'بدون اسم',
+      'name': (p['name'] ?? '').toString().trim(),
       'phone': p['phone'] ?? '',
       'payload': jsonEncode(p),
       'archived': p['archived'] ?? 0,
@@ -228,6 +241,17 @@ class Store extends ChangeNotifier {
     Map<String, dynamic> payload, {
     int? id,
   }) async {
+    final normalizedName = normalize(name);
+    final duplicate = refs.where(
+      (r) =>
+          r['kind'] == kind &&
+          r['id'] != id &&
+          r['archived'] == 0 &&
+          normalize(r['name'] as String) == normalizedName,
+    ).firstOrNull;
+    if (duplicate != null) {
+      throw const FormatException('هذا العنصر موجود مسبقاً');
+    }
     final v = {
       'kind': kind,
       'name': name,
@@ -424,6 +448,71 @@ class Store extends ChangeNotifier {
         d['sale'] + d['cost'] == 0) {
       throw const FormatException('مبلغ الاسترجاع يتجاوز المتبقي من العملية');
     }
+  }
+
+
+  Future<void> forceDeleteEntry(Entry entry) async {
+    if (entry.id == null) return;
+    await db.transaction((t) async {
+      final ids = <int>{entry.id!};
+      for (final candidate in entries) {
+        if (candidate.id != null &&
+            (candidate.data['original'] == entry.id ||
+                candidate.data['corrects'] == entry.id)) {
+          ids.add(candidate.id!);
+        }
+      }
+      final entryRows = <Map<String, Object?>>[];
+      final ledgerRows = <Map<String, Object?>>[];
+      for (final id in ids) {
+        entryRows.addAll(await t.query('entries', where: 'id=?', whereArgs: [id]));
+        ledgerRows.addAll(await t.query('ledger', where: 'entry_id=?', whereArgs: [id]));
+      }
+      if (entryRows.isEmpty) {
+        throw const FormatException('العملية غير موجودة');
+      }
+      final placeholders = List.filled(ids.length, '?').join(',');
+      await t.delete('ledger', where: 'entry_id IN ($placeholders)', whereArgs: ids.toList());
+      await t.delete('entries', where: 'id IN ($placeholders)', whereArgs: ids.toList());
+      await audit(
+        t,
+        'حذف إجباري',
+        '${entry.id}',
+        payload: {
+          'undoType': 'forceDeleteEntry',
+          'entries': entryRows,
+          'ledger': ledgerRows,
+        },
+      );
+    });
+    await reload();
+  }
+
+  Future<void> undoAudit(int auditId) async {
+    await db.transaction((t) async {
+      final rows = await t.query('audit', where: 'id=?', whereArgs: [auditId]);
+      if (rows.isEmpty) throw const FormatException('سجل التعديل غير موجود');
+      final raw = rows.first['payload'] as String? ?? '{}';
+      final payload = Map<String, dynamic>.from(jsonDecode(raw));
+      if (payload['undoType'] != 'forceDeleteEntry') {
+        throw const FormatException('هذا التعديل لا يدعم التراجع');
+      }
+      final restoredEntries = (payload['entries'] as List? ?? const [])
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      final restoredLedger = (payload['ledger'] as List? ?? const [])
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      for (final row in restoredEntries) {
+        await t.insert('entries', row, conflictAlgorithm: ConflictAlgorithm.abort);
+      }
+      for (final row in restoredLedger) {
+        await t.insert('ledger', row, conflictAlgorithm: ConflictAlgorithm.abort);
+      }
+      await t.delete('audit', where: 'id=?', whereArgs: [auditId]);
+      await audit(t, 'تراجع عن الحذف الإجباري', '${rows.first['target']}');
+    });
+    await reload();
   }
 
   Future<void> deleteDraft(Entry e) async {
