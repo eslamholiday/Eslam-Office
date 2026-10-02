@@ -6,10 +6,15 @@ enum Currency { USD, IQD }
 extension CurrencyInfo on Currency {
   int get scale => this == Currency.USD ? 100 : 1;
   String get symbol => this == Currency.USD ? r'$' : 'د.ع';
-  String format(int minor) =>
-      '${NumberFormat(this == Currency.USD ? '#,##0.00' : '#,##0', 'en').format(minor / scale)} $symbol';
-  String input(int minor) =>
-      (minor / scale).toStringAsFixed(this == Currency.USD ? 2 : 0);
+  String format(int minor) {
+    final whole = roundedRatio(minor, scale);
+    final value = NumberFormat('#,##0', 'en').format(whole);
+    return this == Currency.USD ? '\$ $value' : '$value د.ع';
+  }
+
+  /// Monetary inputs are intentionally shown as whole units in the UI.
+  /// The ledger still stores USD as integer cents and IQD as integer dinars.
+  String input(int minor) => roundedRatio(minor, scale).toString();
 }
 
 String normalize(String s) {
