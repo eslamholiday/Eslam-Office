@@ -32,7 +32,7 @@ const navLabels = {
   'home': 'الرئيسية',
   'entries': 'العمليات',
   'customers': 'الزبائن',
-  'suppliers': 'جهات الإصدار',
+  'suppliers': 'جهات الإصدار / الموردون',
   'reports': 'التقارير',
 };
 const fieldNames = {
@@ -42,7 +42,6 @@ const fieldNames = {
   'to': 'الوصول',
   'depart': 'الذهاب',
   'return': 'العودة',
-  'pnr': 'PNR',
   'city': 'المدينة',
   'rooms': 'الغرف',
   'people': 'الأشخاص',
@@ -54,7 +53,7 @@ const fieldNames = {
   'entriesCount': 'الدخولات',
 };
 const fieldGroups = {
-  'ticket': ['passenger', 'country', 'from', 'to', 'depart', 'return', 'pnr'],
+  'ticket': ['passenger', 'country', 'from', 'to', 'depart', 'return'],
   'hotel': ['passenger', 'country', 'city', 'rooms', 'people', 'meals'],
   'visa': [
     'passenger',
@@ -85,14 +84,14 @@ class SettingsPage extends StatelessWidget {
               Icons.palette_outlined,
               AppearancePage(s),
             ),
+          ]),
+          Section('الواجهات والأقسام', [
             tile(
               c,
               'الرئيسية وشريط التنقل',
               Icons.dashboard_customize_outlined,
               LayoutPage(s),
             ),
-          ]),
-          Section('الواجهات والأقسام', [
             for (final kind in ['ticket', 'hotel', 'visa'])
               tile(
                 c,
@@ -291,6 +290,12 @@ class AppearancePage extends StatelessWidget {
               title: const Text('تقليل الحركة'),
               value: s.settings['reduceMotion'] == true,
               onChanged: (v) => s.set('reduceMotion', v),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('إظهار العناوين الإنجليزية الثانوية'),
+              value: s.settings['showEnglishLabels'] != false,
+              onChanged: (v) => s.set('showEnglishLabels', v),
             ),
           ]),
           Padding(
@@ -503,6 +508,65 @@ class FieldSettings extends StatelessWidget {
               ),
             ]),
             Section('ترتيب وإظهار الحقول الاختيارية', [
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton(
+                    onPressed: () => s.set('hidden_$kind', <String>[]),
+                    child: const Text('إظهار الكل'),
+                  ),
+                  OutlinedButton(
+                    onPressed: () => s.set(
+                      'hidden_$kind',
+                      List<String>.from(fieldGroups[kind] ?? const <String>[]),
+                    ),
+                    child: const Text('إخفاء الاختياري'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      final visible = order
+                          .where((key) => !hidden.contains(key))
+                          .map((key) => fieldNames[key] ?? key)
+                          .toList();
+                      showDialog<void>(
+                        context: c,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('معاينة ترتيب النموذج'),
+                          content: SizedBox(
+                            width: double.maxFinite,
+                            child: visible.isEmpty
+                                ? const Text('لا توجد حقول اختيارية ظاهرة.')
+                                : ListView.separated(
+                                    shrinkWrap: true,
+                                    itemCount: visible.length,
+                                    separatorBuilder: (_, __) =>
+                                        const Divider(height: 1),
+                                    itemBuilder: (_, i) => ListTile(
+                                      dense: true,
+                                      leading: CircleAvatar(
+                                        radius: 13,
+                                        child: Text('${i + 1}'),
+                                      ),
+                                      title: Text(visible[i]),
+                                    ),
+                                  ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('إغلاق'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.preview_outlined),
+                    label: const Text('معاينة النموذج'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
               ReorderableListView(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
