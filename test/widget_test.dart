@@ -33,7 +33,7 @@ void main() {
     await tester.pumpWidget(RepaintBoundary(key: key, child: OfficeApp(s)));
     await tester.pumpAndSettle();
     expect(find.text('أهلًا إسلام'), findsOneWidget);
-    expect(find.text('جاهز لأول عملية'), findsOneWidget);
+    expect(find.text('نظرة على الحسابات'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.runAsync(() async {
       final boundary =
