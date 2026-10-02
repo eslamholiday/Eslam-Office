@@ -446,7 +446,12 @@ class _HomePageState extends State<HomePage> {
               physics: const NeverScrollableScrollPhysics(),
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
-              children: ['ticket', 'hotel', 'visa', 'settlement']
+              children: ['ticket', 'hotel', 'visa', 'settlement', 'expense']
+                  .where(
+                    (kind) => !List<String>.from(
+                      s.settings['homeShortcutHidden'] ?? const <String>[],
+                    ).contains(kind),
+                  )
                   .map(
                     (kind) => Material(
                       color: kindColor(kind).withValues(alpha: .1),
@@ -541,6 +546,11 @@ class _HomePageState extends State<HomePage> {
                   crossAxisSpacing: 12,
                   mainAxisSpacing: 12,
                   children: order
+                      .where(
+                        (k) => !List<String>.from(
+                          s.settings['homeCardsHidden'] ?? const <String>[],
+                        ).contains(k),
+                      )
                       .map(
                         (k) => AmountBox(
                           {
