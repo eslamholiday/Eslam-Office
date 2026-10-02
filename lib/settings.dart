@@ -665,6 +665,8 @@ class _OfficeSettingsState extends State<OfficeSettings> {
       footer = TextEditingController(
         text: widget.s.settings['footer'] ?? 'جميع الحقوق محفوظة 2026',
       );
+  late String logoAlign = widget.s.settings['logoAlign'] ?? 'right';
+  late String logoSize = widget.s.settings['logoSize'] ?? 'medium';
   @override
   void dispose() {
     for (final c in [office, phone, website, footer]) {
@@ -703,6 +705,28 @@ class _OfficeSettingsState extends State<OfficeSettings> {
               setState(() {});
             },
           ),
+          pair(
+            DropdownButtonFormField<String>(
+              initialValue: logoAlign,
+              decoration: const InputDecoration(labelText: 'محاذاة الشعار'),
+              items: const [
+                DropdownMenuItem(value: 'right', child: Text('يمين')),
+                DropdownMenuItem(value: 'center', child: Text('وسط')),
+                DropdownMenuItem(value: 'left', child: Text('يسار')),
+              ],
+              onChanged: (v) => setState(() => logoAlign = v ?? 'right'),
+            ),
+            DropdownButtonFormField<String>(
+              initialValue: logoSize,
+              decoration: const InputDecoration(labelText: 'حجم الشعار'),
+              items: const [
+                DropdownMenuItem(value: 'small', child: Text('صغير')),
+                DropdownMenuItem(value: 'medium', child: Text('متوسط')),
+                DropdownMenuItem(value: 'large', child: Text('كبير')),
+              ],
+              onChanged: (v) => setState(() => logoSize = v ?? 'medium'),
+            ),
+          ),
         ]),
         FilledButton(
           onPressed: () async {
@@ -711,6 +735,8 @@ class _OfficeSettingsState extends State<OfficeSettings> {
               'phone': phone.text,
               'website': website.text,
               'footer': footer.text,
+              'logoAlign': logoAlign,
+              'logoSize': logoSize,
             }.entries) {
               await widget.s.set(e.key, e.value);
             }
