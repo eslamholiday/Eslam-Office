@@ -363,7 +363,7 @@ class ProfileAvatar extends StatelessWidget {
     return CircleAvatar(
       radius: radius,
       backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: .12),
-      backgroundImage: hasImage ? FileImage(file) : null,
+      backgroundImage: hasImage ? FileImage(file!) : null,
       child: hasImage
           ? null
           : Text(
