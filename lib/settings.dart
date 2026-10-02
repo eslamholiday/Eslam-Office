@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'domain.dart';
@@ -970,23 +971,56 @@ class ArchivePage extends StatelessWidget {
 class AuditPage extends StatelessWidget {
   final Store s;
   const AuditPage(this.s, {super.key});
+
+  bool canUndo(Map<String, dynamic> row) {
+    try {
+      final payload = Map<String, dynamic>.from(
+        jsonDecode((row['payload'] ?? '{}').toString()),
+      );
+      return payload['undoType'] == 'forceDeleteEntry';
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
-  Widget build(BuildContext c) => Scaffold(
-    appBar: AppBar(title: const Text('سجل التعديلات')),
-    body: ListView.builder(
-      itemCount: s.logs.length,
-      itemBuilder: (c, i) {
-        final r = s.logs[i];
-        return ListTile(
-          leading: const Icon(Icons.history),
-          title: Text('${r['action']} #${r['target']}'),
-          subtitle: Text(
-            r['date'].toString().substring(0, 16).replaceAll('T', ' '),
-          ),
-        );
-      },
+  Widget build(BuildContext c) => AnimatedBuilder(
+    animation: s,
+    builder: (c, _) => Scaffold(
+      appBar: AppBar(title: const Text('سجل التعديلات')),
+      body: s.logs.isEmpty
+          ? const Center(
+              child: EmptyState(
+                'لا توجد تعديلات مسجلة',
+                'ستظهر هنا الإضافات والتعديلات والحذف الإجباري.',
+                icon: Icons.history,
+              ),
+            )
+          : ListView.builder(
+              itemCount: s.logs.length,
+              itemBuilder: (c, i) {
+                final r = s.logs[i];
+                return ListTile(
+                  leading: const Icon(Icons.history),
+                  title: Text('${r['action']} • #${r['target']}'),
+                  subtitle: Text(
+                    r['date'].toString().substring(0, 16).replaceAll('T', ' '),
+                  ),
+                  trailing: canUndo(r)
+                      ? TextButton.icon(
+                          onPressed: () => guarded(c, () async {
+                            await s.undoAudit(r['id'] as int);
+                            if (c.mounted) message(c, 'تم التراجع واستعادة العملية');
+                          }),
+                          icon: const Icon(Icons.undo),
+                          label: const Text('تراجع'),
+                        )
+                      : null,
+                );
+              },
+            ),
     ),
-  );
+  ); 
 }
 
 class AboutPage extends StatelessWidget {
