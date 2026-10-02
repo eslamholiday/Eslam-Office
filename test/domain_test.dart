@@ -81,6 +81,11 @@ void main() {
   test('normalized search', () {
     expect(normalize('إِسْلَام ١٢٣'), 'اسلام 123');
   });
+  test('money display uses whole units and thousands separators', () {
+    expect(Currency.USD.format(674400), r'$ 6,744');
+    expect(Currency.IQD.format(2900000), '2,900,000 د.ع');
+    expect(Currency.USD.format(5), r'$ 0');
+  });
   test('display conversion reversible at exact rate', () {
     expect(displayConvert(10000, Currency.USD, Currency.IQD, 150000), 150000);
     expect(displayConvert(150000, Currency.IQD, Currency.USD, 150000), 10000);
