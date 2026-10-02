@@ -249,6 +249,16 @@ class PdfPage extends StatelessWidget {
     } catch (_) {
       /* A missing logo must never prevent a statement. */
     }
+    final logoWidth = switch (s.settings['logoSize']) {
+      'small' => 42.0,
+      'large' => 90.0,
+      _ => 60.0,
+    };
+    final logoAlignment = switch (s.settings['logoAlign']) {
+      'left' => pw.Alignment.centerLeft,
+      'center' => pw.Alignment.center,
+      _ => pw.Alignment.centerRight,
+    };
     doc.addPage(
       pw.MultiPage(
         pageFormat: format,
@@ -258,29 +268,29 @@ class PdfPage extends StatelessWidget {
         header: (_) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.stretch,
           children: [
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text(
-                      s.settings['office'] ?? 'Eslam Holiday',
-                      style: pw.TextStyle(
-                        fontSize: 20,
-                        color: PdfColor.fromInt(0xff123b5d),
-                      ),
-                    ),
-                    pw.Text(
-                      '${s.settings['phone'] ?? '07713414312'}  •  ${s.settings['website'] ?? 'Eslamholiday.com'}',
-                      textDirection: pw.TextDirection.ltr,
-                      style: const pw.TextStyle(fontSize: 9),
-                    ),
-                  ],
+            if (logo != null) ...[
+              pw.Align(
+                alignment: logoAlignment,
+                child: pw.Image(
+                  logo,
+                  width: logoWidth,
+                  height: logoWidth * .82,
+                  fit: pw.BoxFit.contain,
                 ),
-                if (logo != null)
-                  pw.Image(logo, width: 60, height: 50, fit: pw.BoxFit.contain),
-              ],
+              ),
+              pw.SizedBox(height: 8),
+            ],
+            pw.Text(
+              s.settings['office'] ?? 'Eslam Holiday',
+              style: pw.TextStyle(
+                fontSize: 20,
+                color: PdfColor.fromInt(0xff123b5d),
+              ),
+            ),
+            pw.Text(
+              '${s.settings['phone'] ?? '07713414312'}  •  ${s.settings['website'] ?? 'Eslamholiday.com'}',
+              textDirection: pw.TextDirection.ltr,
+              style: const pw.TextStyle(fontSize: 9),
             ),
             pw.SizedBox(height: 12),
             pw.Text(title, style: const pw.TextStyle(fontSize: 16)),
