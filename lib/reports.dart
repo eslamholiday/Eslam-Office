@@ -131,7 +131,9 @@ class _StatementPageState extends State<StatementPage> {
             .join('  |  ');
       }
 
-      rows.add(['—', 'رصيد سابق للفترة', render(openings), render(totals)]);
+      if (widget.s.settings['statementShowPrevious'] != false) {
+        rows.add(['—', 'رصيد سابق للفترة', render(openings), render(totals)]);
+      }
       for (final e in history.where(
         (e) =>
             (from == null || e.date.compareTo(from!) >= 0) &&
@@ -141,10 +143,12 @@ class _StatementPageState extends State<StatementPage> {
         totals[e.currency] = totals[e.currency]! + move;
         final detail = [
           types[e.kind],
-          if (e.data['hotelName'] != null && e.data['hotelName'] != '')
-            e.data['hotelName'],
-          if (e.data['from'] != null) widget.s.reference(e.data['from']),
-          if (e.data['to'] != null) widget.s.reference(e.data['to']),
+          if (widget.s.settings['statementShowTravel'] != false) ...[
+            if (e.data['hotelName'] != null && e.data['hotelName'] != '')
+              e.data['hotelName'],
+            if (e.data['from'] != null) widget.s.reference(e.data['from']),
+            if (e.data['to'] != null) widget.s.reference(e.data['to']),
+          ],
         ].join(' • ');
         rows.add([
           displayDate(e.date, weekday: false),
@@ -157,7 +161,10 @@ class _StatementPageState extends State<StatementPage> {
           render(totals),
         ]);
       }
-      final summary = ['الرصيد النهائي: ${render(totals)}'];
+      final summary = <String>[
+        if (widget.s.settings['statementShowFinal'] != false)
+          'الرصيد النهائي: ${render(totals)}',
+      ];
       if (permille != 0) {
         if (target != null) {
           final total = totals.entries.fold<int>(
@@ -165,24 +172,35 @@ class _StatementPageState extends State<StatementPage> {
             (sum, p) => sum + displayConvert(p.value, p.key, target, exchange),
           );
           final charge = roundedRatio(total * permille, 100000);
-          summary.add('عمولة التحويل ${fee.text}‰: ${target.format(charge)}');
-          summary.add('الإجمالي للعرض: ${target.format(total + charge)}');
+          if (widget.s.settings['statementShowFee'] != false) {
+            summary.add('عمولة التحويل ${fee.text}‰: ${target.format(charge)}');
+          }
+          if (widget.s.settings['statementShowFinal'] != false) {
+            summary.add('الإجمالي للعرض: ${target.format(total + charge)}');
+          }
         } else {
           final fees = {
             for (final p in totals.entries)
               p.key: roundedRatio(p.value * permille, 100000),
           };
-          summary.add('عمولة التحويل ${fee.text}‰: ${render(fees)}');
-          summary.add(
-            'الإجمالي للعرض: ${render({for (final p in totals.entries) p.key: p.value + fees[p.key]!})}',
-          );
+          if (widget.s.settings['statementShowFee'] != false) {
+            summary.add('عمولة التحويل ${fee.text}‰: ${render(fees)}');
+          }
+          if (widget.s.settings['statementShowFinal'] != false) {
+            summary.add(
+              'الإجمالي للعرض: ${render({for (final p in totals.entries) p.key: p.value + fees[p.key]!})}',
+            );
+          }
         }
       }
       final foot = [
-        if (target != null) 'تحويل العرض: 100 USD = $exchange IQD',
-        if (target != null || permille != 0)
+        if (target != null && widget.s.settings['statementShowExchange'] != false)
+          'تحويل العرض: 100 USD = ${Currency.IQD.format(exchange)}',
+        if ((target != null || permille != 0) &&
+            widget.s.settings['statementShowExchange'] != false)
           'التحويل وعمولته للعرض فقط؛ الأرصدة الأصلية محفوظة.',
-        'الفترة: ${from ?? 'من البداية'} — ${to ?? 'كامل السجل'}',
+        'الفترة: ${from == null ? 'من البداية' : displayDate(from, weekday: false)} — '
+            '${to == null ? 'كامل السجل' : displayDate(to, weekday: false)}',
       ];
       if (mounted) {
         await Navigator.push(
@@ -274,6 +292,36 @@ class _StatementPageState extends State<StatementPage> {
               textField(rate, '100 USD = دينار', number: true, grouped: true),
               textField(fee, 'عمولة التحويل ‰', number: true),
             ),
+          ExpansionTile(
+            title: const Text('تفاصيل وأعمدة الكشف'),
+            children: [
+              SwitchListTile(
+                title: const Text('إظهار رصيد أول المدة'),
+                value: widget.s.settings['statementShowPrevious'] != false,
+                onChanged: (v) => widget.s.set('statementShowPrevious', v),
+              ),
+              SwitchListTile(
+                title: const Text('إظهار تفاصيل السفر والخدمة'),
+                value: widget.s.settings['statementShowTravel'] != false,
+                onChanged: (v) => widget.s.set('statementShowTravel', v),
+              ),
+              SwitchListTile(
+                title: const Text('إظهار سعر الصرف عند التحويل'),
+                value: widget.s.settings['statementShowExchange'] != false,
+                onChanged: (v) => widget.s.set('statementShowExchange', v),
+              ),
+              SwitchListTile(
+                title: const Text('إظهار عمولة التحويل'),
+                value: widget.s.settings['statementShowFee'] != false,
+                onChanged: (v) => widget.s.set('statementShowFee', v),
+              ),
+              SwitchListTile(
+                title: const Text('إظهار الرصيد والإجمالي النهائي'),
+                value: widget.s.settings['statementShowFinal'] != false,
+                onChanged: (v) => widget.s.set('statementShowFinal', v),
+              ),
+            ],
+          ),
           const Text(
             'كشف الحساب الخارجي لا يتضمن التكلفة أو الربح أو العمولة الداخلية.',
           ),
