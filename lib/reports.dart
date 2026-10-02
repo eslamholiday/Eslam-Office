@@ -106,7 +106,7 @@ class _StatementPageState extends State<StatementPage> {
           if (e.data['to'] != null) widget.s.reference(e.data['to']),
         ].join(' • ');
         rows.add([
-          e.date,
+          displayDate(e.date, weekday: false),
           '#${e.id} $detail',
           target == null
               ? e.currency.format(move)
@@ -528,7 +528,7 @@ class _ReportsPageState extends State<ReportsPage> {
                       )
                       .map(
                         (e) => [
-                          e.date,
+                          displayDate(e.date, weekday: false),
                           '#${e.id} ${types[e.kind]}',
                           widget.s.name(e.data['customer']),
                           currency.format(
