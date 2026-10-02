@@ -197,7 +197,7 @@ class _StatementPageState extends State<StatementPage> {
           ),
           if (mode.startsWith('all'))
             pair(
-              textField(rate, '100 USD = دينار', number: true),
+              textField(rate, '100 USD = دينار', number: true, grouped: true),
               textField(fee, 'عمولة التحويل ‰', number: true),
             ),
           const Text(
