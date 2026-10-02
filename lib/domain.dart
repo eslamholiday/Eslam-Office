@@ -207,3 +207,21 @@ List<LedgerLine> journal(Map<String, dynamic> d) {
 
 String day(DateTime d) =>
     '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+const _arabicWeekdays = <int, String>{
+  DateTime.monday: 'الاثنين',
+  DateTime.tuesday: 'الثلاثاء',
+  DateTime.wednesday: 'الأربعاء',
+  DateTime.thursday: 'الخميس',
+  DateTime.friday: 'الجمعة',
+  DateTime.saturday: 'السبت',
+  DateTime.sunday: 'الأحد',
+};
+
+String displayDate(String? iso, {bool weekday = true}) {
+  if (iso == null || iso.isEmpty) return '';
+  final d = DateTime.tryParse(iso);
+  if (d == null) return iso;
+  final numeric = '${d.day}/${d.month}/${d.year}';
+  return weekday ? '${_arabicWeekdays[d.weekday]} $numeric' : numeric;
+}
