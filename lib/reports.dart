@@ -5,6 +5,8 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import 'domain.dart';
 import 'store.dart';
 import 'ui.dart';
@@ -52,8 +54,8 @@ class _StatementPageState extends State<StatementPage> {
       final target = mode.startsWith('all')
           ? Currency.values.byName(mode.substring(3))
           : null;
-      final exchange = decimalUnits(rate.text, 0),
-          permille = decimalUnits(fee.text, 2);
+      final exchange = target == null ? 0 : decimalUnits(rate.text, 0),
+          permille = target == null ? 0 : decimalUnits(fee.text, 2);
       if (target != null && exchange <= 0) {
         throw const FormatException('أدخل سعر الصرف');
       }
@@ -98,7 +100,6 @@ class _StatementPageState extends State<StatementPage> {
         totals[e.currency] = totals[e.currency]! + move;
         final detail = [
           types[e.kind],
-          if (e.data['pnr'] != null && e.data['pnr'] != '') e.data['pnr'],
           if (e.data['hotelName'] != null && e.data['hotelName'] != '')
             e.data['hotelName'],
           if (e.data['from'] != null) widget.s.reference(e.data['from']),
@@ -194,18 +195,28 @@ class _StatementPageState extends State<StatementPage> {
             DateField('من تاريخ', from, (v) => setState(() => from = v)),
             DateField('إلى تاريخ', to, (v) => setState(() => to = v)),
           ),
-          pair(
-            textField(rate, '100 USD = دينار', number: true),
-            textField(fee, 'عمولة التحويل ‰', number: true),
-          ),
+          if (mode.startsWith('all'))
+            pair(
+              textField(rate, '100 USD = دينار', number: true),
+              textField(fee, 'عمولة التحويل ‰', number: true),
+            ),
           const Text(
             'كشف الحساب الخارجي لا يتضمن التكلفة أو الربح أو العمولة الداخلية.',
           ),
           const SizedBox(height: 24),
           FilledButton.icon(
             onPressed: preview,
-            icon: const Icon(Icons.picture_as_pdf_outlined),
+            icon: const Icon(Icons.preview_outlined),
             label: const Text('معاينة الكشف'),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.push(
+              c,
+              MaterialPageRoute(builder: (_) => const SavedStatementsPage()),
+            ),
+            icon: const Icon(Icons.photo_library_outlined),
+            label: const Text('الكشوف المحفوظة كصور'),
           ),
         ]),
       ],
@@ -329,6 +340,27 @@ class PdfPage extends StatelessWidget {
       title: const Text('معاينة PDF'),
       actions: [
         IconButton(
+          tooltip: 'حفظ كصورة داخل التطبيق',
+          icon: const Icon(Icons.image_outlined),
+          onPressed: () => guarded(c, () async {
+            final bytes = await document(PdfPageFormat.a4);
+            final root = await getApplicationDocumentsDirectory();
+            final dir = Directory('${root.path}/saved_statements');
+            await dir.create(recursive: true);
+            final stamp = DateTime.now().millisecondsSinceEpoch;
+            var index = 0;
+            await for (final page in Printing.raster(bytes, dpi: 144)) {
+              index++;
+              final png = await page.toPng();
+              final file = File('${dir.path}/statement_${stamp}_p$index.png');
+              await file.writeAsBytes(png, flush: true);
+            }
+            if (c.mounted) {
+              message(c, index == 1 ? 'حُفظ الكشف كصورة داخل التطبيق' : 'حُفظ الكشف داخلياً — $index صفحات');
+            }
+          }),
+        ),
+        IconButton(
           tooltip: 'حفظ PDF',
           icon: const Icon(Icons.save_alt),
           onPressed: () => guarded(c, () async {
@@ -351,6 +383,74 @@ class PdfPage extends StatelessWidget {
       canChangePageFormat: false,
       canDebug: false,
       pdfFileName: 'Eslam-Office-statement.pdf',
+    ),
+  );
+}
+
+
+class SavedStatementsPage extends StatefulWidget {
+  const SavedStatementsPage({super.key});
+  @override
+  State<SavedStatementsPage> createState() => _SavedStatementsPageState();
+}
+
+class _SavedStatementsPageState extends State<SavedStatementsPage> {
+  Future<List<File>> files() async {
+    final root = await getApplicationDocumentsDirectory();
+    final dir = Directory('${root.path}/saved_statements');
+    if (!await dir.exists()) return <File>[];
+    final rows = await dir
+        .list()
+        .where((e) => e is File && e.path.toLowerCase().endsWith('.png'))
+        .cast<File>()
+        .toList();
+    rows.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
+    return rows;
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('الكشوف المحفوظة')),
+    body: FutureBuilder<List<File>>(
+      future: files(),
+      builder: (context, snapshot) {
+        final rows = snapshot.data ?? const <File>[];
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (rows.isEmpty) {
+          return const Center(
+            child: EmptyState(
+              'لا توجد كشوف محفوظة',
+              'استخدم خيار حفظ كصورة من معاينة الكشف.',
+              icon: Icons.photo_library_outlined,
+            ),
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: rows.length,
+          itemBuilder: (context, i) {
+            final file = rows[i];
+            return Card(
+              child: ListTile(
+                leading: Image.file(file, width: 50, height: 60, fit: BoxFit.contain),
+                title: Text('صورة كشف ${i + 1}'),
+                subtitle: Text(p.basename(file.path)),
+                onTap: () => openAttachment(context, file.path),
+                trailing: IconButton(
+                  tooltip: 'حذف الصورة',
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: () async {
+                    await file.delete();
+                    if (mounted) setState(() {});
+                  },
+                ),
+              ),
+            );
+          },
+        );
+      },
     ),
   );
 }
