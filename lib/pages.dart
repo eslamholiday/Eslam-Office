@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'domain.dart';
 import 'store.dart';
@@ -11,6 +12,74 @@ String entryLabel(Store s, Entry e) => s.name(e.data['customer']).isNotEmpty
     : s.name(e.data['supplier']).isNotEmpty
     ? s.name(e.data['supplier'])
     : e.data['notes'] ?? '';
+
+String entryStatus(Store s, Entry e) {
+  if (!e.posted) return 'مسودة';
+  if (e.kind == 'refund') return 'استرجاع';
+  if (['ticket', 'hotel', 'visa'].contains(e.kind)) {
+    final refunds = s.entries.where(
+      (r) => r.posted && r.kind == 'refund' && r.data['original'] == e.id,
+    );
+    if (refunds.isEmpty) return 'فعالة';
+    final reversedSale = refunds.fold<int>(0, (sum, r) => sum + r.sale);
+    final reversedCost = refunds.fold<int>(0, (sum, r) => sum + r.cost);
+    if (reversedSale >= e.sale && reversedCost >= e.cost) {
+      return 'مسترجعة بالكامل';
+    }
+    return 'مسترجعة جزئياً';
+  }
+  return 'فعالة';
+}
+
+String partyDisplayName(Map<String, dynamic> p) {
+  final name = (p['name'] ?? '').toString().trim();
+  if (name.isNotEmpty) return name;
+  final phone = (p['phone'] ?? '').toString().trim();
+  return phone.isNotEmpty ? phone : 'حساب بدون اسم';
+}
+
+Future<void> phoneActions(BuildContext c, String raw) async {
+  if (raw.trim().isEmpty) return;
+  await showModalBottomSheet<void>(
+    context: c,
+    showDragHandle: true,
+    builder: (ctx) => SafeArea(
+      child: Wrap(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.phone_outlined),
+            title: const Text('اتصال'),
+            onTap: () async {
+              Navigator.pop(ctx);
+              await launchUrl(Uri(scheme: 'tel', path: raw));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.chat_outlined),
+            title: const Text('واتساب'),
+            onTap: () async {
+              Navigator.pop(ctx);
+              var phone = normalize(raw).replaceAll(RegExp(r'\D'), '');
+              if (phone.startsWith('0')) phone = '964${phone.substring(1)}';
+              await launchUrl(
+                Uri.parse('https://wa.me/$phone'),
+                mode: LaunchMode.externalApplication,
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.copy_outlined),
+            title: const Text('نسخ الرقم'),
+            onTap: () async {
+              await Clipboard.setData(ClipboardData(text: raw));
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
 class EntryTile extends StatelessWidget {
   final Store s;
@@ -30,7 +99,8 @@ class EntryTile extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
       ),
       subtitle: Text(
-        '#${e.id} • ${e.date}${e.posted ? '' : ' • مسودة'}${e.data['pnr'] == null || e.data['pnr'] == '' ? '' : ' • ${e.data['pnr']}'}',
+        '#${e.id} • ${e.date} • ${entryStatus(s, e)}'
+        '${(e.data['attachments'] as List? ?? const []).isEmpty ? '' : ' • 📎 ${(e.data['attachments'] as List).length}'}',
       ),
       trailing: Text(
         s.settings['hideAmounts'] == true
@@ -76,7 +146,7 @@ class _EntriesPageState extends State<EntriesPage> {
                 (currency == null || e.currency.name == currency) &&
                 (!drafts || !e.posted) &&
                 normalize(
-                  '${e.id} ${entryLabel(widget.s, e)} ${e.data['pnr'] ?? ''} ${e.data['notes'] ?? ''}',
+                  '${e.id} ${entryLabel(widget.s, e)} ${e.data['notes'] ?? ''}',
                 ).contains(query),
           )
           .toList();
@@ -97,7 +167,7 @@ class _EntriesPageState extends State<EntriesPage> {
               child: TextField(
                 decoration: const InputDecoration(
                   prefixIcon: Icon(Icons.search),
-                  hintText: 'اسم، PNR، رقم العملية',
+                  hintText: 'اسم أو رقم العملية',
                 ),
                 onChanged: (v) => setState(() => query = normalize(v)),
               ),
@@ -223,8 +293,7 @@ class EntryDetail extends StatelessWidget {
               Text('جهة الإصدار: ${s.name(e.data['supplier'])}'),
             if (e.data['airline'] != null)
               Text('الطيران: ${s.reference(e.data['airline'])}'),
-            if (e.data['pnr'] != null && e.data['pnr'] != '')
-              SelectableText('PNR: ${e.data['pnr']}'),
+
             if (sale) ...[
               const SizedBox(height: 16),
               pair(
@@ -279,10 +348,64 @@ class EntryDetail extends StatelessWidget {
           if (e.posted && ['ticket', 'hotel', 'visa'].contains(e.kind))
             Padding(
               padding: const EdgeInsets.all(8),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () => refundDialog(c, s, e),
+                    icon: const Icon(Icons.undo),
+                    label: const Text('استرجاع / عكس العملية'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      final copy = Map<String, dynamic>.from(e.data)
+                        ..['posted'] = false
+                        ..['date'] = day(DateTime.now())
+                        ..remove('corrects')
+                        ..remove('original');
+                      newEntry(c, s, e.kind, draft: Entry(copy));
+                    },
+                    icon: const Icon(Icons.copy_all_outlined),
+                    label: const Text('نسخ كعملية جديدة'),
+                  ),
+                ],
+              ),
+            ),
+          if (e.posted)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
               child: OutlinedButton.icon(
-                onPressed: () => refundDialog(c, s, e),
-                icon: const Icon(Icons.undo),
-                label: const Text('استرجاع كامل أو جزئي'),
+                style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                onPressed: () async {
+                  final yes = await showDialog<bool>(
+                    context: c,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('حذف إجباري؟'),
+                      content: const Text(
+                        'سيتم حذف العملية وكل آثارها وارتباطاتها المالية. '
+                        'سيُحفظ سجل يسمح بالتراجع من سجل التعديلات.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const Text('إلغاء'),
+                        ),
+                        FilledButton(
+                          style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: const Text('حذف إجباري'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (yes == true) {
+                    await s.forceDeleteEntry(e);
+                    if (c.mounted) Navigator.pop(c);
+                  }
+                },
+                icon: const Icon(Icons.delete_forever_outlined),
+                label: const Text('حذف إجباري'),
               ),
             ),
           if (!e.posted)
@@ -379,12 +502,11 @@ class _PartiesPageState extends State<PartiesPage> {
                         final r = rows[i];
                         return Card(
                           child: ListTile(
-                            leading: CircleAvatar(
-                              child: Text(
-                                (r['name'] as String).characters.first,
-                              ),
+                            leading: ProfileAvatar(
+                              imagePath: r['profileImage'],
+                              avatar: r['avatar'],
                             ),
-                            title: Text(r['name']),
+                            title: Text(partyDisplayName(r)),
                             subtitle: Text(
                               r['phone'] == ''
                                   ? (r['notes'] ?? '')
@@ -434,33 +556,19 @@ class AccountPage extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           children: [
             Section('ملف الحساب', [
+              Center(
+                child: ProfileAvatar(
+                  imagePath: p['profileImage'],
+                  avatar: p['avatar'],
+                  radius: 40,
+                ),
+              ),
+              const SizedBox(height: 10),
               if (p['phone'] != '')
-                Wrap(
-                  spacing: 12,
-                  children: [
-                    ActionChip(
-                      avatar: const Icon(Icons.phone_outlined),
-                      label: Text(p['phone']),
-                      onPressed: () =>
-                          launchUrl(Uri(scheme: 'tel', path: p['phone'])),
-                    ),
-                    ActionChip(
-                      avatar: const Icon(Icons.chat_outlined),
-                      label: const Text('WhatsApp'),
-                      onPressed: () {
-                        var phone = normalize(
-                          p['phone'],
-                        ).replaceAll(RegExp(r'\D'), '');
-                        if (phone.startsWith('0')) {
-                          phone = '964${phone.substring(1)}';
-                        }
-                        launchUrl(
-                          Uri.parse('https://wa.me/$phone'),
-                          mode: LaunchMode.externalApplication,
-                        );
-                      },
-                    ),
-                  ],
+                ActionChip(
+                  avatar: const Icon(Icons.phone_outlined),
+                  label: Text(p['phone']),
+                  onPressed: () => phoneActions(c, p['phone']),
                 ),
               if (p['notes'] != null && p['notes'] != '') Text(p['notes']),
               if (p['family'] != null) Text('العائلة: ${s.name(p['family'])}'),
@@ -488,7 +596,7 @@ class AccountPage extends StatelessWidget {
                   ),
                 ),
               if (financial)
-                const Text('الموجب مستحق؛ السالب رصيد لصالح الحساب.'),
+                const Text('عليه = مستحق • له = رصيد لصالح الحساب • صفر = متوازن'),
             ]),
             if (financial)
               Wrap(
@@ -523,6 +631,34 @@ class AccountPage extends StatelessWidget {
                     ),
                     child: const Text('رصيد افتتاحي'),
                   ),
+                  if (p['kind'] == 'customer') ...[
+                    ActionChip(
+                      label: const Text('+ تذكرة'),
+                      onPressed: () => newEntry(c, s, 'ticket', party: id),
+                    ),
+                    ActionChip(
+                      label: const Text('+ فندق'),
+                      onPressed: () => newEntry(c, s, 'hotel', party: id),
+                    ),
+                    ActionChip(
+                      label: const Text('+ فيزا'),
+                      onPressed: () => newEntry(c, s, 'visa', party: id),
+                    ),
+                  ],
+                  if (p['kind'] == 'supplier') ...[
+                    ActionChip(
+                      label: const Text('+ تذكرة'),
+                      onPressed: () => newEntry(c, s, 'ticket', party: id, supplier: true),
+                    ),
+                    ActionChip(
+                      label: const Text('+ فندق'),
+                      onPressed: () => newEntry(c, s, 'hotel', party: id, supplier: true),
+                    ),
+                    ActionChip(
+                      label: const Text('+ فيزا'),
+                      onPressed: () => newEntry(c, s, 'visa', party: id, supplier: true),
+                    ),
+                  ],
                 ],
               ),
             if (!financial)
@@ -673,7 +809,7 @@ class _SearchPageState extends State<SearchPage> {
                 .where((p) => p['id'] == d['customer'])
                 .firstOrNull;
             return matches(
-              '${e.id} ${types[e.kind]} ${customer?['name'] ?? ''} ${customer?['phone'] ?? ''} ${s.name(d['supplier'])} ${d['pnr'] ?? ''} ${d['hotelName'] ?? ''} ${s.reference(d['airline'])} ${s.reference(d['city'])} ${s.reference(d['from'])} ${s.reference(d['to'])}',
+              '${e.id} ${types[e.kind]} ${customer?['name'] ?? ''} ${customer?['phone'] ?? ''} ${s.name(d['supplier'])} ${d['hotelName'] ?? ''} ${s.reference(d['airline'])} ${s.reference(d['city'])} ${s.reference(d['from'])} ${s.reference(d['to'])}',
             );
           }).toList();
     return Scaffold(
@@ -686,7 +822,7 @@ class _SearchPageState extends State<SearchPage> {
               autofocus: true,
               decoration: const InputDecoration(
                 prefixIcon: Icon(Icons.search),
-                hintText: 'اسم، هاتف، PNR، أو رقم العملية',
+                hintText: 'اسم، هاتف، أو رقم العملية',
               ),
               onChanged: (v) => setState(() => query = v),
             ),
