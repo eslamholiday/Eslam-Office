@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_contacts/flutter_contacts.dart';
 import 'domain.dart';
 import 'store.dart';
 import 'ui.dart';
@@ -35,6 +34,8 @@ class _PartyFormState extends State<PartyForm> {
   late List<String> attachments = List<String>.from(
     widget.party?['attachments'] ?? [],
   );
+  late String? profileImage = widget.party?['profileImage'];
+  late String? avatar = widget.party?['avatar'];
   bool busy = false;
   @override
   void dispose() {
@@ -53,40 +54,13 @@ class _PartyFormState extends State<PartyForm> {
       ),
     ),
     body: ListView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.all(12),
       children: [
         Section('البيانات الأساسية', [
           textField(name, 'الاسم'),
           if (widget.kind != 'family') ...[
-            Row(
-              children: [
-                Expanded(child: textField(phone, 'رقم الهاتف', number: true)),
-                IconButton(
-                  tooltip: 'اختيار من جهات الاتصال',
-                  onPressed: () => guarded(c, () async {
-                    if (!await FlutterContacts.requestPermission(
-                      readonly: true,
-                    )) {
-                      return;
-                    }
-                    final picked = await FlutterContacts.openExternalPick();
-                    if (picked != null) {
-                      final full = await FlutterContacts.getContact(
-                        picked.id,
-                        withProperties: true,
-                      );
-                      if (full != null) {
-                        setState(() {
-                          if (name.text.isEmpty) name.text = full.displayName;
-                          phone.text = full.phones.firstOrNull?.number ?? '';
-                        });
-                      }
-                    }
-                  }),
-                  icon: const Icon(Icons.contacts_outlined),
-                ),
-              ],
-            ),
+            textField(phone, 'رقم الهاتف', number: true),
             if (widget.kind != 'supplier')
               PickField(
                 'العائلة',
@@ -108,6 +82,17 @@ class _PartyFormState extends State<PartyForm> {
           ],
           textField(notes, 'ملاحظات', lines: 3),
         ]),
+        if (widget.kind == 'customer' || widget.kind == 'supplier')
+          Section('صورة / شخصية الحساب', [
+            ProfilePicker(
+              imagePath: profileImage,
+              avatar: avatar,
+              onChanged: (image, selectedAvatar) => setState(() {
+                profileImage = image;
+                avatar = selectedAvatar;
+              }),
+            ),
+          ]),
         Section('المرفقات', [
           Attachments(attachments, (v) => setState(() => attachments = v)),
         ]),
@@ -133,6 +118,8 @@ class _PartyFormState extends State<PartyForm> {
                       'family': family,
                       'customer': customer,
                       'attachments': attachments,
+                      'profileImage': profileImage,
+                      'avatar': avatar,
                     }, id: widget.party?['id']);
                     if (c.mounted) Navigator.pop(c, id);
                   } catch (e) {
@@ -202,7 +189,6 @@ class _EntryFormState extends State<EntryForm> {
       d[widget.supplier ? 'supplier' : 'customer'] = widget.party;
     }
     for (final key in [
-      'pnr',
       'notes',
       'hotelName',
       'meals',
@@ -258,7 +244,6 @@ class _EntryFormState extends State<EntryForm> {
   Map<String, dynamic> collect() {
     final v = Map<String, dynamic>.from(d);
     for (final key in [
-      'pnr',
       'notes',
       'hotelName',
       'meals',
@@ -308,10 +293,16 @@ class _EntryFormState extends State<EntryForm> {
     }
   }
 
-  Widget field(String key, String label, {bool number = false}) => textField(
+  Widget field(
+    String key,
+    String label, {
+    bool number = false,
+    bool grouped = false,
+  }) => textField(
     tc(key),
     label,
     number: number,
+    grouped: grouped,
     onChanged: (_) => setState(() {}),
   );
   Widget pick(String key, String label, String kind, {bool party = false}) =>
@@ -342,10 +333,10 @@ class _EntryFormState extends State<EntryForm> {
     children: [
       field('q$i', 'العدد', number: true),
       pair(
-        field('base$i', 'الأساسي للوحدة', number: true),
-        field('gross$i', 'الشامل للوحدة', number: true),
+        field('base$i', 'الأساسي للوحدة', number: true, grouped: true),
+        field('gross$i', 'الشامل للوحدة', number: true, grouped: true),
       ),
-      field('sell$i', 'سعر البيع للوحدة', number: true),
+      field('sell$i', 'سعر البيع للوحدة', number: true, grouped: true),
     ],
   );
   List<Widget> optionalFields() {
@@ -356,7 +347,6 @@ class _EntryFormState extends State<EntryForm> {
       'to': pick('to', 'مدينة الوصول', 'city'),
       'depart': date('depart', 'تاريخ الذهاب'),
       'return': date('return', 'تاريخ العودة'),
-      'pnr': field('pnr', 'PNR (اختياري)'),
       'city': pick('city', 'المدينة', 'city'),
       'meals': field('meals', 'الوجبات'),
       'rooms': field('rooms', 'عدد الغرف', number: true),
@@ -375,8 +365,7 @@ class _EntryFormState extends State<EntryForm> {
         'to',
         'depart',
         'return',
-        'pnr',
-      ],
+        ],
       'hotel' => ['passenger', 'country', 'city', 'rooms', 'people', 'meals'],
       'visa' => [
         'passenger',
@@ -482,7 +471,7 @@ class _EntryFormState extends State<EntryForm> {
               if (d['commissionMode'] == 'percent')
                 field('rate', 'نسبة العمولة من السعر الأساسي %', number: true)
               else
-                field('fee', 'رسم الإصدار لكل تذكرة', number: true),
+                field('fee', 'رسم الإصدار لكل تذكرة', number: true, grouped: true),
             ]),
             Section('بالغ / Adult', [category(0, 'بالغ')]),
             Card(
@@ -512,21 +501,21 @@ class _EntryFormState extends State<EntryForm> {
                   'عدد الليالي: ${DateTime.parse(d['checkOut']).difference(DateTime.parse(d['checkIn'])).inDays}',
                 ),
               const SizedBox(height: 12),
-              field('costUnit', 'التكلفة الكاملة للحجز', number: true),
-              field('sell', 'البيع الكامل للحجز', number: true),
+              field('costUnit', 'التكلفة الكاملة للحجز', number: true, grouped: true),
+              field('sell', 'البيع الكامل للحجز', number: true, grouped: true),
             ]),
           if (widget.kind == 'visa')
             Section('تفاصيل الفيزا', [
               field('visaType', 'نوع الفيزا'),
               field('qty', 'العدد', number: true),
               pair(
-                field('costUnit', 'تكلفة الواحدة', number: true),
-                field('sell', 'بيع الواحدة', number: true),
+                field('costUnit', 'تكلفة الواحدة', number: true, grouped: true),
+                field('sell', 'بيع الواحدة', number: true, grouped: true),
               ),
             ]),
           if (widget.kind == 'settlement' || widget.kind == 'opening')
             Section('حركة الحساب', [
-              field('amount', 'المبلغ', number: true),
+              field('amount', 'المبلغ', number: true, grouped: true),
               DropdownButtonFormField<int>(
                 initialValue: d['direction'],
                 decoration: const InputDecoration(labelText: 'أثر الحركة'),
@@ -670,8 +659,8 @@ Future<void> refundDialog(BuildContext c, Store s, Entry e) async {
                 'يُخفض حساب الزبون والمورد والربح. إعادة النقد تُسجل بتسوية منفصلة.',
               ),
               const SizedBox(height: 16),
-              textField(sale, 'المبلغ المسترجع للزبون', number: true),
-              textField(cost, 'المبلغ المسترجع من المورد', number: true),
+              textField(sale, 'المبلغ المسترجع للزبون', number: true, grouped: true),
+              textField(cost, 'المبلغ المسترجع من المورد', number: true, grouped: true),
               DateField(
                 'التاريخ',
                 date,

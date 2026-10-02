@@ -6,10 +6,16 @@ enum Currency { USD, IQD }
 extension CurrencyInfo on Currency {
   int get scale => this == Currency.USD ? 100 : 1;
   String get symbol => this == Currency.USD ? r'$' : 'د.ع';
-  String format(int minor) =>
-      '${NumberFormat(this == Currency.USD ? '#,##0.00' : '#,##0', 'en').format(minor / scale)} $symbol';
+  String format(int minor) {
+    final whole = roundedRatio(minor, scale);
+    final value = NumberFormat('#,##0', 'en').format(whole);
+    return this == Currency.USD ? '\$ $value' : '$value د.ع';
+  }
+
+  /// Monetary inputs are intentionally shown as whole units in the UI.
+  /// The ledger still stores USD as integer cents and IQD as integer dinars.
   String input(int minor) =>
-      (minor / scale).toStringAsFixed(this == Currency.USD ? 2 : 0);
+      NumberFormat('#,##0', 'en').format(roundedRatio(minor, scale));
 }
 
 String normalize(String s) {
@@ -201,3 +207,21 @@ List<LedgerLine> journal(Map<String, dynamic> d) {
 
 String day(DateTime d) =>
     '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+const _arabicWeekdays = <int, String>{
+  DateTime.monday: 'الاثنين',
+  DateTime.tuesday: 'الثلاثاء',
+  DateTime.wednesday: 'الأربعاء',
+  DateTime.thursday: 'الخميس',
+  DateTime.friday: 'الجمعة',
+  DateTime.saturday: 'السبت',
+  DateTime.sunday: 'الأحد',
+};
+
+String displayDate(String? iso, {bool weekday = true}) {
+  if (iso == null || iso.isEmpty) return '';
+  final d = DateTime.tryParse(iso);
+  if (d == null) return iso;
+  final numeric = '${d.day}/${d.month}/${d.year}';
+  return weekday ? '${_arabicWeekdays[d.weekday]} $numeric' : numeric;
+}

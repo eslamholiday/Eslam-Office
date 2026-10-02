@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'domain.dart';
@@ -32,7 +33,7 @@ const navLabels = {
   'home': 'الرئيسية',
   'entries': 'العمليات',
   'customers': 'الزبائن',
-  'suppliers': 'جهات الإصدار',
+  'suppliers': 'جهات الإصدار / الموردون',
   'reports': 'التقارير',
 };
 const fieldNames = {
@@ -42,7 +43,6 @@ const fieldNames = {
   'to': 'الوصول',
   'depart': 'الذهاب',
   'return': 'العودة',
-  'pnr': 'PNR',
   'city': 'المدينة',
   'rooms': 'الغرف',
   'people': 'الأشخاص',
@@ -54,7 +54,7 @@ const fieldNames = {
   'entriesCount': 'الدخولات',
 };
 const fieldGroups = {
-  'ticket': ['passenger', 'country', 'from', 'to', 'depart', 'return', 'pnr'],
+  'ticket': ['passenger', 'country', 'from', 'to', 'depart', 'return'],
   'hotel': ['passenger', 'country', 'city', 'rooms', 'people', 'meals'],
   'visa': [
     'passenger',
@@ -85,14 +85,14 @@ class SettingsPage extends StatelessWidget {
               Icons.palette_outlined,
               AppearancePage(s),
             ),
+          ]),
+          Section('الواجهات والأقسام', [
             tile(
               c,
               'الرئيسية وشريط التنقل',
               Icons.dashboard_customize_outlined,
               LayoutPage(s),
             ),
-          ]),
-          Section('الواجهات والأقسام', [
             for (final kind in ['ticket', 'hotel', 'visa'])
               tile(
                 c,
@@ -292,6 +292,12 @@ class AppearancePage extends StatelessWidget {
               value: s.settings['reduceMotion'] == true,
               onChanged: (v) => s.set('reduceMotion', v),
             ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('إظهار العناوين الإنجليزية الثانوية'),
+              value: s.settings['showEnglishLabels'] != false,
+              onChanged: (v) => s.set('showEnglishLabels', v),
+            ),
           ]),
           Padding(
             padding: const EdgeInsets.all(12),
@@ -331,6 +337,12 @@ class LayoutPage extends StatelessWidget {
       final hidden = List<String>.from(s.settings['navHidden'] ?? []);
       final cards = List<String>.from(
         s.settings['homeCards'] ?? ['owed', 'credit', 'profit', 'sale'],
+      );
+      final hiddenCards = List<String>.from(
+        s.settings['homeCardsHidden'] ?? const <String>[],
+      );
+      final hiddenShortcuts = List<String>.from(
+        s.settings['homeShortcutHidden'] ?? const <String>[],
       );
       return Scaffold(
         appBar: AppBar(title: const Text('الرئيسية والتنقل')),
@@ -382,7 +394,7 @@ class LayoutPage extends StatelessWidget {
                     .toList(),
               ),
             ]),
-            Section('ترتيب بطاقات الرئيسية بالسحب', [
+            Section('ترتيب وإظهار بطاقات الرئيسية', [
               ReorderableListView(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -394,9 +406,9 @@ class LayoutPage extends StatelessWidget {
                 },
                 children: cards
                     .map(
-                      (key) => ListTile(
+                      (key) => CheckboxListTile(
                         key: ValueKey(key),
-                        leading: const Icon(Icons.drag_handle),
+                        secondary: const Icon(Icons.drag_handle),
                         title: Text(
                           {
                             'owed': 'المطلوب من الزبائن',
@@ -405,14 +417,42 @@ class LayoutPage extends StatelessWidget {
                             'sale': 'مبيعات الخدمات',
                           }[key]!,
                         ),
+                        value: !hiddenCards.contains(key),
+                        onChanged: (v) {
+                          v == true ? hiddenCards.remove(key) : hiddenCards.add(key);
+                          s.set('homeCardsHidden', hiddenCards);
+                        },
                       ),
                     )
                     .toList(),
               ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('إظهار الإحصاءات المختصرة'),
+                value: s.settings['showHomeStats'] != false,
+                onChanged: (v) => s.set('showHomeStats', v),
+              ),
+            ]),
+            Section('اختصارات الإضافة على الرئيسية', [
+              for (final key in ['ticket', 'hotel', 'visa', 'settlement', 'expense'])
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(types[key]!),
+                  value: !hiddenShortcuts.contains(key),
+                  onChanged: (v) {
+                    v == true
+                        ? hiddenShortcuts.remove(key)
+                        : hiddenShortcuts.add(key);
+                    s.set('homeShortcutHidden', hiddenShortcuts);
+                  },
+                ),
             ]),
             OutlinedButton(
               onPressed: () async {
                 await s.set('homeCards', ['owed', 'credit', 'profit', 'sale']);
+                await s.set('homeCardsHidden', []);
+                await s.set('homeShortcutHidden', []);
+                await s.set('showHomeStats', true);
                 await s.set('navOrder', navLabels.keys.toList());
                 await s.set('navHidden', []);
                 await s.set('start', 'home');
@@ -503,6 +543,65 @@ class FieldSettings extends StatelessWidget {
               ),
             ]),
             Section('ترتيب وإظهار الحقول الاختيارية', [
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton(
+                    onPressed: () => s.set('hidden_$kind', <String>[]),
+                    child: const Text('إظهار الكل'),
+                  ),
+                  OutlinedButton(
+                    onPressed: () => s.set(
+                      'hidden_$kind',
+                      List<String>.from(fieldGroups[kind] ?? const <String>[]),
+                    ),
+                    child: const Text('إخفاء الاختياري'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      final visible = order
+                          .where((key) => !hidden.contains(key))
+                          .map((key) => fieldNames[key] ?? key)
+                          .toList();
+                      showDialog<void>(
+                        context: c,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('معاينة ترتيب النموذج'),
+                          content: SizedBox(
+                            width: double.maxFinite,
+                            child: visible.isEmpty
+                                ? const Text('لا توجد حقول اختيارية ظاهرة.')
+                                : ListView.separated(
+                                    shrinkWrap: true,
+                                    itemCount: visible.length,
+                                    separatorBuilder: (_, __) =>
+                                        const Divider(height: 1),
+                                    itemBuilder: (_, i) => ListTile(
+                                      dense: true,
+                                      leading: CircleAvatar(
+                                        radius: 13,
+                                        child: Text('${i + 1}'),
+                                      ),
+                                      title: Text(visible[i]),
+                                    ),
+                                  ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('إغلاق'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.preview_outlined),
+                    label: const Text('معاينة النموذج'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
               ReorderableListView(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -566,6 +665,8 @@ class _OfficeSettingsState extends State<OfficeSettings> {
       footer = TextEditingController(
         text: widget.s.settings['footer'] ?? 'جميع الحقوق محفوظة 2026',
       );
+  late String logoAlign = widget.s.settings['logoAlign'] ?? 'right';
+  late String logoSize = widget.s.settings['logoSize'] ?? 'medium';
   @override
   void dispose() {
     for (final c in [office, phone, website, footer]) {
@@ -604,6 +705,28 @@ class _OfficeSettingsState extends State<OfficeSettings> {
               setState(() {});
             },
           ),
+          pair(
+            DropdownButtonFormField<String>(
+              initialValue: logoAlign,
+              decoration: const InputDecoration(labelText: 'محاذاة الشعار'),
+              items: const [
+                DropdownMenuItem(value: 'right', child: Text('يمين')),
+                DropdownMenuItem(value: 'center', child: Text('وسط')),
+                DropdownMenuItem(value: 'left', child: Text('يسار')),
+              ],
+              onChanged: (v) => setState(() => logoAlign = v ?? 'right'),
+            ),
+            DropdownButtonFormField<String>(
+              initialValue: logoSize,
+              decoration: const InputDecoration(labelText: 'حجم الشعار'),
+              items: const [
+                DropdownMenuItem(value: 'small', child: Text('صغير')),
+                DropdownMenuItem(value: 'medium', child: Text('متوسط')),
+                DropdownMenuItem(value: 'large', child: Text('كبير')),
+              ],
+              onChanged: (v) => setState(() => logoSize = v ?? 'medium'),
+            ),
+          ),
         ]),
         FilledButton(
           onPressed: () async {
@@ -612,6 +735,8 @@ class _OfficeSettingsState extends State<OfficeSettings> {
               'phone': phone.text,
               'website': website.text,
               'footer': footer.text,
+              'logoAlign': logoAlign,
+              'logoSize': logoSize,
             }.entries) {
               await widget.s.set(e.key, e.value);
             }
@@ -684,7 +809,7 @@ class ReferencePage extends StatelessWidget {
                   if (mode == 'percent')
                     textField(rate, 'العمولة الافتراضية %', number: true)
                   else
-                    textField(fee, 'رسم الإصدار للوحدة', number: true),
+                    textField(fee, 'رسم الإصدار للوحدة', number: true, grouped: true),
                 ],
               ],
             ),
@@ -821,7 +946,7 @@ class _RulesPageState extends State<RulesPage> {
               onChanged: (v) => setState(() => currency = v!),
             ),
             const SizedBox(height: 12),
-            textField(fee, 'رسم إصدار التذكرة الواحدة', number: true),
+            textField(fee, 'رسم إصدار التذكرة الواحدة', number: true, grouped: true),
           ],
           FilledButton(
             onPressed: () => guarded(c, () async {
@@ -906,23 +1031,85 @@ class ArchivePage extends StatelessWidget {
 class AuditPage extends StatelessWidget {
   final Store s;
   const AuditPage(this.s, {super.key});
+
+  bool canUndo(Map<String, dynamic> row) {
+    try {
+      final payload = Map<String, dynamic>.from(
+        jsonDecode((row['payload'] ?? '{}').toString()),
+      );
+      return const {
+        'forceDeleteEntry',
+        'restoreParty',
+        'restoreRef',
+      }.contains(payload['undoType']);
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
-  Widget build(BuildContext c) => Scaffold(
-    appBar: AppBar(title: const Text('سجل التعديلات')),
-    body: ListView.builder(
-      itemCount: s.logs.length,
-      itemBuilder: (c, i) {
-        final r = s.logs[i];
-        return ListTile(
-          leading: const Icon(Icons.history),
-          title: Text('${r['action']} #${r['target']}'),
-          subtitle: Text(
-            r['date'].toString().substring(0, 16).replaceAll('T', ' '),
-          ),
-        );
-      },
+  Widget build(BuildContext c) => AnimatedBuilder(
+    animation: s,
+    builder: (c, _) => Scaffold(
+      appBar: AppBar(title: const Text('سجل التعديلات')),
+      body: s.logs.isEmpty
+          ? const Center(
+              child: EmptyState(
+                'لا توجد تعديلات مسجلة',
+                'ستظهر هنا الإضافات والتعديلات والحذف الإجباري.',
+                icon: Icons.history,
+              ),
+            )
+          : ListView.builder(
+              itemCount: s.logs.length,
+              itemBuilder: (c, i) {
+                final r = s.logs[i];
+                return ListTile(
+                  leading: const Icon(Icons.history),
+                  title: Text('${r['action']} • #${r['target']}'),
+                  subtitle: Text(
+                    r['date'].toString().substring(0, 16).replaceAll('T', ' '),
+                  ),
+                  onTap: () {
+                    try {
+                      final payload = Map<String, dynamic>.from(
+                        jsonDecode((r['payload'] ?? '{}').toString()),
+                      );
+                      if (payload['before'] == null && payload['after'] == null) return;
+                      showDialog<void>(
+                        context: c,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('تفاصيل التعديل'),
+                          content: SingleChildScrollView(
+                            child: SelectableText(
+                              'قبل:\n${payload['before'] ?? '—'}\n\nبعد:\n${payload['after'] ?? '—'}',
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('إغلاق'),
+                            ),
+                          ],
+                        ),
+                      );
+                    } catch (_) {}
+                  },
+                  trailing: canUndo(r)
+                      ? TextButton.icon(
+                          onPressed: () => guarded(c, () async {
+                            await s.undoAudit(r['id'] as int);
+                            if (c.mounted) message(c, 'تم التراجع واستعادة العملية');
+                          }),
+                          icon: const Icon(Icons.undo),
+                          label: const Text('تراجع'),
+                        )
+                      : null,
+                );
+              },
+            ),
     ),
-  );
+  ); 
 }
 
 class AboutPage extends StatelessWidget {
