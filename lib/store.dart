@@ -211,11 +211,25 @@ class Store extends ChangeNotifier {
       'archived': p['archived'] ?? 0,
     };
     final result = await db.transaction((t) async {
+      Map<String, Object?>? before;
+      if (id != null) {
+        final previous = await t.query('parties', where: 'id=?', whereArgs: [id]);
+        if (previous.isNotEmpty) before = previous.first;
+      }
       final key = id ?? await t.insert('parties', values);
       if (id != null) {
         await t.update('parties', values, where: 'id=?', whereArgs: [id]);
       }
-      await audit(t, id == null ? 'إضافة حساب' : 'تعديل حساب', '$key');
+      await audit(
+        t,
+        id == null ? 'إضافة حساب' : 'تعديل حساب',
+        '$key',
+        payload: {
+          if (before != null) 'undoType': 'restoreParty',
+          if (before != null) 'before': before,
+          'after': values,
+        },
+      );
       return key;
     });
     await reload();
@@ -258,11 +272,27 @@ class Store extends ChangeNotifier {
       'payload': jsonEncode(payload),
       'archived': payload['archived'] ?? 0,
     };
-    if (id == null) {
-      await db.insert('refs', v);
-    } else {
-      await db.update('refs', v, where: 'id=?', whereArgs: [id]);
-    }
+    await db.transaction((t) async {
+      Map<String, Object?>? before;
+      if (id != null) {
+        final previous = await t.query('refs', where: 'id=?', whereArgs: [id]);
+        if (previous.isNotEmpty) before = previous.first;
+      }
+      final key = id ?? await t.insert('refs', v);
+      if (id != null) {
+        await t.update('refs', v, where: 'id=?', whereArgs: [id]);
+      }
+      await audit(
+        t,
+        id == null ? 'إضافة عنصر مرجعي' : 'تعديل عنصر مرجعي',
+        '$kind:$key',
+        payload: {
+          if (before != null) 'undoType': 'restoreRef',
+          if (before != null) 'before': before,
+          'after': v,
+        },
+      );
+    });
     await reload();
   }
 
@@ -494,23 +524,41 @@ class Store extends ChangeNotifier {
       if (rows.isEmpty) throw const FormatException('سجل التعديل غير موجود');
       final raw = rows.first['payload'] as String? ?? '{}';
       final payload = Map<String, dynamic>.from(jsonDecode(raw));
-      if (payload['undoType'] != 'forceDeleteEntry') {
+      final undoType = payload['undoType'];
+      if (undoType == 'forceDeleteEntry') {
+        final restoredEntries = (payload['entries'] as List? ?? const [])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+        final restoredLedger = (payload['ledger'] as List? ?? const [])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+        for (final row in restoredEntries) {
+          await t.insert('entries', row, conflictAlgorithm: ConflictAlgorithm.abort);
+        }
+        for (final row in restoredLedger) {
+          await t.insert('ledger', row, conflictAlgorithm: ConflictAlgorithm.abort);
+        }
+      } else if (undoType == 'restoreParty') {
+        final before = Map<String, dynamic>.from(payload['before'] as Map);
+        await t.update(
+          'parties',
+          before,
+          where: 'id=?',
+          whereArgs: [before['id']],
+        );
+      } else if (undoType == 'restoreRef') {
+        final before = Map<String, dynamic>.from(payload['before'] as Map);
+        await t.update(
+          'refs',
+          before,
+          where: 'id=?',
+          whereArgs: [before['id']],
+        );
+      } else {
         throw const FormatException('هذا التعديل لا يدعم التراجع');
       }
-      final restoredEntries = (payload['entries'] as List? ?? const [])
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
-      final restoredLedger = (payload['ledger'] as List? ?? const [])
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
-      for (final row in restoredEntries) {
-        await t.insert('entries', row, conflictAlgorithm: ConflictAlgorithm.abort);
-      }
-      for (final row in restoredLedger) {
-        await t.insert('ledger', row, conflictAlgorithm: ConflictAlgorithm.abort);
-      }
       await t.delete('audit', where: 'id=?', whereArgs: [auditId]);
-      await audit(t, 'تراجع عن الحذف الإجباري', '${rows.first['target']}');
+      await audit(t, 'تراجع عن تعديل', '${rows.first['target']}');
     });
     await reload();
   }
