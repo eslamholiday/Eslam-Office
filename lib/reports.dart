@@ -28,29 +28,33 @@ int displayConvert(
 
 List<String?> quickDateRange(String key) {
   final now = DateTime.now();
-  DateTime? start;
-  DateTime? end;
+  final today = DateTime(now.year, now.month, now.day);
   switch (key) {
     case 'today':
-      start = DateTime(now.year, now.month, now.day);
-      end = start;
+      return <String?>[day(today), day(today)];
     case 'week':
-      start = DateTime(now.year, now.month, now.day)
-          .subtract(Duration(days: now.weekday - 1));
-      end = DateTime(now.year, now.month, now.day);
+      return <String?>[
+        day(today.subtract(Duration(days: now.weekday - 1))),
+        day(today),
+      ];
     case 'month':
-      start = DateTime(now.year, now.month, 1);
-      end = DateTime(now.year, now.month + 1, 0);
+      return <String?>[
+        day(DateTime(now.year, now.month, 1)),
+        day(DateTime(now.year, now.month + 1, 0)),
+      ];
     case 'previous':
-      start = DateTime(now.year, now.month - 1, 1);
-      end = DateTime(now.year, now.month, 0);
+      return <String?>[
+        day(DateTime(now.year, now.month - 1, 1)),
+        day(DateTime(now.year, now.month, 0)),
+      ];
     case 'year':
-      start = DateTime(now.year, 1, 1);
-      end = DateTime(now.year, 12, 31);
+      return <String?>[
+        day(DateTime(now.year, 1, 1)),
+        day(DateTime(now.year, 12, 31)),
+      ];
     default:
       return <String?>[null, null];
   }
-  return <String?>[day(start), day(end)];
 }
 
 class StatementPage extends StatefulWidget {
