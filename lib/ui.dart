@@ -248,7 +248,7 @@ class DateField extends StatelessWidget {
               : const Icon(Icons.calendar_month_outlined),
         ),
         child: Text(
-          value ?? 'اختر التاريخ',
+          value == null ? 'اختر التاريخ' : displayDate(value),
           style: value == null ? const TextStyle(color: Colors.grey) : null,
         ),
       ),
