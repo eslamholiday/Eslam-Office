@@ -165,6 +165,7 @@ Widget pair(Widget a, Widget b) => Padding(
     ],
   ),
 );
+
 class ThousandsSeparatorFormatter extends TextInputFormatter {
   const ThousandsSeparatorFormatter();
 
@@ -372,24 +373,60 @@ class PickField extends StatelessWidget {
 }
 
 const profileAvatars = <String>[
-  '👨‍💼','👩‍💼','🧑‍💼','👨🏻‍💼','👩🏻‍💼','👨🏽‍💼','👩🏽‍💼','👨🏿‍💼','👩🏿‍💼','🧑🏻‍💼',
-  '👨‍✈️','👩‍✈️','🧑‍✈️','👨🏻‍✈️','👩🏻‍✈️','👨🏽‍✈️','👩🏽‍✈️','👨🏿‍✈️','👩🏿‍✈️','🧑🏻‍✈️',
-  '🧳','✈️','🌍','🏨','🛂','🧑‍🚀','👨‍🎓','👩‍🎓','🧑‍🎓','🙂',
+  '👨‍💼',
+  '👩‍💼',
+  '🧑‍💼',
+  '👨🏻‍💼',
+  '👩🏻‍💼',
+  '👨🏽‍💼',
+  '👩🏽‍💼',
+  '👨🏿‍💼',
+  '👩🏿‍💼',
+  '🧑🏻‍💼',
+  '👨‍✈️',
+  '👩‍✈️',
+  '🧑‍✈️',
+  '👨🏻‍✈️',
+  '👩🏻‍✈️',
+  '👨🏽‍✈️',
+  '👩🏽‍✈️',
+  '👨🏿‍✈️',
+  '👩🏿‍✈️',
+  '🧑🏻‍✈️',
+  '🧳',
+  '✈️',
+  '🌍',
+  '🏨',
+  '🛂',
+  '🧑‍🚀',
+  '👨‍🎓',
+  '👩‍🎓',
+  '🧑‍🎓',
+  '🙂',
 ];
 
 class ProfileAvatar extends StatelessWidget {
   final String? imagePath;
   final String? avatar;
   final double radius;
-  const ProfileAvatar({super.key, this.imagePath, this.avatar, this.radius = 24});
+  const ProfileAvatar({
+    super.key,
+    this.imagePath,
+    this.avatar,
+    this.radius = 24,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final file = imagePath == null || imagePath!.isEmpty ? null : File(imagePath!);
+    final file = imagePath == null || imagePath!.isEmpty
+        ? null
+        : File(imagePath!);
     final hasImage = file != null && file.existsSync();
     return CircleAvatar(
       radius: radius,
-      backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: .12),
+      backgroundColor: Theme.of(
+        context,
+      ).colorScheme.primary.withValues(alpha: .12),
       backgroundImage: hasImage ? FileImage(file) : null,
       child: hasImage
           ? null
@@ -405,16 +442,25 @@ class ProfilePicker extends StatelessWidget {
   final String? imagePath;
   final String? avatar;
   final void Function(String? imagePath, String? avatar) onChanged;
-  const ProfilePicker({super.key, this.imagePath, this.avatar, required this.onChanged});
+  const ProfilePicker({
+    super.key,
+    this.imagePath,
+    this.avatar,
+    required this.onChanged,
+  });
 
   Future<void> _pick(BuildContext context, ImageSource source) async {
     try {
-      final picked = await ImagePicker().pickImage(source: source, imageQuality: 88);
+      final picked = await ImagePicker().pickImage(
+        source: source,
+        imageQuality: 88,
+      );
       if (picked == null) return;
       final base = (await getApplicationDocumentsDirectory()).path;
       final dir = Directory('$base/profiles');
       await dir.create(recursive: true);
-      final target = '${dir.path}/${DateTime.now().microsecondsSinceEpoch}_${p.basename(picked.path)}';
+      final target =
+          '${dir.path}/${DateTime.now().microsecondsSinceEpoch}_${p.basename(picked.path)}';
       await File(picked.path).copy(target);
       onChanged(target, null);
     } catch (e) {
@@ -426,17 +472,31 @@ class ProfilePicker extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      Center(child: ProfileAvatar(imagePath: imagePath, avatar: avatar, radius: 42)),
+      Center(
+        child: ProfileAvatar(imagePath: imagePath, avatar: avatar, radius: 42),
+      ),
       const SizedBox(height: 12),
       Wrap(
         alignment: WrapAlignment.center,
         spacing: 8,
         runSpacing: 8,
         children: [
-          OutlinedButton.icon(onPressed: () => _pick(context, ImageSource.gallery), icon: const Icon(Icons.photo_outlined), label: const Text('رفع صورة')),
-          OutlinedButton.icon(onPressed: () => _pick(context, ImageSource.camera), icon: const Icon(Icons.camera_alt_outlined), label: const Text('كاميرا')),
+          OutlinedButton.icon(
+            onPressed: () => _pick(context, ImageSource.gallery),
+            icon: const Icon(Icons.photo_outlined),
+            label: const Text('رفع صورة'),
+          ),
+          OutlinedButton.icon(
+            onPressed: () => _pick(context, ImageSource.camera),
+            icon: const Icon(Icons.camera_alt_outlined),
+            label: const Text('كاميرا'),
+          ),
           if ((imagePath?.isNotEmpty ?? false) || (avatar?.isNotEmpty ?? false))
-            TextButton.icon(onPressed: () => onChanged(null, null), icon: const Icon(Icons.delete_outline), label: const Text('إزالة')),
+            TextButton.icon(
+              onPressed: () => onChanged(null, null),
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('إزالة'),
+            ),
         ],
       ),
       const SizedBox(height: 10),
@@ -445,11 +505,15 @@ class ProfilePicker extends StatelessWidget {
       Wrap(
         spacing: 8,
         runSpacing: 8,
-        children: profileAvatars.map((v) => ChoiceChip(
-          label: Text(v, style: const TextStyle(fontSize: 22)),
-          selected: imagePath == null && avatar == v,
-          onSelected: (_) => onChanged(null, v),
-        )).toList(),
+        children: profileAvatars
+            .map(
+              (v) => ChoiceChip(
+                label: Text(v, style: const TextStyle(fontSize: 22)),
+                selected: imagePath == null && avatar == v,
+                onSelected: (_) => onChanged(null, v),
+              ),
+            )
+            .toList(),
       ),
     ],
   );

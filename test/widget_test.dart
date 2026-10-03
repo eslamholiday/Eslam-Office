@@ -44,6 +44,27 @@ void main() {
         '/tmp/eslam-home.png',
       ).writeAsBytes(data!.buffer.asUint8List());
     });
+    await tester.runAsync(
+      () => s.set('homeShortcutHidden', [
+        'passengers',
+        'suppliers',
+        'expense',
+        'movements',
+        'review',
+        'about',
+      ]),
+    );
+    tester.view.physicalSize = const Size(430, 1400);
+    await tester.pumpAndSettle();
+    await tester.runAsync(() async {
+      final boundary =
+          key.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      final img = await boundary.toImage(pixelRatio: 1);
+      final data = await img.toByteData(format: ui.ImageByteFormat.png);
+      await File(
+        '/tmp/eslam-home-updated.png',
+      ).writeAsBytes(data!.buffer.asUint8List());
+    });
     await tester.tap(find.byTooltip('البحث الموحّد'));
     await tester.pumpAndSettle();
     expect(find.byType(SearchPage), findsOneWidget);
@@ -62,7 +83,15 @@ void main() {
     ))!;
     await tester.pumpWidget(OfficeApp(s));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('تذكرة جديدة'));
+    final customer = (await tester.runAsync(
+      () => s.saveParty({'kind': 'customer', 'name': 'اختبار'}),
+    ))!;
+    final c = tester.element(find.byType(Shell));
+    Navigator.of(c).push(
+      MaterialPageRoute(
+        builder: (_) => EntryForm(s, 'ticket', party: customer),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.byType(EntryForm), findsOneWidget);
     expect(find.text('حفظ واعتماد'), findsOneWidget);

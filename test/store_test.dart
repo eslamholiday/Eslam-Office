@@ -124,17 +124,20 @@ void main() {
     await s.archiveParty(customer, false);
     expect(s.list('customer').length, 1);
   });
-  test('force delete removes ledger atomically and audit undo restores it', () async {
-    final id = await s.saveEntry(sale());
-    final entry = s.entries.firstWhere((e) => e.id == id);
-    expect(await s.balance(customer, Currency.USD), 26000);
-    await s.forceDeleteEntry(entry);
-    expect(await s.balance(customer, Currency.USD), 0);
-    final log = s.logs.firstWhere((r) => r['action'] == 'حذف إجباري');
-    await s.undoAudit(log['id'] as int);
-    expect(await s.balance(customer, Currency.USD), 26000);
-    expect(s.entries.any((e) => e.id == id), isTrue);
-  });
+  test(
+    'force delete removes ledger atomically and audit undo restores it',
+    () async {
+      final id = await s.saveEntry(sale());
+      final entry = s.entries.firstWhere((e) => e.id == id);
+      expect(await s.balance(customer, Currency.USD), 26000);
+      await s.forceDeleteEntry(entry);
+      expect(await s.balance(customer, Currency.USD), 0);
+      final log = s.logs.firstWhere((r) => r['action'] == 'حذف إجباري');
+      await s.undoAudit(log['id'] as int);
+      expect(await s.balance(customer, Currency.USD), 26000);
+      expect(s.entries.any((e) => e.id == id), isTrue);
+    },
+  );
   test('duplicate active reference names are rejected', () async {
     await s.saveRef('city', 'مدينة اختبار', {});
     await expectLater(

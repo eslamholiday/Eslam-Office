@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'domain.dart';
+import 'forms.dart';
 import 'store.dart';
 import 'ui.dart';
-import 'forms.dart';
 import 'pages.dart';
 import 'reports.dart';
 import 'settings.dart';
+import 'money_pages.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -72,7 +73,7 @@ class _BootstrapState extends State<Bootstrap> {
                           ),
                           SizedBox(height: 20),
                           Text(
-                            'Eslam Office',
+                            'Eslam Money',
                             style: TextStyle(color: Colors.white, fontSize: 28),
                           ),
                           SizedBox(height: 28),
@@ -99,7 +100,7 @@ class OfficeApp extends StatelessWidget {
       final color = Color(s.settings['color'] as int? ?? navy.toARGB32());
       final radius = (s.settings['radius'] as num? ?? 18).toDouble();
       return MaterialApp(
-        title: 'Eslam Office',
+        title: 'Eslam Money',
         debugShowCheckedModeBanner: false,
         locale: const Locale('ar'),
         supportedLocales: const [Locale('ar'), Locale('en')],
@@ -192,10 +193,9 @@ class Shell extends StatefulWidget {
 class _ShellState extends State<Shell> {
   late String current = widget.s.settings['start'] ?? 'home';
   Widget page(String id) => switch (id) {
-    'entries' => EntriesPage(widget.s),
     'customers' => PartiesPage(widget.s, 'customer'),
-    'suppliers' => PartiesPage(widget.s, 'supplier'),
-    'reports' => ReportsPage(widget.s),
+    'statements' => StatementsHub(widget.s),
+    'settings' => SettingsPage(widget.s),
     _ => HomePage(widget.s),
   };
   @override
@@ -204,7 +204,13 @@ class _ShellState extends State<Shell> {
       widget.s.settings['navOrder'] ?? navLabels.keys.toList(),
     );
     final hidden = List<String>.from(widget.s.settings['navHidden'] ?? []);
-    final visible = order.where((k) => !hidden.contains(k)).toList();
+    final visible = order
+        .where((k) => navLabels.containsKey(k) && !hidden.contains(k))
+        .toList();
+    if (visible.length < 2) {
+      visible.clear();
+      visible.addAll(navLabels.keys);
+    }
     final selected = visible.contains(current) ? current : visible.first;
     return Scaffold(
       body: page(selected),
@@ -216,9 +222,9 @@ class _ShellState extends State<Shell> {
               (k) => NavigationDestination(
                 icon: Icon(switch (k) {
                   'home' => Icons.dashboard_outlined,
-                  'entries' => Icons.receipt_long_outlined,
+                  'statements' => Icons.receipt_long_outlined,
                   'customers' => Icons.people_outline,
-                  'suppliers' => Icons.business_outlined,
+                  'settings' => Icons.settings_outlined,
                   _ => Icons.bar_chart_rounded,
                 }),
                 label: navLabels[k]!,
@@ -230,77 +236,118 @@ class _ShellState extends State<Shell> {
   }
 }
 
-class HomePage extends StatefulWidget {
+class HomePage extends StatelessWidget {
   final Store s;
   const HomePage(this.s, {super.key});
   @override
-  State<HomePage> createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
-  Currency currency = Currency.USD;
-  Future<void> add() => showModalBottomSheet(
-    context: context,
-    showDragHandle: true,
-    builder: (ctx) => SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'إضافة جديدة',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: ['ticket', 'hotel', 'visa', 'settlement', 'expense']
-                  .map(
-                    (kind) => ActionChip(
-                      avatar: Icon(kindIcon(kind)),
-                      label: Text(types[kind]!),
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        newEntry(context, widget.s, kind);
-                      },
-                    ),
-                  )
-                  .toList(),
-            ),
-            ListTile(
-              leading: const Icon(Icons.person_add_alt),
-              title: const Text('زبون جديد'),
-              onTap: () {
-                Navigator.pop(ctx);
-                editParty(context, widget.s, 'customer');
-              },
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-  @override
   Widget build(BuildContext c) {
-    final s = widget.s;
+    void open(Widget page) =>
+        Navigator.push(c, MaterialPageRoute(builder: (_) => page));
+    final shortcuts = <(String, IconData, Widget)>[
+      ('المسافرون', Icons.people_outline, PartiesPage(s, 'passenger')),
+      ('جهات الإصدار', Icons.business_outlined, PartiesPage(s, 'supplier')),
+      ('المصروف', Icons.account_balance_wallet_outlined, ExpensesPage(s)),
+      ('الحركات', Icons.history, EntriesPage(s)),
+      ('مركز التدقيق', Icons.fact_check_outlined, ReviewPage(s)),
+    ];
+    final shortcutKeys = [
+      'passengers',
+      'suppliers',
+      'expense',
+      'movements',
+      'review',
+    ];
+    final visibleShortcuts = [
+      for (var i = 0; i < shortcuts.length; i++)
+        if (!List<String>.from(
+          s.settings['homeShortcutHidden'] ?? [],
+        ).contains(shortcutKeys[i]))
+          shortcuts[i],
+    ];
+    final sales = s.entries.where((e) => e.posted);
+    final counts = {
+      'تذاكر': sales
+          .where((e) => e.kind == 'ticket' && e.data['ticketType'] != 'change')
+          .fold<int>(0, (a, e) => a + e.quantity),
+      'فيز': sales
+          .where((e) => e.kind == 'visa')
+          .fold<int>(0, (a, e) => a + e.quantity),
+      'فنادق': sales.where((e) => e.kind == 'hotel').length,
+      'مسافرون': s.list('passenger').length,
+      'زبائن': s.list('customer').length,
+      'شركات الإصدار': s.list('supplier').length,
+      'التسوية': sales.where((e) => e.kind == 'settlement').length,
+      'المصاريف': sales.where((e) => e.kind == 'expense').length,
+    };
+    final statActions = <(String, IconData, Color, Widget)>[
+      (
+        'تذاكر',
+        Icons.flight_takeoff,
+        const Color(0xff388bd1),
+        EntryForm(s, 'ticket'),
+      ),
+      (
+        'فيز',
+        Icons.badge_outlined,
+        const Color(0xff24a58f),
+        EntryForm(s, 'visa'),
+      ),
+      ('فنادق', Icons.hotel, const Color(0xffa474ce), EntryForm(s, 'hotel')),
+      (
+        'مسافرون',
+        Icons.people_outline,
+        const Color(0xffdc8b50),
+        PartyForm(s, 'passenger'),
+      ),
+      (
+        'زبائن',
+        Icons.person_outline,
+        const Color(0xff649fe2),
+        PartyForm(s, 'customer'),
+      ),
+      (
+        'شركات الإصدار',
+        Icons.business_outlined,
+        const Color(0xff7894c9),
+        PartyForm(s, 'supplier'),
+      ),
+      (
+        'التسوية',
+        Icons.swap_horiz,
+        const Color(0xffd4a84f),
+        EntryForm(s, 'settlement'),
+      ),
+      (
+        'المصاريف',
+        Icons.account_balance_wallet_outlined,
+        const Color(0xffd3778e),
+        EntryForm(s, 'expense'),
+      ),
+    ];
+    const labels = {
+      'owed': 'المطلوب من الزبائن',
+      'profit': 'ربح الخدمات',
+      'payable': 'مستحقات الإصدار',
+      'expenses': 'المصروفات',
+    };
+    final cards =
+        List<String>.from(
+          s.settings['homeCards'] ?? labels.keys.toList(),
+        ).where(
+          (k) =>
+              labels.containsKey(k) &&
+              !List<String>.from(
+                s.settings['homeCardsHidden'] ?? [],
+              ).contains(k),
+        );
     return Scaffold(
       appBar: AppBar(
         title: const Text('الرئيسية'),
         actions: [
           IconButton(
             tooltip: 'البحث الموحّد',
-            onPressed: () => Navigator.push(
-              c,
-              MaterialPageRoute(builder: (_) => SearchPage(s)),
-            ),
             icon: const Icon(Icons.search),
-          ),
-          TextButton.icon(
-            onPressed: add,
-            icon: const Icon(Icons.add),
-            label: const Text('جديد'),
+            onPressed: () => open(SearchPage(s)),
           ),
         ],
       ),
@@ -313,69 +360,54 @@ class _HomePageState extends State<HomePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.flight_takeoff, color: gold, size: 48),
+                    Icon(
+                      Icons.account_balance_wallet_outlined,
+                      color: gold,
+                      size: 46,
+                    ),
                     SizedBox(height: 12),
                     Text(
-                      'Eslam Office',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      'Eslam Money',
+                      style: TextStyle(color: Colors.white, fontSize: 25),
                     ),
                     Text(
                       'Travel • Business • Finance',
-                      style: TextStyle(color: Colors.white70, fontSize: 11),
+                      style: TextStyle(color: Colors.white70),
                     ),
                   ],
                 ),
               ),
-              for (final k in [
-                'ticket',
-                'hotel',
-                'visa',
-                'settlement',
-                'expense',
-              ])
-                ListTile(
-                  leading: Icon(kindIcon(k)),
-                  title: Text(types[k]!),
+              ...shortcuts.map(
+                (e) => ListTile(
+                  leading: Icon(e.$2),
+                  title: Text(e.$1),
                   onTap: () {
                     Navigator.pop(c);
-                    Navigator.push(
-                      c,
-                      MaterialPageRoute(
-                        builder: (_) => EntriesPage(s, kind: k),
-                      ),
-                    );
+                    open(e.$3);
                   },
                 ),
-              for (final p in {
-                'passenger': 'المسافرون',
-                'family': 'العائلات',
-              }.entries)
-                ListTile(
-                  leading: const Icon(Icons.groups_outlined),
-                  title: Text(p.value),
-                  onTap: () {
-                    Navigator.pop(c);
-                    Navigator.push(
-                      c,
-                      MaterialPageRoute(builder: (_) => PartiesPage(s, p.key)),
-                    );
-                  },
-                ),
-              const Divider(),
+              ),
               ListTile(
-                leading: const Icon(Icons.settings_outlined),
-                title: const Text('الإعدادات'),
+                leading: const Icon(Icons.bar_chart),
+                title: const Text('الأرباح والتقارير'),
                 onTap: () {
                   Navigator.pop(c);
-                  Navigator.push(
-                    c,
-                    MaterialPageRoute(builder: (_) => SettingsPage(s)),
-                  );
+                  open(ReportsPage(s));
                 },
+              ),
+              ListTile(
+                leading: const Icon(Icons.info_outline),
+                title: const Text('نبذة التطبيق'),
+                onTap: () => showAboutDialog(
+                  context: c,
+                  applicationName: 'Eslam Money',
+                  applicationVersion: '1.2.1',
+                  children: [
+                    const Text(
+                      'Eslam Holiday\nEslamholiday.com\n07713414312\nجميع الحقوق محفوظة 2026',
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -384,7 +416,7 @@ class _HomePageState extends State<HomePage> {
       body: RefreshIndicator(
         onRefresh: s.reload,
         child: ListView(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(16),
           children: [
             Container(
               padding: const EdgeInsets.all(24),
@@ -394,113 +426,57 @@ class _HomePageState extends State<HomePage> {
                 ),
                 borderRadius: BorderRadius.circular(24),
               ),
-              child: Row(
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'أهلًا إسلام',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 25,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'مكتبك، حساباتك، وكل تفاصيل السفر',
-                          style: TextStyle(color: Colors.white70, fontSize: 12),
-                        ),
-                        if (s.settings['showEnglishLabels'] != false) ...[
-                          const SizedBox(height: 14),
-                          const Text(
-                            'E S L A M   O F F I C E',
-                            style: TextStyle(
-                              color: gold,
-                              fontSize: 10,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                        ],
-                      ],
+                  Text(
+                    'أهلًا إسلام',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                  Transform.rotate(
-                    angle: -.3,
-                    child: const Icon(
-                      Icons.flight_rounded,
-                      size: 78,
-                      color: gold,
-                    ),
+                  SizedBox(height: 8),
+                  Text(
+                    'E S L A M   M O N E Y',
+                    style: TextStyle(color: gold, letterSpacing: 2),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'حسابات مكتبك في مكان واحد',
+                    style: TextStyle(color: Colors.white70),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 20),
-            GridView.count(
-              crossAxisCount: 2,
-              childAspectRatio: 2.65,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              children: ['ticket', 'hotel', 'visa', 'settlement', 'expense']
-                  .where(
-                    (kind) => !List<String>.from(
-                      s.settings['homeShortcutHidden'] ?? const <String>[],
-                    ).contains(kind),
-                  )
-                  .map(
-                    (kind) => Material(
-                      color: kindColor(kind).withValues(alpha: .1),
-                      borderRadius: BorderRadius.circular(16),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(16),
-                        onTap: () => newEntry(c, s, kind),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Row(
-                            children: [
-                              Icon(
-                                kindIcon(kind),
-                                color: kindColor(kind),
-                                size: 30,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  kind == 'hotel' ? 'حجز فندق' : '${types[kind]} جديدة',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ...visibleShortcuts.map(
+                  (e) => ActionChip(
+                    avatar: Icon(e.$2),
+                    label: Text(e.$1),
+                    onPressed: () => open(e.$3),
+                  ),
+                ),
+                if (!List<String>.from(
+                  s.settings['homeShortcutHidden'] ?? [],
+                ).contains('about'))
+                  ActionChip(
+                    avatar: const Icon(Icons.info_outline),
+                    label: const Text('نبذة التطبيق'),
+                    onPressed: () => showAboutDialog(
+                      context: c,
+                      applicationName: 'Eslam Money',
+                      applicationVersion: '1.2.1',
+                      children: [const Text('Eslamholiday.com • 07713414312')],
                     ),
-                  )
-                  .toList(),
+                  ),
+              ],
             ),
-            if (s.settings['showHomeStats'] != false) ...[
-              const SizedBox(height: 14),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  Chip(label: Text('${s.entries.where((e) => e.posted).length} عملية')),
-                  Chip(label: Text('${s.entries.where((e) => e.posted && e.kind == 'ticket').length} تذكرة')),
-                  Chip(label: Text('${s.entries.where((e) => e.posted && e.kind == 'hotel').length} فندق')),
-                  Chip(label: Text('${s.entries.where((e) => e.posted && e.kind == 'visa').length} فيزا')),
-                  Chip(label: Text('${s.list('customer').length} زبون')),
-                ],
-              ),
-            ],
-            const SizedBox(height: 24),
             Row(
               children: [
                 const Expanded(
@@ -511,93 +487,162 @@ class _HomePageState extends State<HomePage> {
                 ),
                 IconButton(
                   tooltip: 'إظهار / إخفاء المبالغ',
-                  onPressed: () =>
-                      s.set('hideAmounts', s.settings['hideAmounts'] != true),
                   icon: Icon(
                     s.settings['hideAmounts'] == true
                         ? Icons.visibility_off_outlined
                         : Icons.visibility_outlined,
                   ),
+                  onPressed: () =>
+                      s.set('hideAmounts', s.settings['hideAmounts'] != true),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            SegmentedButton<Currency>(
-              segments: Currency.values
-                  .map((v) => ButtonSegment(value: v, label: Text(v.name)))
-                  .toList(),
-              selected: {currency},
-              onSelectionChanged: (v) => setState(() => currency = v.first),
-            ),
-            const SizedBox(height: 14),
-            FutureBuilder<Map<String, int>>(
-              future: s.summary(currency),
-              builder: (c, snapshot) {
-                final data = snapshot.data ?? {};
-                final order = List<String>.from(
-                  s.settings['homeCards'] ??
-                      ['owed', 'credit', 'profit', 'sale'],
-                );
-                return GridView.count(
-                  crossAxisCount: 2,
-                  childAspectRatio: 1.65,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  children: order
-                      .where(
-                        (k) => !List<String>.from(
-                          s.settings['homeCardsHidden'] ?? const <String>[],
-                        ).contains(k),
-                      )
+            FutureBuilder<List<Map<String, int>>>(
+              future: Future.wait(Currency.values.map(s.summary)),
+              builder: (c, snap) => LayoutBuilder(
+                builder: (c, constraints) => Wrap(
+                  spacing: 12,
+                  runSpacing: 0,
+                  children: cards
                       .map(
-                        (k) => AmountBox(
-                          {
-                            'owed': 'المطلوب من الزبائن',
-                            'credit': 'أرصدة لصالح الزبائن',
-                            'profit': 'ربح الخدمات',
-                            'sale': 'مبيعات الخدمات',
-                          }[k]!,
-                          s.settings['hideAmounts'] == true
-                              ? '••••'
-                              : currency.format(data[k] ?? 0),
-                          color: k == 'profit' ? const Color(0xff23836c) : null,
+                        (key) => SizedBox(
+                          width: (constraints.maxWidth - 12) / 2,
+                          child: Card(
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(18),
+                              onTap: () => open(
+                                key == 'payable'
+                                    ? SupplierBalances(s)
+                                    : key == 'expenses'
+                                    ? ExpensesPage(s)
+                                    : key == 'owed'
+                                    ? PartiesPage(s, 'customer')
+                                    : ReportsPage(s),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(14),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      labels[key]!,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    for (var i = 0; i < 2; i++)
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 2,
+                                        ),
+                                        child: FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          child: Text(
+                                            s.settings['hideAmounts'] == true
+                                                ? '••••'
+                                                : '${Currency.values[i].name}  ${Currency.values[i].format(snap.data?[i][key] ?? 0)}',
+                                            textDirection: TextDirection.ltr,
+                                            style: const TextStyle(
+                                              fontSize: 19,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       )
                       .toList(),
-                );
-              },
+                ),
+              ),
             ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'آخر العمليات',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
+            if (s.settings['showHomeStats'] != false) ...[
+              const SizedBox(height: 16),
+              LayoutBuilder(
+                builder: (context, constraints) => Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: statActions
+                      .map(
+                        (stat) => SizedBox(
+                          width: (constraints.maxWidth - 10) / 2,
+                          child: Material(
+                            color: Color.alphaBlend(
+                              stat.$3.withValues(alpha: .14),
+                              Theme.of(context).colorScheme.surface,
+                            ),
+                            borderRadius: BorderRadius.circular(18),
+                            clipBehavior: Clip.antiAlias,
+                            child: InkWell(
+                              key: ValueKey('home-stat-${stat.$1}'),
+                              onTap: () => open(stat.$4),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 12,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(stat.$2, color: stat.$3, size: 27),
+                                    const SizedBox(width: 9),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            '${counts[stat.$1]}',
+                                            style: TextStyle(
+                                              color: stat.$3,
+                                              fontSize: 21,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          Text(
+                                            stat.$1,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
                 ),
-                Text(
-                  '${s.entries.length} عملية',
-                  style: const TextStyle(color: Colors.grey, fontSize: 12),
-                ),
-              ],
+              ),
+            ],
+            const SizedBox(height: 16),
+            const Text(
+              'آخر الحركات',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             if (s.entries.isEmpty)
               const EmptyState(
                 'جاهز لأول عملية',
-                'ابدأ بإضافة زبون ثم تذكرة أو فندق أو فيزا.',
-                icon: Icons.flight_takeoff_outlined,
+                'أضف زبونًا من قسم الزبائن ثم أضف خدماته.',
               )
             else
               ...s.entries.take(5).map((e) => EntryTile(s, e)),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             const Center(
               child: Text(
                 'Eslam Holiday • جميع الحقوق محفوظة 2026',
-                style: TextStyle(color: Colors.grey, fontSize: 10),
+                style: TextStyle(color: Colors.grey, fontSize: 11),
               ),
             ),
           ],

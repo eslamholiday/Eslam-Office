@@ -29,8 +29,7 @@ class _PartyFormState extends State<PartyForm> {
   late final passport = TextEditingController(
     text: widget.party?['passport'] ?? '',
   );
-  late int? family = widget.party?['family'],
-      customer = widget.party?['customer'];
+  late int? customer = widget.party?['customer'];
   late List<String> attachments = List<String>.from(
     widget.party?['attachments'] ?? [],
   );
@@ -50,7 +49,7 @@ class _PartyFormState extends State<PartyForm> {
   Widget build(BuildContext c) => Scaffold(
     appBar: AppBar(
       title: Text(
-        '${widget.party == null ? 'إضافة' : 'تعديل'} ${{'customer': 'زبون', 'supplier': 'جهة إصدار', 'passenger': 'مسافر', 'family': 'عائلة'}[widget.kind]}',
+        '${widget.party?['id'] == null ? 'إضافة' : 'تعديل'} ${{'customer': 'زبون', 'supplier': 'جهة إصدار', 'passenger': 'مسافر', 'family': 'عائلة'}[widget.kind]}',
       ),
     ),
     body: ListView(
@@ -61,14 +60,6 @@ class _PartyFormState extends State<PartyForm> {
           textField(name, 'الاسم'),
           if (widget.kind != 'family') ...[
             textField(phone, 'رقم الهاتف', number: true),
-            if (widget.kind != 'supplier')
-              PickField(
-                'العائلة',
-                family,
-                widget.s.list('family'),
-                (v) => setState(() => family = v),
-                add: () => editParty(c, widget.s, 'family'),
-              ),
             if (widget.kind == 'passenger') ...[
               PickField(
                 'حساب الزبون',
@@ -108,14 +99,14 @@ class _PartyFormState extends State<PartyForm> {
                   setState(() => busy = true);
                   try {
                     final id = await widget.s.saveParty({
+                      ...?widget.party,
                       'kind': widget.kind,
                       'name': name.text.trim().isEmpty
                           ? 'بدون اسم'
                           : name.text.trim(),
-                      'phone': phone.text.trim(),
+                      'phone': normalizePhone(phone.text),
                       'notes': notes.text,
                       'passport': passport.text,
-                      'family': family,
                       'customer': customer,
                       'attachments': attachments,
                       'profileImage': profileImage,
@@ -158,6 +149,7 @@ class _EntryFormState extends State<EntryForm> {
   late Map<String, dynamic> d;
   bool busy = false;
   String? calcError;
+  bool editingCustomExpenseSubcategory = false;
   Currency get currency => Currency.values.byName(d['currency']);
   TextEditingController tc(String key, [String value = '']) =>
       controllers.putIfAbsent(key, () => TextEditingController(text: value));
@@ -181,8 +173,13 @@ class _EntryFormState extends State<EntryForm> {
       'partyType': widget.supplier ? 'supplier' : 'customer',
       'direction': -1,
       'settlementMode': 'cash',
-      'personal': false,
+      'paymentMethod': 'cash',
+      'ticketType': 'ticket',
+      'personal': widget.kind == 'expense',
       'attachments': <String>[],
+      ...Map<String, dynamic>.from(
+        widget.s.settings['defaults_${widget.kind}'] ?? {},
+      ),
       ...?(widget.draft?.data),
     };
     if (widget.party != null) {
@@ -195,6 +192,7 @@ class _EntryFormState extends State<EntryForm> {
       'visaType',
       'days',
       'entriesCount',
+      'expenseSubcategory',
       'rooms',
       'people',
     ]) {
@@ -203,7 +201,12 @@ class _EntryFormState extends State<EntryForm> {
     for (final key in ['sell', 'costUnit', 'amount', 'fee']) {
       tc(key, currency.input(d[key] as int? ?? 0));
     }
-    tc('rate', ((d['rate'] as int? ?? 0) / 100).toString());
+    tc(
+      'rate',
+      (d['rate'] as int? ?? 0) == 0
+          ? ''
+          : ((d['rate'] as int) / 100).toString(),
+    );
     tc('qty', '${d['qty'] ?? 1}');
     final lines =
         d['lines'] as List? ??
@@ -214,7 +217,7 @@ class _EntryFormState extends State<EntryForm> {
         ];
     for (var i = 0; i < 3; i++) {
       final row = i < lines.length ? lines[i] : <String, dynamic>{};
-      tc('q$i', '${row['qty'] ?? 0}');
+      tc('q$i', (row['qty'] ?? 0) == 0 ? '' : '${row['qty']}');
       for (final key in ['base', 'gross', 'sell']) {
         tc('$key$i', currency.input(row[key] as int? ?? 0));
       }
@@ -232,7 +235,9 @@ class _EntryFormState extends State<EntryForm> {
 
   void applyRule() {
     final r = widget.s.commission(d['airline'], d['supplier']);
-    tc('rate').text = ((r['rate'] as int? ?? 0) / 100).toString();
+    tc('rate').text = (r['rate'] as int? ?? 0) == 0
+        ? ''
+        : ((r['rate'] as int) / 100).toString();
     d['commissionMode'] = r['commissionMode'] ?? 'percent';
     tc('fee').text = currency.input(
       r['currency'] == null || r['currency'] == currency.name
@@ -250,6 +255,7 @@ class _EntryFormState extends State<EntryForm> {
       'visaType',
       'days',
       'entriesCount',
+      'expenseSubcategory',
       'rooms',
       'people',
     ]) {
@@ -273,24 +279,143 @@ class _EntryFormState extends State<EntryForm> {
       v['sell'] = money(tc('sell').text, currency);
       v['costUnit'] = money(tc('costUnit').text, currency);
     }
-    if (['expense', 'settlement', 'opening'].contains(widget.kind)) {
+    if (['expense', 'funding', 'settlement', 'opening'].contains(widget.kind)) {
       v['amount'] = money(tc('amount').text, currency);
     }
     return v;
   }
 
-  Future<void> save(bool post) async {
+  Future<void> save(bool post, {bool another = false}) async {
     setState(() => busy = true);
     try {
       final v = collect();
       v['posted'] = post;
+      if (post) {
+        final totals = ['ticket', 'hotel', 'visa'].contains(widget.kind)
+            ? calculate(v)
+            : null;
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('مراجعة قبل الاعتماد'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('${Entry(v).label} • ${displayDate(v['date'])}'),
+                  Text('الزبون: ${widget.s.name(v['customer'])}'),
+                  Text('جهة الإصدار: ${widget.s.name(v['supplier'])}'),
+                  if (totals != null) ...[
+                    Text('العدد: ${Entry(v).quantity}'),
+                    Text('البيع: ${currency.format(totals.sale)}'),
+                    Text('التسديد: ${currency.format(totals.cost)}'),
+                    Text('الربح: ${currency.format(totals.profit)}'),
+                    if (totals.profit < 0)
+                      const Text(
+                        'تنبيه: العملية بخسارة',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                  ] else
+                    Text('المبلغ: ${currency.format(v['amount'] ?? 0)}'),
+                  Text('التسديد: ${paymentMethods[v['paymentMethod']] ?? ''}'),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('رجوع للتعديل'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('اعتماد'),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true) return;
+      }
       await widget.s.saveEntry(v, id: widget.draft?.id);
-      if (mounted) Navigator.pop(context, true);
+      if (mounted) {
+        if (another) {
+          await Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => EntryForm(
+                widget.s,
+                widget.kind,
+                party: d['customer'] ?? d['supplier'],
+                supplier: d['customer'] == null && d['supplier'] != null,
+              ),
+            ),
+          );
+        } else {
+          Navigator.pop(context, true);
+        }
+      }
     } catch (e) {
       if (mounted) message(context, e);
     } finally {
       if (mounted) setState(() => busy = false);
     }
+  }
+
+  Widget passengerPicker() {
+    final ids = List<int>.from(
+      d['passengers'] ?? (d['passenger'] == null ? [] : [d['passenger']]),
+    );
+    final rows = widget.s
+        .list('passenger')
+        .where((p) => p['customer'] == d['customer'] && d['customer'] != null)
+        .toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('المسافرون التابعون للزبون'),
+        ...rows.map(
+          (p) => CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(p['name']),
+            value: ids.contains(p['id']),
+            onChanged: (selected) => setState(() {
+              if (selected == true) {
+                ids.add(p['id']);
+              } else {
+                ids.remove(p['id']);
+              }
+              d['passengers'] = ids;
+              d['passenger'] = null;
+            }),
+          ),
+        ),
+        TextButton.icon(
+          icon: const Icon(Icons.person_add_alt),
+          label: const Text('إضافة مسافر للزبون'),
+          onPressed: d['customer'] == null
+              ? null
+              : () async {
+                  final id = await Navigator.push<int>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => PartyForm(
+                        widget.s,
+                        'passenger',
+                        party: {'customer': d['customer']},
+                      ),
+                    ),
+                  );
+                  if (id != null && mounted) {
+                    setState(() {
+                      ids.add(id);
+                      d['passengers'] = ids;
+                    });
+                  }
+                },
+        ),
+        Text('المحدد: ${ids.length} — أدخل العدد المالي في خانات الخدمة.'),
+      ],
+    );
   }
 
   Widget field(
@@ -312,6 +437,16 @@ class _EntryFormState extends State<EntryForm> {
         party ? widget.s.list(kind) : widget.s.referenceList(kind),
         (v) => setState(() {
           d[key] = v;
+          if (key == 'expenseCategory') {
+            tc('expenseSubcategory').clear();
+            editingCustomExpenseSubcategory = false;
+            final ref = widget.s.refs.where((r) => r['id'] == v).firstOrNull;
+            if (ref?['personal'] == true) d['personal'] = true;
+          }
+          if (key == 'customer') {
+            d['passengers'] = <int>[];
+            d['passenger'] = null;
+          }
           if (key == 'airline') {
             final ref = widget.s.refs.where((r) => r['id'] == v).firstOrNull;
             final hasPrices = controllers.entries.any(
@@ -327,6 +462,37 @@ class _EntryFormState extends State<EntryForm> {
         }),
         add: party ? () => editParty(context, widget.s, kind) : null,
       );
+  Widget expenseSubcategoryPicker() {
+    final category = widget.s.refs
+        .where((r) => r['id'] == d['expenseCategory'])
+        .firstOrNull;
+    final names = List<String>.from(category?['subcategories'] ?? []);
+    final current = tc('expenseSubcategory').text;
+    final custom =
+        current == 'أخرى' || (current.isNotEmpty && !names.contains(current));
+    if (current.isNotEmpty && !names.contains(current)) names.add(current);
+    final selected = names.indexOf(current);
+    return Column(
+      children: [
+        PickField(
+          'التصنيف الفرعي',
+          selected < 0 ? null : selected,
+          [
+            for (var i = 0; i < names.length; i++) {'id': i, 'name': names[i]},
+          ],
+          (v) => setState(() {
+            tc('expenseSubcategory').text = v == null ? '' : names[v];
+            editingCustomExpenseSubcategory = v != null && names[v] == 'أخرى';
+          }),
+        ),
+        if (editingCustomExpenseSubcategory ||
+            custom ||
+            (names.isEmpty && d['expenseCategory'] != null))
+          field('expenseSubcategory', 'اكتب التصنيف الفرعي'),
+      ],
+    );
+  }
+
   Widget date(String key, String label) =>
       DateField(label, d[key], (v) => setState(() => d[key] = v));
   Widget category(int i, String label) => Column(
@@ -341,7 +507,7 @@ class _EntryFormState extends State<EntryForm> {
   );
   List<Widget> optionalFields() {
     final available = <String, Widget>{
-      'passenger': pick('passenger', 'المسافر', 'passenger', party: true),
+      'passenger': passengerPicker(),
       'country': pick('country', 'الدولة', 'country'),
       'from': pick('from', 'مدينة المغادرة', 'city'),
       'to': pick('to', 'مدينة الوصول', 'city'),
@@ -358,14 +524,7 @@ class _EntryFormState extends State<EntryForm> {
       'entriesCount': field('entriesCount', 'عدد الدخولات', number: true),
     };
     final keys = switch (widget.kind) {
-      'ticket' => [
-        'passenger',
-        'country',
-        'from',
-        'to',
-        'depart',
-        'return',
-        ],
+      'ticket' => ['passenger', 'country', 'from', 'to', 'depart', 'return'],
       'hotel' => ['passenger', 'country', 'city', 'rooms', 'people', 'meals'],
       'visa' => [
         'passenger',
@@ -411,6 +570,18 @@ class _EntryFormState extends State<EntryForm> {
         padding: const EdgeInsets.all(12),
         children: [
           Section('معلومات العملية', [
+            if (widget.kind == 'ticket') ...[
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'ticket', label: Text('تذكرة')),
+                  ButtonSegment(value: 'change', label: Text('تغيير')),
+                ],
+                selected: {d['ticketType'] ?? 'ticket'},
+                onSelectionChanged: (v) =>
+                    setState(() => d['ticketType'] = v.first),
+              ),
+              const SizedBox(height: 16),
+            ],
             if (sale) pick('customer', 'حساب الزبون', 'customer', party: true),
             if (widget.kind == 'settlement' || widget.kind == 'opening') ...[
               SegmentedButton<String>(
@@ -430,6 +601,7 @@ class _EntryFormState extends State<EntryForm> {
             ],
             pair(
               DropdownButtonFormField<String>(
+                isExpanded: true,
                 key: ValueKey(currency.name),
                 initialValue: currency.name,
                 decoration: const InputDecoration(labelText: 'العملة'),
@@ -471,7 +643,12 @@ class _EntryFormState extends State<EntryForm> {
               if (d['commissionMode'] == 'percent')
                 field('rate', 'نسبة العمولة من السعر الأساسي %', number: true)
               else
-                field('fee', 'رسم الإصدار لكل تذكرة', number: true, grouped: true),
+                field(
+                  'fee',
+                  'رسم الإصدار لكل تذكرة',
+                  number: true,
+                  grouped: true,
+                ),
             ]),
             Section('بالغ / Adult', [category(0, 'بالغ')]),
             Card(
@@ -501,7 +678,12 @@ class _EntryFormState extends State<EntryForm> {
                   'عدد الليالي: ${DateTime.parse(d['checkOut']).difference(DateTime.parse(d['checkIn'])).inDays}',
                 ),
               const SizedBox(height: 12),
-              field('costUnit', 'التكلفة الكاملة للحجز', number: true, grouped: true),
+              field(
+                'costUnit',
+                'التكلفة الكاملة للحجز',
+                number: true,
+                grouped: true,
+              ),
               field('sell', 'البيع الكامل للحجز', number: true, grouped: true),
             ]),
           if (widget.kind == 'visa')
@@ -517,6 +699,7 @@ class _EntryFormState extends State<EntryForm> {
             Section('حركة الحساب', [
               field('amount', 'المبلغ', number: true, grouped: true),
               DropdownButtonFormField<int>(
+                isExpanded: true,
                 initialValue: d['direction'],
                 decoration: const InputDecoration(labelText: 'أثر الحركة'),
                 items: const [
@@ -532,6 +715,7 @@ class _EntryFormState extends State<EntryForm> {
                 Padding(
                   padding: const EdgeInsets.only(top: 16),
                   child: DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: d['settlementMode'],
                     decoration: const InputDecoration(labelText: 'نوع التسوية'),
                     items: const [
@@ -550,16 +734,21 @@ class _EntryFormState extends State<EntryForm> {
               const SizedBox(height: 12),
               const Text('التسوية والرصيد الافتتاحي لا يغيّران ربح الخدمات.'),
             ]),
-          if (widget.kind == 'expense')
+          if (widget.kind == 'expense' || widget.kind == 'funding')
             Section('المصروف', [
               field('amount', 'المبلغ', number: true),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('مصروف شخصي'),
-                subtitle: const Text('الشخصي لا يخصم من صافي ربح المكتب'),
-                value: d['personal'] == true,
-                onChanged: (v) => setState(() => d['personal'] = v),
-              ),
+              if (widget.kind == 'expense') ...[
+                pick('expenseCategory', 'تصنيف المصروف', 'expenseCategory'),
+                expenseSubcategoryPicker(),
+              ],
+              if (widget.kind == 'expense')
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('مصروف شخصي'),
+                  subtitle: const Text('الشخصي لا يخصم من صافي ربح المكتب'),
+                  value: d['personal'] == true,
+                  onChanged: (v) => setState(() => d['personal'] = v),
+                ),
             ]),
           if (sale) Section('تفاصيل إضافية', optionalFields()),
           if (sale)
@@ -583,6 +772,23 @@ class _EntryFormState extends State<EntryForm> {
                 ),
               ],
             ]),
+          if (widget.kind != 'opening')
+            Section('طريقة التسديد', [
+              DropdownButtonFormField<String>(
+                isExpanded: true,
+                initialValue: d['paymentMethod'] ?? 'cash',
+                items: paymentMethods.entries
+                    .map(
+                      (e) =>
+                          DropdownMenuItem(value: e.key, child: Text(e.value)),
+                    )
+                    .toList(),
+                onChanged: (v) => setState(() => d['paymentMethod'] = v),
+              ),
+              const Text(
+                'وصف لطريقة التسديد؛ قبض أو دفع المبلغ يسجّل في التسوية.',
+              ),
+            ]),
           Section('الملاحظات والمرفقات', [
             field('notes', 'ملاحظات / سبب الحركة'),
             Attachments(
@@ -590,6 +796,11 @@ class _EntryFormState extends State<EntryForm> {
               (v) => setState(() => d['attachments'] = v),
             ),
           ]),
+          TextButton.icon(
+            onPressed: busy ? null : () => save(true, another: true),
+            icon: const Icon(Icons.add_task),
+            label: const Text('حفظ وإضافة أخرى'),
+          ),
           const SizedBox(height: 20),
         ],
       ),
@@ -659,8 +870,18 @@ Future<void> refundDialog(BuildContext c, Store s, Entry e) async {
                 'يُخفض حساب الزبون والمورد والربح. إعادة النقد تُسجل بتسوية منفصلة.',
               ),
               const SizedBox(height: 16),
-              textField(sale, 'المبلغ المسترجع للزبون', number: true, grouped: true),
-              textField(cost, 'المبلغ المسترجع من المورد', number: true, grouped: true),
+              textField(
+                sale,
+                'المبلغ المسترجع للزبون',
+                number: true,
+                grouped: true,
+              ),
+              textField(
+                cost,
+                'المبلغ المسترجع من المورد',
+                number: true,
+                grouped: true,
+              ),
               DateField(
                 'التاريخ',
                 date,

@@ -49,11 +49,11 @@ android {
     buildTypes {
         debug {
             applicationIdSuffix = ".preview"
-            resValue("string", "app_name", "Eslam Office Preview")
+            resValue("string", "app_name", "Eslam Money Preview")
         }
         release {
             signingConfig = if (signingFile.exists()) signingConfigs.getByName("officeRelease") else null
-            resValue("string", "app_name", "Eslam Office")
+            resValue("string", "app_name", "Eslam Money")
         }
     }
 }

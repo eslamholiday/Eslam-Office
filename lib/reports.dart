@@ -10,6 +10,7 @@ import 'package:path/path.dart' as p;
 import 'domain.dart';
 import 'store.dart';
 import 'ui.dart';
+import 'pages.dart';
 
 int displayConvert(
   int amount,
@@ -78,8 +79,9 @@ class _StatementPageState extends State<StatementPage> {
       to = values[1];
     });
   }
+
   final rate = TextEditingController(text: '150000'),
-      fee = TextEditingController(text: '0');
+      fee = TextEditingController();
   @override
   void dispose() {
     rate.dispose();
@@ -142,7 +144,20 @@ class _StatementPageState extends State<StatementPage> {
         final move = widget.s.movement(e, widget.party);
         totals[e.currency] = totals[e.currency]! + move;
         final detail = [
-          types[e.kind],
+          e.label,
+          if (widget.s.settings['statementShowNumber'] != false) '#${e.id}',
+          if (widget.s.settings['statementShowQuantity'] != false &&
+              ['ticket', 'visa', 'hotel'].contains(e.kind))
+            'العدد: ${e.quantity}',
+          if (widget.s.settings['statementShowPassengers'] != false &&
+              e.passengers.isNotEmpty)
+            e.passengers.map(widget.s.name).join('، '),
+          if (widget.s.settings['statementShowPayment'] != false &&
+              e.data['paymentMethod'] != null)
+            paymentMethods[e.data['paymentMethod']] ?? '',
+          if (widget.s.settings['statementShowNotes'] == true &&
+              (e.data['notes'] ?? '').isNotEmpty)
+            e.data['notes'],
           if (widget.s.settings['statementShowTravel'] != false) ...[
             if (e.data['hotelName'] != null && e.data['hotelName'] != '')
               e.data['hotelName'],
@@ -152,7 +167,7 @@ class _StatementPageState extends State<StatementPage> {
         ].join(' • ');
         rows.add([
           displayDate(e.date, weekday: false),
-          '#${e.id} $detail',
+          detail,
           target == null
               ? e.currency.format(move)
               : target.format(
@@ -194,13 +209,15 @@ class _StatementPageState extends State<StatementPage> {
         }
       }
       final foot = [
-        if (target != null && widget.s.settings['statementShowExchange'] != false)
+        if (target != null &&
+            widget.s.settings['statementShowExchange'] != false)
           'تحويل العرض: 100 USD = ${Currency.IQD.format(exchange)}',
         if ((target != null || permille != 0) &&
             widget.s.settings['statementShowExchange'] != false)
           'التحويل وعمولته للعرض فقط؛ الأرصدة الأصلية محفوظة.',
-        'الفترة: ${from == null ? 'من البداية' : displayDate(from, weekday: false)} — '
-            '${to == null ? 'كامل السجل' : displayDate(to, weekday: false)}',
+        if (widget.s.settings['statementShowPeriod'] != false)
+          'الفترة: ${from == null ? 'من البداية' : displayDate(from, weekday: false)} — '
+              '${to == null ? 'كامل السجل' : displayDate(to, weekday: false)}',
       ];
       if (mounted) {
         await Navigator.push(
@@ -209,8 +226,24 @@ class _StatementPageState extends State<StatementPage> {
             builder: (_) => PdfPage(
               widget.s,
               'كشف حساب ${widget.s.name(widget.party)}',
-              ['التاريخ', 'العملية', 'الحركة', 'الرصيد'],
-              rows,
+              [
+                if (widget.s.settings['statementShowDate'] != false) 'التاريخ',
+                'العملية',
+                'الحركة',
+                if (widget.s.settings['statementShowBalance'] != false)
+                  'الرصيد',
+              ],
+              rows
+                  .map(
+                    (r) => [
+                      if (widget.s.settings['statementShowDate'] != false) r[0],
+                      r[1],
+                      r[2],
+                      if (widget.s.settings['statementShowBalance'] != false)
+                        r[3],
+                    ],
+                  )
+                  .toList(),
               [...summary, ...foot],
             ),
           ),
@@ -229,6 +262,7 @@ class _StatementPageState extends State<StatementPage> {
       children: [
         Section(widget.s.name(widget.party), [
           DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: mode,
             decoration: const InputDecoration(labelText: 'عرض العملة'),
             items: const [
@@ -253,20 +287,23 @@ class _StatementPageState extends State<StatementPage> {
           Wrap(
             spacing: 6,
             runSpacing: 6,
-            children: const {
-              'all': 'من البداية',
-              'today': 'اليوم',
-              'week': 'هذا الأسبوع',
-              'month': 'هذا الشهر',
-              'previous': 'الشهر السابق',
-              'year': 'هذه السنة',
-            }.entries.map(
-              (item) => ChoiceChip(
-                label: Text(item.value),
-                selected: quickRange == item.key,
-                onSelected: (_) => applyQuickRange(item.key),
-              ),
-            ).toList(),
+            children:
+                const {
+                      'all': 'من البداية',
+                      'today': 'اليوم',
+                      'week': 'هذا الأسبوع',
+                      'month': 'هذا الشهر',
+                      'previous': 'الشهر السابق',
+                      'year': 'هذه السنة',
+                    }.entries
+                    .map(
+                      (item) => ChoiceChip(
+                        label: Text(item.value),
+                        selected: quickRange == item.key,
+                        onSelected: (_) => applyQuickRange(item.key),
+                      ),
+                    )
+                    .toList(),
           ),
           const SizedBox(height: 12),
           pair(
@@ -295,30 +332,17 @@ class _StatementPageState extends State<StatementPage> {
           ExpansionTile(
             title: const Text('تفاصيل وأعمدة الكشف'),
             children: [
-              SwitchListTile(
-                title: const Text('إظهار رصيد أول المدة'),
-                value: widget.s.settings['statementShowPrevious'] != false,
-                onChanged: (v) => widget.s.set('statementShowPrevious', v),
-              ),
-              SwitchListTile(
-                title: const Text('إظهار تفاصيل السفر والخدمة'),
-                value: widget.s.settings['statementShowTravel'] != false,
-                onChanged: (v) => widget.s.set('statementShowTravel', v),
-              ),
-              SwitchListTile(
-                title: const Text('إظهار سعر الصرف عند التحويل'),
-                value: widget.s.settings['statementShowExchange'] != false,
-                onChanged: (v) => widget.s.set('statementShowExchange', v),
-              ),
-              SwitchListTile(
-                title: const Text('إظهار عمولة التحويل'),
-                value: widget.s.settings['statementShowFee'] != false,
-                onChanged: (v) => widget.s.set('statementShowFee', v),
-              ),
-              SwitchListTile(
-                title: const Text('إظهار الرصيد والإجمالي النهائي'),
-                value: widget.s.settings['statementShowFinal'] != false,
-                onChanged: (v) => widget.s.set('statementShowFinal', v),
+              ...statementOptions.entries.map(
+                (e) => SwitchListTile(
+                  title: Text(e.value),
+                  value: e.key == 'statementShowNotes'
+                      ? widget.s.settings[e.key] == true
+                      : widget.s.settings[e.key] != false,
+                  onChanged: (v) async {
+                    await widget.s.set(e.key, v);
+                    if (mounted) setState(() {});
+                  },
+                ),
               ),
             ],
           ),
@@ -402,18 +426,45 @@ class PdfPage extends StatelessWidget {
               ),
               pw.SizedBox(height: 8),
             ],
-            pw.Text(
-              s.settings['office'] ?? 'Eslam Holiday',
-              style: pw.TextStyle(
-                fontSize: 20,
-                color: PdfColor.fromInt(0xff123b5d),
+            if (s.settings['statementShowOffice'] != false)
+              pw.Text(
+                s.settings['office'] ?? 'Eslam Holiday',
+                style: pw.TextStyle(
+                  fontSize: 20,
+                  color: PdfColor.fromInt(0xff123b5d),
+                ),
               ),
-            ),
             pw.Text(
-              '${s.settings['phone'] ?? '07713414312'}  •  ${s.settings['website'] ?? 'Eslamholiday.com'}',
+              [
+                if (s.settings['statementShowPhone'] != false)
+                  s.settings['phone'] ?? '07713414312',
+                if (s.settings['statementShowWebsite'] != false)
+                  s.settings['website'] ?? 'Eslamholiday.com',
+              ].join('  •  '),
               textDirection: pw.TextDirection.ltr,
               style: const pw.TextStyle(fontSize: 9),
             ),
+            if (s.settings['statementShowTransferAccount'] != false &&
+                (s.settings['transferAccount'] ?? '9645239113')
+                    .toString()
+                    .trim()
+                    .isNotEmpty)
+              pw.Padding(
+                padding: const pw.EdgeInsets.only(top: 5),
+                child: pw.Row(
+                  children: [
+                    pw.Text(
+                      'للتحويل الإلكتروني رقم حساب: ',
+                      style: const pw.TextStyle(fontSize: 9),
+                    ),
+                    pw.Text(
+                      s.settings['transferAccount'] ?? '9645239113',
+                      textDirection: pw.TextDirection.ltr,
+                      style: const pw.TextStyle(fontSize: 9),
+                    ),
+                  ],
+                ),
+              ),
             pw.SizedBox(height: 12),
             pw.Text(title, style: const pw.TextStyle(fontSize: 16)),
             pw.Divider(color: PdfColor.fromInt(0xffd4a84f)),
@@ -423,15 +474,17 @@ class PdfPage extends StatelessWidget {
         footer: (ctx) => pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
           children: [
-            pw.Text(
-              s.settings['footer'] ?? 'جميع الحقوق محفوظة 2026',
-              style: const pw.TextStyle(fontSize: 8),
-            ),
-            pw.Text(
-              '${ctx.pageNumber} / ${ctx.pagesCount}',
-              textDirection: pw.TextDirection.ltr,
-              style: const pw.TextStyle(fontSize: 8),
-            ),
+            if (s.settings['statementShowFooter'] != false)
+              pw.Text(
+                s.settings['footer'] ?? 'جميع الحقوق محفوظة 2026',
+                style: const pw.TextStyle(fontSize: 8),
+              ),
+            if (s.settings['statementShowPage'] != false)
+              pw.Text(
+                '${ctx.pageNumber} / ${ctx.pagesCount}',
+                textDirection: pw.TextDirection.ltr,
+                style: const pw.TextStyle(fontSize: 8),
+              ),
           ],
         ),
         build: (_) => [
@@ -488,7 +541,12 @@ class PdfPage extends StatelessWidget {
               await file.writeAsBytes(png, flush: true);
             }
             if (c.mounted) {
-              message(c, index == 1 ? 'حُفظ الكشف كصورة داخل التطبيق' : 'حُفظ الكشف داخلياً — $index صفحات');
+              message(
+                c,
+                index == 1
+                    ? 'حُفظ الكشف كصورة داخل التطبيق'
+                    : 'حُفظ الكشف داخلياً — $index صفحات',
+              );
             }
           }),
         ),
@@ -499,7 +557,7 @@ class PdfPage extends StatelessWidget {
             final bytes = await document(PdfPageFormat.a4);
             await FilePicker.platform.saveFile(
               dialogTitle: 'حفظ كشف الحساب',
-              fileName: 'Eslam-Office-${day(DateTime.now())}.pdf',
+              fileName: 'Eslam-Money-${day(DateTime.now())}.pdf',
               type: FileType.custom,
               allowedExtensions: ['pdf'],
               bytes: bytes,
@@ -514,11 +572,10 @@ class PdfPage extends StatelessWidget {
       canChangeOrientation: false,
       canChangePageFormat: false,
       canDebug: false,
-      pdfFileName: 'Eslam-Office-statement.pdf',
+      pdfFileName: 'Eslam-Money-statement.pdf',
     ),
   );
 }
-
 
 class SavedStatementsPage extends StatefulWidget {
   const SavedStatementsPage({super.key});
@@ -566,7 +623,12 @@ class _SavedStatementsPageState extends State<SavedStatementsPage> {
             final file = rows[i];
             return Card(
               child: ListTile(
-                leading: Image.file(file, width: 50, height: 60, fit: BoxFit.contain),
+                leading: Image.file(
+                  file,
+                  width: 50,
+                  height: 60,
+                  fit: BoxFit.contain,
+                ),
                 title: Text('صورة كشف ${i + 1}'),
                 subtitle: Text(p.basename(file.path)),
                 onTap: () => openAttachment(context, file.path),
@@ -608,6 +670,7 @@ class _ReportsPageState extends State<ReportsPage> {
       to = values[1];
     });
   }
+
   @override
   Widget build(BuildContext c) {
     final rows = widget.s.entries
@@ -671,7 +734,7 @@ class _ReportsPageState extends State<ReportsPage> {
                       .map(
                         (e) => [
                           displayDate(e.date, weekday: false),
-                          '#${e.id} ${types[e.kind]}',
+                          '#${e.id} ${e.label}',
                           widget.s.name(e.data['customer']),
                           currency.format(
                             e.sale * (e.kind == 'refund' ? -1 : 1),
@@ -707,20 +770,23 @@ class _ReportsPageState extends State<ReportsPage> {
             Wrap(
               spacing: 6,
               runSpacing: 6,
-              children: const {
-                'all': 'الكل',
-                'today': 'اليوم',
-                'week': 'هذا الأسبوع',
-                'month': 'هذا الشهر',
-                'previous': 'الشهر السابق',
-                'year': 'هذه السنة',
-              }.entries.map(
-                (item) => ChoiceChip(
-                  label: Text(item.value),
-                  selected: quickRange == item.key,
-                  onSelected: (_) => applyQuickRange(item.key),
-                ),
-              ).toList(),
+              children:
+                  const {
+                        'all': 'الكل',
+                        'today': 'اليوم',
+                        'week': 'هذا الأسبوع',
+                        'month': 'هذا الشهر',
+                        'previous': 'الشهر السابق',
+                        'year': 'هذه السنة',
+                      }.entries
+                      .map(
+                        (item) => ChoiceChip(
+                          label: Text(item.value),
+                          selected: quickRange == item.key,
+                          onSelected: (_) => applyQuickRange(item.key),
+                        ),
+                      )
+                      .toList(),
             ),
             const SizedBox(height: 12),
             pair(
@@ -754,6 +820,7 @@ class _ReportsPageState extends State<ReportsPage> {
               (v) => setState(() => supplier = v),
             ),
             DropdownButtonFormField<String>(
+              isExpanded: true,
               initialValue: kind ?? '',
               decoration: const InputDecoration(labelText: 'نوع العملية'),
               items: [
@@ -787,6 +854,33 @@ class _ReportsPageState extends State<ReportsPage> {
             ),
             Text('العمولات المسجلة: ${currency.format(commission)}'),
           ]),
+          Section(
+            'مصادر الربح',
+            rows
+                .where(
+                  (e) => ['ticket', 'hotel', 'visa', 'refund'].contains(e.kind),
+                )
+                .map(
+                  (e) => ListTile(
+                    title: Text(
+                      '#${e.id} ${e.label} • ${widget.s.name(e.data['customer'])}',
+                    ),
+                    subtitle: Text(
+                      '${displayDate(e.date)} • ${widget.s.name(e.data['supplier'])}',
+                    ),
+                    trailing: Text(
+                      currency.format(e.profit * (e.kind == 'refund' ? -1 : 1)),
+                    ),
+                    onTap: () => Navigator.push(
+                      c,
+                      MaterialPageRoute(
+                        builder: (_) => EntryDetail(widget.s, e),
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
         ],
       ),
     );

@@ -94,7 +94,7 @@ class EntryTile extends StatelessWidget {
         child: Icon(kindIcon(e.kind), color: kindColor(e.kind)),
       ),
       title: Text(
-        '${types[e.kind]} • ${entryLabel(s, e)}',
+        '${e.label} • ${entryLabel(s, e)}',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
@@ -153,12 +153,6 @@ class _EntriesPageState extends State<EntriesPage> {
       return Scaffold(
         appBar: AppBar(
           title: Text(widget.kind == null ? 'العمليات' : types[widget.kind]!),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.add),
-              onPressed: () => newEntry(c, widget.s, kind ?? 'ticket'),
-            ),
-          ],
         ),
         body: Column(
           children: [
@@ -241,7 +235,7 @@ class EntryDetail extends StatelessWidget {
     final sale = ['ticket', 'hotel', 'visa', 'refund'].contains(e.kind);
     return Scaffold(
       appBar: AppBar(
-        title: Text('${types[e.kind]} #${e.id}'),
+        title: Text('${e.label} #${e.id}'),
         actions: [
           if (e.posted && ['ticket', 'hotel', 'visa'].contains(e.kind))
             IconButton(
@@ -294,6 +288,12 @@ class EntryDetail extends StatelessWidget {
             if (e.data['airline'] != null)
               Text('الطيران: ${s.reference(e.data['airline'])}'),
 
+            if (e.passengers.isNotEmpty)
+              Text('المسافرون: ${e.passengers.map(s.name).join('، ')}'),
+            if (e.data['paymentMethod'] != null)
+              Text(
+                'طريقة التسديد: ${paymentMethods[e.data['paymentMethod']] ?? ''}',
+              ),
             if (sale) ...[
               const SizedBox(height: 16),
               pair(
@@ -392,7 +392,9 @@ class EntryDetail extends StatelessWidget {
                           child: const Text('إلغاء'),
                         ),
                         FilledButton(
-                          style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.red,
+                          ),
                           onPressed: () => Navigator.pop(ctx, true),
                           child: const Text('حذف إجباري'),
                         ),
@@ -454,16 +456,20 @@ class _PartiesPageState extends State<PartiesPage> {
   Widget build(BuildContext c) => AnimatedBuilder(
     animation: widget.s,
     builder: (c, _) {
-      final rows = widget.s
-          .list(widget.kind)
-          .where((r) => normalize('${r['name']} ${r['phone']}').contains(query))
-          .toList()
-        ..sort((a, b) {
-          final favorite = (b['favorite'] == true ? 1 : 0)
-              .compareTo(a['favorite'] == true ? 1 : 0);
-          if (favorite != 0) return favorite;
-          return partyDisplayName(a).compareTo(partyDisplayName(b));
-        });
+      final rows =
+          widget.s
+              .list(widget.kind)
+              .where(
+                (r) => normalize('${r['name']} ${r['phone']}').contains(query),
+              )
+              .toList()
+            ..sort((a, b) {
+              final favorite = (b['favorite'] == true ? 1 : 0).compareTo(
+                a['favorite'] == true ? 1 : 0,
+              );
+              if (favorite != 0) return favorite;
+              return partyDisplayName(a).compareTo(partyDisplayName(b));
+            });
       return Scaffold(
         appBar: AppBar(
           title: Text(
@@ -518,7 +524,7 @@ class _PartiesPageState extends State<PartiesPage> {
                                 : InkWell(
                                     onTap: () => phoneActions(c, r['phone']),
                                     child: Text(
-                                      r['phone'],
+                                      normalizePhone(r['phone']),
                                       style: const TextStyle(
                                         decoration: TextDecoration.underline,
                                       ),
@@ -528,7 +534,28 @@ class _PartiesPageState extends State<PartiesPage> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 if (r['favorite'] == true)
-                                  const Icon(Icons.star, color: Colors.amber, size: 20),
+                                  const Icon(
+                                    Icons.star,
+                                    color: Colors.amber,
+                                    size: 20,
+                                  ),
+                                if ([
+                                  'customer',
+                                  'supplier',
+                                ].contains(widget.kind))
+                                  IconButton(
+                                    tooltip: 'كشف سريع',
+                                    icon: const Icon(
+                                      Icons.description_outlined,
+                                    ),
+                                    onPressed: () => Navigator.push(
+                                      c,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            StatementPage(widget.s, r['id']),
+                                      ),
+                                    ),
+                                  ),
                                 const Icon(Icons.chevron_left),
                               ],
                             ),
@@ -558,7 +585,10 @@ class AccountPage extends StatelessWidget {
   Widget build(BuildContext c) => AnimatedBuilder(
     animation: s,
     builder: (c, _) {
-      final p = s.parties.firstWhere((r) => r['id'] == id);
+      final p = s.parties.where((r) => r['id'] == id).firstOrNull;
+      if (p == null) {
+        return const Scaffold(body: Center(child: Text('تم حذف الحساب')));
+      }
       final financial = ['customer', 'supplier'].contains(p['kind']);
       final history = s.history(id);
       return Scaffold(
@@ -567,11 +597,13 @@ class AccountPage extends StatelessWidget {
           actions: [
             if (financial)
               IconButton(
-                tooltip: p['favorite'] == true ? 'إزالة من المفضلة' : 'إضافة للمفضلة',
-                onPressed: () => s.saveParty(
-                  {...p, 'favorite': p['favorite'] != true},
-                  id: id,
-                ),
+                tooltip: p['favorite'] == true
+                    ? 'إزالة من المفضلة'
+                    : 'إضافة للمفضلة',
+                onPressed: () => s.saveParty({
+                  ...p,
+                  'favorite': p['favorite'] != true,
+                }, id: id),
                 icon: Icon(
                   p['favorite'] == true ? Icons.star : Icons.star_border,
                   color: p['favorite'] == true ? Colors.amber : null,
@@ -602,7 +634,6 @@ class AccountPage extends StatelessWidget {
                   onPressed: () => phoneActions(c, p['phone']),
                 ),
               if (p['notes'] != null && p['notes'] != '') Text(p['notes']),
-              if (p['family'] != null) Text('العائلة: ${s.name(p['family'])}'),
               if (financial)
                 FutureBuilder<List<int>>(
                   future: Future.wait(
@@ -627,7 +658,9 @@ class AccountPage extends StatelessWidget {
                   ),
                 ),
               if (financial)
-                const Text('عليه = مستحق • له = رصيد لصالح الحساب • صفر = متوازن'),
+                const Text(
+                  'عليه = مستحق • له = رصيد لصالح الحساب • صفر = متوازن',
+                ),
             ]),
             if (financial)
               Wrap(
@@ -679,19 +712,57 @@ class AccountPage extends StatelessWidget {
                   if (p['kind'] == 'supplier') ...[
                     ActionChip(
                       label: const Text('+ تذكرة'),
-                      onPressed: () => newEntry(c, s, 'ticket', party: id, supplier: true),
+                      onPressed: () =>
+                          newEntry(c, s, 'ticket', party: id, supplier: true),
                     ),
                     ActionChip(
                       label: const Text('+ فندق'),
-                      onPressed: () => newEntry(c, s, 'hotel', party: id, supplier: true),
+                      onPressed: () =>
+                          newEntry(c, s, 'hotel', party: id, supplier: true),
                     ),
                     ActionChip(
                       label: const Text('+ فيزا'),
-                      onPressed: () => newEntry(c, s, 'visa', party: id, supplier: true),
+                      onPressed: () =>
+                          newEntry(c, s, 'visa', party: id, supplier: true),
                     ),
                   ],
                 ],
               ),
+            if (p['kind'] == 'customer') ...[
+              Section('المسافرون التابعون', [
+                TextButton.icon(
+                  icon: const Icon(Icons.person_add_alt),
+                  label: const Text('إضافة مسافر'),
+                  onPressed: () =>
+                      editParty(c, s, 'passenger', party: {'customer': id}),
+                ),
+                ...s
+                    .list('passenger')
+                    .where((r) => r['customer'] == id)
+                    .map(
+                      (r) => ListTile(
+                        title: Text(r['name']),
+                        onTap: () => editParty(c, s, 'passenger', party: r),
+                      ),
+                    ),
+              ]),
+            ],
+            if (financial)
+              Section('ملخص الحساب', [
+                Text(
+                  'عدد الخدمات: ${history.where((e) => ['ticket', 'visa', 'hotel'].contains(e.kind)).length}',
+                ),
+                if (history.isNotEmpty)
+                  Text('آخر حركة: ${displayDate(history.last.date)}'),
+                for (final currency in Currency.values) ...[
+                  Text(
+                    'إجمالي الخدمات ${currency.name}: ${currency.format(history.where((e) => e.currency == currency && ['ticket', 'visa', 'hotel', 'refund'].contains(e.kind)).fold<int>(0, (sum, e) => sum + s.movement(e, id)))}',
+                  ),
+                  Text(
+                    'التسديدات ${currency.name}: ${currency.format(history.where((e) => e.currency == currency && e.kind == 'settlement').fold<int>(0, (sum, e) => sum - s.movement(e, id)))}',
+                  ),
+                ],
+              ]),
             if (!financial)
               ...s.parties
                   .where((r) => r['family'] == id || r['customer'] == id)
@@ -741,7 +812,7 @@ class AccountPage extends StatelessWidget {
                           cells: [
                             DataCell(Text(displayDate(e.date, weekday: false))),
                             DataCell(
-                              Text('#${e.id} ${types[e.kind]}'),
+                              Text('#${e.id} ${e.label}'),
                               onTap: () => Navigator.push(
                                 c,
                                 MaterialPageRoute(
@@ -759,7 +830,22 @@ class AccountPage extends StatelessWidget {
                 ),
               )
             else
-              ...history.reversed.map((e) => EntryTile(s, e)),
+              ...types.entries
+                  .where((k) => history.any((e) => e.kind == k.key))
+                  .map(
+                    (k) => Card(
+                      child: ExpansionTile(
+                        initiallyExpanded: true,
+                        title: Text(
+                          '${k.value} (${history.where((e) => e.kind == k.key).length})',
+                        ),
+                        children: history.reversed
+                            .where((e) => e.kind == k.key)
+                            .map((e) => EntryTile(s, e))
+                            .toList(),
+                      ),
+                    ),
+                  ),
             if ((p['attachments'] as List? ?? []).isNotEmpty)
               Section(
                 'المرفقات',
@@ -773,6 +859,41 @@ class AccountPage extends StatelessWidget {
                     )
                     .toList(),
               ),
+            TextButton.icon(
+              icon: const Icon(Icons.delete_forever, color: Colors.red),
+              label: const Text(
+                'حذف الحساب وكل بياناته',
+                style: TextStyle(color: Colors.red),
+              ),
+              onPressed: () async {
+                final yes = await showDialog<bool>(
+                  context: c,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('حذف الحساب نهائيًا؟'),
+                    content: const Text(
+                      'سيتم حذف الحساب والمسافرين التابعين وحركاته المالية. ستتغير أرصدة جهات الإصدار والأرباح المرتبطة بهذه الحركات.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('إلغاء'),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('حذف'),
+                      ),
+                    ],
+                  ),
+                );
+                if (yes != true) return;
+                try {
+                  await s.deleteParty(id);
+                  if (c.mounted) Navigator.pop(c);
+                } catch (e) {
+                  if (c.mounted) message(c, e);
+                }
+              },
+            ),
             TextButton(
               onPressed: () async {
                 final yes = await showDialog<bool>(
@@ -829,7 +950,9 @@ class _SearchPageState extends State<SearchPage> {
         : s.parties
               .where(
                 (r) =>
-                    r['archived'] == 0 && matches('${r['name']} ${r['phone']}'),
+                    r['kind'] != 'family' &&
+                    r['archived'] == 0 &&
+                    matches('${r['name']} ${r['phone']}'),
               )
               .toList();
     final entries = query.trim().isEmpty
@@ -840,7 +963,7 @@ class _SearchPageState extends State<SearchPage> {
                 .where((p) => p['id'] == d['customer'])
                 .firstOrNull;
             return matches(
-              '${e.id} ${types[e.kind]} ${customer?['name'] ?? ''} ${customer?['phone'] ?? ''} ${s.name(d['supplier'])} ${d['hotelName'] ?? ''} ${s.reference(d['airline'])} ${s.reference(d['city'])} ${s.reference(d['from'])} ${s.reference(d['to'])}',
+              '${e.id} ${e.label} ${customer?['name'] ?? ''} ${customer?['phone'] ?? ''} ${s.name(d['supplier'])} ${d['hotelName'] ?? ''} ${s.reference(d['airline'])} ${s.reference(d['city'])} ${s.reference(d['from'])} ${s.reference(d['to'])}',
             );
           }).toList();
     return Scaffold(

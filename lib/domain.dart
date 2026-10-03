@@ -14,8 +14,9 @@ extension CurrencyInfo on Currency {
 
   /// Monetary inputs are intentionally shown as whole units in the UI.
   /// The ledger still stores USD as integer cents and IQD as integer dinars.
-  String input(int minor) =>
-      NumberFormat('#,##0', 'en').format(roundedRatio(minor, scale));
+  String input(int minor) => minor == 0
+      ? ''
+      : NumberFormat('#,##0', 'en').format(roundedRatio(minor, scale));
 }
 
 String normalize(String s) {
@@ -75,6 +76,7 @@ const types = {
   'settlement': 'تسوية',
   'opening': 'رصيد افتتاحي',
   'expense': 'مصروف',
+  'funding': 'إضافة رصيد المصروف',
   'refund': 'استرجاع',
 };
 
@@ -137,6 +139,21 @@ class Entry {
     r['id'] as int,
   );
   String get kind => data['kind'] as String;
+  String get label => kind == 'ticket' && data['ticketType'] == 'change'
+      ? 'تغيير'
+      : types[kind] ?? kind;
+  int get quantity => kind == 'ticket'
+      ? (data['lines'] as List? ?? []).fold<int>(
+          0,
+          (n, l) => n + (l['qty'] as int? ?? 0),
+        )
+      : kind == 'visa'
+      ? data['qty'] as int? ?? 1
+      : 1;
+  List<int> get passengers => List<int>.from(
+    data['passengers'] ??
+        (data['passenger'] == null ? [] : [data['passenger']]),
+  );
   Currency get currency => Currency.values.byName(data['currency']);
   bool get posted => data['posted'] == true;
   int get sale => data['sale'] as int? ?? 0;
@@ -171,6 +188,13 @@ List<LedgerLine> journal(Map<String, dynamic> d) {
         refund ? cost : 0,
         refund ? 0 : cost,
       ),
+    ];
+  }
+  if (kind == 'funding') {
+    final amount = d['amount'] as int;
+    return [
+      LedgerLine('cash', null, amount, 0),
+      LedgerLine('equity', null, 0, amount),
     ];
   }
   if (kind == 'expense') {
@@ -225,3 +249,46 @@ String displayDate(String? iso, {bool weekday = true}) {
   final numeric = '${d.day}/${d.month}/${d.year}';
   return weekday ? '${_arabicWeekdays[d.weekday]} $numeric' : numeric;
 }
+
+String normalizePhone(String raw) {
+  var value = normalize(raw).replaceAll(RegExp(r'[\s()\-]'), '');
+  if (value.startsWith('+964')) {
+    value = value.substring(4);
+  } else if (value.startsWith('00964')) {
+    value = value.substring(5);
+  } else if (value.startsWith('964')) {
+    value = value.substring(3);
+  }
+  if (RegExp(r'^7[0-9]{9}$').hasMatch(value)) value = '0$value';
+  return value;
+}
+
+const paymentMethods = {
+  'cash': 'نقدًا',
+  'bank': 'تحويل مصرفي',
+  'card': 'بطاقة',
+  'wallet': 'محفظة إلكترونية',
+  'credit': 'آجل',
+};
+
+const statementOptions = {
+  'statementShowPrevious': 'رصيد أول المدة',
+  'statementShowTravel': 'تفاصيل السفر والخدمة',
+  'statementShowNumber': 'رقم العملية',
+  'statementShowDate': 'تاريخ العملية',
+  'statementShowQuantity': 'عدد الخدمات',
+  'statementShowPassengers': 'أسماء المسافرين',
+  'statementShowPayment': 'طريقة التسديد',
+  'statementShowNotes': 'الملاحظات',
+  'statementShowBalance': 'الرصيد بعد كل حركة',
+  'statementShowExchange': 'سعر صرف العرض',
+  'statementShowFee': 'عمولة التحويل',
+  'statementShowFinal': 'الرصيد والإجمالي النهائي',
+  'statementShowPeriod': 'الفترة',
+  'statementShowOffice': 'اسم المكتب',
+  'statementShowPhone': 'رقم الهاتف',
+  'statementShowWebsite': 'الموقع الإلكتروني',
+  'statementShowTransferAccount': 'حساب التحويل الإلكتروني',
+  'statementShowFooter': 'التذييل',
+  'statementShowPage': 'رقم الصفحة',
+};

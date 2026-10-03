@@ -50,3 +50,6 @@ android/key.properties
 *.p12
 signing/
 *.apk
+
+# Kotlin build cache
+android/.kotlin/

@@ -31,10 +31,9 @@ const themeColors = [
 ];
 const navLabels = {
   'home': 'الرئيسية',
-  'entries': 'العمليات',
   'customers': 'الزبائن',
-  'suppliers': 'جهات الإصدار / الموردون',
-  'reports': 'التقارير',
+  'statements': 'الكشوفات',
+  'settings': 'الإعدادات',
 };
 const fieldNames = {
   'passenger': 'المسافر',
@@ -56,6 +55,8 @@ const fieldNames = {
 const fieldGroups = {
   'ticket': ['passenger', 'country', 'from', 'to', 'depart', 'return'],
   'hotel': ['passenger', 'country', 'city', 'rooms', 'people', 'meals'],
+  'settlement': <String>[],
+  'expense': <String>[],
   'visa': [
     'passenger',
     'country',
@@ -93,7 +94,13 @@ class SettingsPage extends StatelessWidget {
               Icons.dashboard_customize_outlined,
               LayoutPage(s),
             ),
-            for (final kind in ['ticket', 'hotel', 'visa'])
+            for (final kind in [
+              'ticket',
+              'hotel',
+              'visa',
+              'settlement',
+              'expense',
+            ])
               tile(
                 c,
                 '${types[kind]} — الحقول والافتراضيات',
@@ -112,6 +119,7 @@ class SettingsPage extends StatelessWidget {
               'airline': 'شركات الطيران',
               'country': 'الدول',
               'city': 'المدن',
+              'expenseCategory': 'تصنيفات المصروف',
             }.entries)
               tile(
                 c,
@@ -132,7 +140,7 @@ class SettingsPage extends StatelessWidget {
               ArchivePage(s),
             ),
             tile(c, 'سجل التعديلات', Icons.history, AuditPage(s)),
-            tile(c, 'حول Eslam Office', Icons.info_outline, AboutPage(s)),
+            tile(c, 'حول Eslam Money', Icons.info_outline, AboutPage(s)),
           ]),
         ],
       ),
@@ -191,7 +199,7 @@ class AppearancePage extends StatelessWidget {
                               ),
                               const SizedBox(height: 12),
                               Text(
-                                'Eslam Office',
+                                'Eslam Money',
                                 style: TextStyle(
                                   color: themeColors[i],
                                   fontSize: 24,
@@ -336,7 +344,7 @@ class LayoutPage extends StatelessWidget {
       );
       final hidden = List<String>.from(s.settings['navHidden'] ?? []);
       final cards = List<String>.from(
-        s.settings['homeCards'] ?? ['owed', 'credit', 'profit', 'sale'],
+        s.settings['homeCards'] ?? ['owed', 'profit', 'payable', 'expenses'],
       );
       final hiddenCards = List<String>.from(
         s.settings['homeCardsHidden'] ?? const <String>[],
@@ -351,6 +359,7 @@ class LayoutPage extends StatelessWidget {
           children: [
             Section('شاشة البداية', [
               DropdownButtonFormField<String>(
+                isExpanded: true,
                 initialValue: s.settings['start'] ?? 'home',
                 items: navLabels.entries
                     .map(
@@ -412,14 +421,16 @@ class LayoutPage extends StatelessWidget {
                         title: Text(
                           {
                             'owed': 'المطلوب من الزبائن',
-                            'credit': 'أرصدة لصالح الزبائن',
+                            'payable': 'مستحقات الإصدار',
                             'profit': 'ربح الخدمات',
-                            'sale': 'مبيعات الخدمات',
+                            'expenses': 'المصروفات',
                           }[key]!,
                         ),
                         value: !hiddenCards.contains(key),
                         onChanged: (v) {
-                          v == true ? hiddenCards.remove(key) : hiddenCards.add(key);
+                          v == true
+                              ? hiddenCards.remove(key)
+                              : hiddenCards.add(key);
                           s.set('homeCardsHidden', hiddenCards);
                         },
                       ),
@@ -433,11 +444,27 @@ class LayoutPage extends StatelessWidget {
                 onChanged: (v) => s.set('showHomeStats', v),
               ),
             ]),
-            Section('اختصارات الإضافة على الرئيسية', [
-              for (final key in ['ticket', 'hotel', 'visa', 'settlement', 'expense'])
+            Section('اختصارات الرئيسية', [
+              for (final key in [
+                'passengers',
+                'suppliers',
+                'expense',
+                'movements',
+                'review',
+                'about',
+              ])
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: Text(types[key]!),
+                  title: Text(
+                    {
+                      'passengers': 'المسافرون',
+                      'suppliers': 'جهات الإصدار',
+                      'expense': 'المصروف',
+                      'movements': 'الحركات',
+                      'review': 'مركز التدقيق',
+                      'about': 'نبذة التطبيق',
+                    }[key]!,
+                  ),
                   value: !hiddenShortcuts.contains(key),
                   onChanged: (v) {
                     v == true
@@ -449,7 +476,12 @@ class LayoutPage extends StatelessWidget {
             ]),
             OutlinedButton(
               onPressed: () async {
-                await s.set('homeCards', ['owed', 'credit', 'profit', 'sale']);
+                await s.set('homeCards', [
+                  'owed',
+                  'profit',
+                  'payable',
+                  'expenses',
+                ]);
                 await s.set('homeCardsHidden', []);
                 await s.set('homeShortcutHidden', []);
                 await s.set('showHomeStats', true);
@@ -475,7 +507,7 @@ class FieldSettings extends StatelessWidget {
     animation: s,
     builder: (c, _) {
       final order = List<String>.from(
-        s.settings['fields_$kind'] ?? fieldGroups[kind],
+        s.settings['fields_$kind'] ?? fieldGroups[kind] ?? <String>[],
       );
       final hidden = List<String>.from(s.settings['hidden_$kind'] ?? []);
       final defaults = Map<String, dynamic>.from(
@@ -526,6 +558,7 @@ class FieldSettings extends StatelessWidget {
                 },
               ),
               DropdownButtonFormField<String>(
+                isExpanded: true,
                 initialValue: defaults['currency'] ?? 'USD',
                 decoration: const InputDecoration(
                   labelText: 'العملة الافتراضية',
@@ -541,6 +574,57 @@ class FieldSettings extends StatelessWidget {
                   s.set('defaults_$kind', defaults);
                 },
               ),
+            ]),
+            Section('افتراضيات إضافية', [
+              DropdownButtonFormField<String>(
+                isExpanded: true,
+                initialValue: defaults['paymentMethod'] ?? 'cash',
+                decoration: const InputDecoration(
+                  labelText: 'طريقة التسديد الافتراضية',
+                ),
+                items: paymentMethods.entries
+                    .map(
+                      (e) =>
+                          DropdownMenuItem(value: e.key, child: Text(e.value)),
+                    )
+                    .toList(),
+                onChanged: (v) {
+                  defaults['paymentMethod'] = v;
+                  s.set('defaults_$kind', defaults);
+                },
+              ),
+              if (kind == 'ticket') ...[
+                const SizedBox(height: 12),
+                PickField(
+                  'مدينة الوصول',
+                  defaults['to'],
+                  s.referenceList('city'),
+                  (v) {
+                    defaults['to'] = v;
+                    s.set('defaults_$kind', defaults);
+                  },
+                ),
+              ],
+              if (kind == 'hotel')
+                PickField(
+                  'المدينة',
+                  defaults['city'],
+                  s.referenceList('city'),
+                  (v) {
+                    defaults['city'] = v;
+                    s.set('defaults_$kind', defaults);
+                  },
+                ),
+              if (kind == 'expense')
+                PickField(
+                  'تصنيف المصروف',
+                  defaults['expenseCategory'],
+                  s.referenceList('expenseCategory'),
+                  (v) {
+                    defaults['expenseCategory'] = v;
+                    s.set('defaults_$kind', defaults);
+                  },
+                ),
             ]),
             Section('ترتيب وإظهار الحقول الاختيارية', [
               Wrap(
@@ -662,6 +746,9 @@ class _OfficeSettingsState extends State<OfficeSettings> {
       website = TextEditingController(
         text: widget.s.settings['website'] ?? 'Eslamholiday.com',
       ),
+      transferAccount = TextEditingController(
+        text: widget.s.settings['transferAccount'] ?? '9645239113',
+      ),
       footer = TextEditingController(
         text: widget.s.settings['footer'] ?? 'جميع الحقوق محفوظة 2026',
       );
@@ -669,7 +756,7 @@ class _OfficeSettingsState extends State<OfficeSettings> {
   late String logoSize = widget.s.settings['logoSize'] ?? 'medium';
   @override
   void dispose() {
-    for (final c in [office, phone, website, footer]) {
+    for (final c in [office, phone, website, transferAccount, footer]) {
       c.dispose();
     }
     super.dispose();
@@ -685,6 +772,7 @@ class _OfficeSettingsState extends State<OfficeSettings> {
           textField(office, 'اسم المكتب'),
           textField(phone, 'الهاتف'),
           textField(website, 'الموقع'),
+          textField(transferAccount, 'للتحويل الإلكتروني — رقم الحساب'),
           textField(footer, 'تذييل الكشف'),
         ]),
         Section('شعار الكشف', [
@@ -707,6 +795,7 @@ class _OfficeSettingsState extends State<OfficeSettings> {
           ),
           pair(
             DropdownButtonFormField<String>(
+              isExpanded: true,
               initialValue: logoAlign,
               decoration: const InputDecoration(labelText: 'محاذاة الشعار'),
               items: const [
@@ -717,6 +806,7 @@ class _OfficeSettingsState extends State<OfficeSettings> {
               onChanged: (v) => setState(() => logoAlign = v ?? 'right'),
             ),
             DropdownButtonFormField<String>(
+              isExpanded: true,
               initialValue: logoSize,
               decoration: const InputDecoration(labelText: 'حجم الشعار'),
               items: const [
@@ -728,12 +818,30 @@ class _OfficeSettingsState extends State<OfficeSettings> {
             ),
           ),
         ]),
+        Section(
+          'إظهار وإخفاء تفاصيل الكشف',
+          statementOptions.entries
+              .map(
+                (e) => SwitchListTile(
+                  title: Text(e.value),
+                  value: e.key == 'statementShowNotes'
+                      ? widget.s.settings[e.key] == true
+                      : widget.s.settings[e.key] != false,
+                  onChanged: (v) async {
+                    await widget.s.set(e.key, v);
+                    if (mounted) setState(() {});
+                  },
+                ),
+              )
+              .toList(),
+        ),
         FilledButton(
           onPressed: () async {
             for (final e in {
               'office': office.text,
               'phone': phone.text,
               'website': website.text,
+              'transferAccount': transferAccount.text.trim(),
               'footer': footer.text,
               'logoAlign': logoAlign,
               'logoSize': logoSize,
@@ -757,7 +865,9 @@ class ReferencePage extends StatelessWidget {
     final name = TextEditingController(text: r?['name'] ?? ''),
         code = TextEditingController(text: r?['code'] ?? ''),
         rate = TextEditingController(
-          text: ((r?['rate'] ?? 0) / 100).toString(),
+          text: (r?['rate'] ?? 0) == 0
+              ? ''
+              : ((r?['rate'] ?? 0) / 100).toString(),
         ),
         fee = TextEditingController(
           text: Currency.values
@@ -779,6 +889,7 @@ class ReferencePage extends StatelessWidget {
                 if (kind == 'airline') ...[
                   textField(code, 'رمز الطيران'),
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: currency,
                     items: Currency.values
                         .map(
@@ -792,6 +903,7 @@ class ReferencePage extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: mode,
                     items: const [
                       DropdownMenuItem(
@@ -809,7 +921,12 @@ class ReferencePage extends StatelessWidget {
                   if (mode == 'percent')
                     textField(rate, 'العمولة الافتراضية %', number: true)
                   else
-                    textField(fee, 'رسم الإصدار للوحدة', number: true, grouped: true),
+                    textField(
+                      fee,
+                      'رسم الإصدار للوحدة',
+                      number: true,
+                      grouped: true,
+                    ),
                 ],
               ],
             ),
@@ -829,6 +946,9 @@ class ReferencePage extends StatelessWidget {
                   throw const FormatException('العمولة أكبر من 100%');
                 }
                 await s.saveRef(kind, name.text.trim(), {
+                  if (r?['subcategories'] != null)
+                    'subcategories': r!['subcategories'],
+                  if (r?['personal'] != null) 'personal': r!['personal'],
                   'code': code.text,
                   'rate': pct,
                   'fee': money(fee.text, Currency.values.byName(currency)),
@@ -893,8 +1013,7 @@ class RulesPage extends StatefulWidget {
 class _RulesPageState extends State<RulesPage> {
   int? airline, supplier;
   String mode = 'percent', currency = 'USD';
-  final rate = TextEditingController(text: '0'),
-      fee = TextEditingController(text: '0');
+  final rate = TextEditingController(), fee = TextEditingController();
   @override
   void dispose() {
     rate.dispose();
@@ -922,6 +1041,7 @@ class _RulesPageState extends State<RulesPage> {
             (v) => setState(() => supplier = v),
           ),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: mode,
             items: const [
               DropdownMenuItem(
@@ -937,6 +1057,7 @@ class _RulesPageState extends State<RulesPage> {
             textField(rate, 'العمولة %', number: true)
           else ...[
             DropdownButtonFormField<String>(
+              isExpanded: true,
               initialValue: currency,
               items: Currency.values
                   .map(
@@ -946,7 +1067,12 @@ class _RulesPageState extends State<RulesPage> {
               onChanged: (v) => setState(() => currency = v!),
             ),
             const SizedBox(height: 12),
-            textField(fee, 'رسم إصدار التذكرة الواحدة', number: true, grouped: true),
+            textField(
+              fee,
+              'رسم إصدار التذكرة الواحدة',
+              number: true,
+              grouped: true,
+            ),
           ],
           FilledButton(
             onPressed: () => guarded(c, () async {
@@ -1075,7 +1201,10 @@ class AuditPage extends StatelessWidget {
                       final payload = Map<String, dynamic>.from(
                         jsonDecode((r['payload'] ?? '{}').toString()),
                       );
-                      if (payload['before'] == null && payload['after'] == null) return;
+                      if (payload['before'] == null &&
+                          payload['after'] == null) {
+                        return;
+                      }
                       showDialog<void>(
                         context: c,
                         builder: (ctx) => AlertDialog(
@@ -1099,7 +1228,9 @@ class AuditPage extends StatelessWidget {
                       ? TextButton.icon(
                           onPressed: () => guarded(c, () async {
                             await s.undoAudit(r['id'] as int);
-                            if (c.mounted) message(c, 'تم التراجع واستعادة العملية');
+                            if (c.mounted) {
+                              message(c, 'تم التراجع واستعادة العملية');
+                            }
                           }),
                           icon: const Icon(Icons.undo),
                           label: const Text('تراجع'),
@@ -1109,7 +1240,7 @@ class AuditPage extends StatelessWidget {
               },
             ),
     ),
-  ); 
+  );
 }
 
 class AboutPage extends StatelessWidget {
@@ -1124,11 +1255,11 @@ class AboutPage extends StatelessWidget {
         const Icon(Icons.flight_takeoff_rounded, size: 80, color: gold),
         const SizedBox(height: 24),
         const Text(
-          'Eslam Office',
+          'Eslam Money',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
         ),
-        const Text('1.0.0 • فكرة وإشراف إسلام', textAlign: TextAlign.center),
+        const Text('1.2.0 • فكرة وإشراف إسلام', textAlign: TextAlign.center),
         const SizedBox(height: 24),
         const Text(
           'إدارة مكتب السفر والحسابات\nحفظ محلي • دولار ودينار • بحث موحّد',

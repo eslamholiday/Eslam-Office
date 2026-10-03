@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'domain.dart';
+import 'expense_categories.dart';
 
 class Store extends ChangeNotifier {
   final Database db;
@@ -143,6 +144,55 @@ class Store extends ChangeNotifier {
     );
     final s = Store(db);
     await s.reload();
+    if (s.settings['moneyMigration'] != 1) {
+      await s.set('navOrder', ['home', 'customers', 'statements', 'settings']);
+      await s.set('navHidden', []);
+      await s.set('homeCards', ['owed', 'profit', 'payable', 'expenses']);
+      await s.set('homeCardsHidden', []);
+      await s.set('start', 'home');
+      await s.set('moneyMigration', 1);
+    }
+    if (s.settings['personalExpenseSeed'] != 1) {
+      await db.transaction((tx) async {
+        for (final category in personalExpenseCategories.entries) {
+          final existing = await tx.query(
+            'refs',
+            where: 'kind = ? AND name = ?',
+            whereArgs: ['expenseCategory', category.key],
+          );
+          if (existing.isEmpty) {
+            await tx.insert('refs', {
+              'kind': 'expenseCategory',
+              'name': category.key,
+              'payload': jsonEncode({
+                'personal': true,
+                'subcategories': category.value,
+              }),
+            });
+          } else {
+            final payload = Map<String, dynamic>.from(
+              jsonDecode(existing.first['payload'] as String),
+            );
+            payload['subcategories'] = <String>{
+              ...List<String>.from(payload['subcategories'] ?? []),
+              ...category.value,
+            }.toList();
+            payload.putIfAbsent('personal', () => true);
+            await tx.update(
+              'refs',
+              {'payload': jsonEncode(payload)},
+              where: 'id = ?',
+              whereArgs: [existing.first['id']],
+            );
+          }
+        }
+        await tx.insert('settings', {
+          'key': 'personalExpenseSeed',
+          'value': '1',
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+      });
+      await s.reload();
+    }
     return s;
   }
 
@@ -195,25 +245,28 @@ class Store extends ChangeNotifier {
     String action,
     String target, {
     Map<String, dynamic>? payload,
-  }) =>
-      d.insert('audit', {
-        'date': DateTime.now().toIso8601String(),
-        'action': action,
-        'target': target,
-        'payload': jsonEncode(payload ?? const <String, dynamic>{}),
-      });
+  }) => d.insert('audit', {
+    'date': DateTime.now().toIso8601String(),
+    'action': action,
+    'target': target,
+    'payload': jsonEncode(payload ?? const <String, dynamic>{}),
+  });
   Future<int> saveParty(Map<String, dynamic> p, {int? id}) async {
     final values = {
       'kind': p['kind'],
       'name': (p['name'] ?? '').toString().trim(),
-      'phone': p['phone'] ?? '',
-      'payload': jsonEncode(p),
+      'phone': normalizePhone(p['phone'] ?? ''),
+      'payload': jsonEncode({...p, 'phone': normalizePhone(p['phone'] ?? '')}),
       'archived': p['archived'] ?? 0,
     };
     final result = await db.transaction((t) async {
       Map<String, Object?>? before;
       if (id != null) {
-        final previous = await t.query('parties', where: 'id=?', whereArgs: [id]);
+        final previous = await t.query(
+          'parties',
+          where: 'id=?',
+          whereArgs: [id],
+        );
         if (previous.isNotEmpty) before = previous.first;
       }
       final key = id ?? await t.insert('parties', values);
@@ -256,13 +309,15 @@ class Store extends ChangeNotifier {
     int? id,
   }) async {
     final normalizedName = normalize(name);
-    final duplicate = refs.where(
-      (r) =>
-          r['kind'] == kind &&
-          r['id'] != id &&
-          r['archived'] == 0 &&
-          normalize(r['name'] as String) == normalizedName,
-    ).firstOrNull;
+    final duplicate = refs
+        .where(
+          (r) =>
+              r['kind'] == kind &&
+              r['id'] != id &&
+              r['archived'] == 0 &&
+              normalize(r['name'] as String) == normalizedName,
+        )
+        .firstOrNull;
     if (duplicate != null) {
       throw const FormatException('هذا العنصر موجود مسبقاً');
     }
@@ -354,7 +409,7 @@ class Store extends ChangeNotifier {
     }
     final post = d['posted'] == true;
     if (post &&
-        ['settlement', 'opening', 'expense'].contains(d['kind']) &&
+        ['settlement', 'opening', 'expense', 'funding'].contains(d['kind']) &&
         (d['amount'] as int? ?? 0) <= 0) {
       throw const FormatException('أدخل مبلغًا أكبر من صفر');
     }
@@ -415,6 +470,33 @@ class Store extends ChangeNotifier {
         await audit(t, 'عكس وتصحيح', '${old.id}');
       }
       if (d['kind'] == 'refund') await _validateRefund(t, d);
+      final passengerIds = List<int>.from(
+        d['passengers'] ?? (d['passenger'] == null ? [] : [d['passenger']]),
+      );
+      for (final pid in passengerIds) {
+        final rows = await t.query(
+          'parties',
+          where: 'id=? AND kind=?',
+          whereArgs: [pid, 'passenger'],
+        );
+        if (rows.isEmpty) throw const FormatException('المسافر غير موجود');
+        final person = _decode(rows.first);
+        if (person['customer'] != null && person['customer'] != d['customer']) {
+          throw const FormatException('المسافر تابع لزبون آخر');
+        }
+        if (d['customer'] != null && person['customer'] == null) {
+          final payload = Map<String, dynamic>.from(
+            jsonDecode(rows.first['payload'] as String),
+          );
+          payload['customer'] = d['customer'];
+          await t.update(
+            'parties',
+            {'payload': jsonEncode(payload)},
+            where: 'id=?',
+            whereArgs: [pid],
+          );
+        }
+      }
       final lines = post ? journal(d) : <LedgerLine>[];
       if (lines.fold<int>(0, (s, l) => s + l.debit - l.credit) != 0) {
         throw StateError('Unbalanced journal');
@@ -480,7 +562,6 @@ class Store extends ChangeNotifier {
     }
   }
 
-
   Future<void> forceDeleteEntry(Entry entry) async {
     if (entry.id == null) return;
     await db.transaction((t) async {
@@ -495,15 +576,27 @@ class Store extends ChangeNotifier {
       final entryRows = <Map<String, Object?>>[];
       final ledgerRows = <Map<String, Object?>>[];
       for (final id in ids) {
-        entryRows.addAll(await t.query('entries', where: 'id=?', whereArgs: [id]));
-        ledgerRows.addAll(await t.query('ledger', where: 'entry_id=?', whereArgs: [id]));
+        entryRows.addAll(
+          await t.query('entries', where: 'id=?', whereArgs: [id]),
+        );
+        ledgerRows.addAll(
+          await t.query('ledger', where: 'entry_id=?', whereArgs: [id]),
+        );
       }
       if (entryRows.isEmpty) {
         throw const FormatException('العملية غير موجودة');
       }
       final placeholders = List.filled(ids.length, '?').join(',');
-      await t.delete('ledger', where: 'entry_id IN ($placeholders)', whereArgs: ids.toList());
-      await t.delete('entries', where: 'id IN ($placeholders)', whereArgs: ids.toList());
+      await t.delete(
+        'ledger',
+        where: 'entry_id IN ($placeholders)',
+        whereArgs: ids.toList(),
+      );
+      await t.delete(
+        'entries',
+        where: 'id IN ($placeholders)',
+        whereArgs: ids.toList(),
+      );
       await audit(
         t,
         'حذف إجباري',
@@ -533,10 +626,18 @@ class Store extends ChangeNotifier {
             .map((e) => Map<String, dynamic>.from(e as Map))
             .toList();
         for (final row in restoredEntries) {
-          await t.insert('entries', row, conflictAlgorithm: ConflictAlgorithm.abort);
+          await t.insert(
+            'entries',
+            row,
+            conflictAlgorithm: ConflictAlgorithm.abort,
+          );
         }
         for (final row in restoredLedger) {
-          await t.insert('ledger', row, conflictAlgorithm: ConflictAlgorithm.abort);
+          await t.insert(
+            'ledger',
+            row,
+            conflictAlgorithm: ConflictAlgorithm.abort,
+          );
         }
       } else if (undoType == 'restoreParty') {
         final before = Map<String, dynamic>.from(payload['before'] as Map);
@@ -570,6 +671,117 @@ class Store extends ChangeNotifier {
       await audit(t, 'حذف مسودة', '${e.id}');
     });
     await reload();
+  }
+
+  Future<void> deleteParty(int id) async {
+    await db.transaction((t) async {
+      final people = (await t.query('parties')).map(_decode).toList();
+      final partyIds = <int>{
+        id,
+        ...people
+            .where((p) => p['kind'] == 'passenger' && p['customer'] == id)
+            .map((p) => p['id'] as int),
+      };
+      final all = (await t.query('entries')).map(Entry.row).toList();
+      final ids = all
+          .where(
+            (e) =>
+                partyIds.contains(e.data['customer']) ||
+                partyIds.contains(e.data['supplier']),
+          )
+          .map((e) => e.id!)
+          .toSet();
+      bool changed;
+      do {
+        changed = false;
+        for (final e in all) {
+          if ((ids.contains(e.data['original']) ||
+                  ids.contains(e.data['corrects'])) &&
+              ids.add(e.id!)) {
+            changed = true;
+          }
+        }
+      } while (changed);
+      for (final eid in ids) {
+        await t.delete('ledger', where: 'entry_id=?', whereArgs: [eid]);
+        await t.delete('entries', where: 'id=?', whereArgs: [eid]);
+      }
+      // Unlink removed passengers from surviving records without changing money.
+      for (final e in all.where((e) => !ids.contains(e.id))) {
+        final d = Map<String, dynamic>.from(e.data);
+        if (partyIds.contains(d['passenger'])) d.remove('passenger');
+        d['passengers'] = e.passengers
+            .where((pid) => !partyIds.contains(pid))
+            .toList();
+        await t.update(
+          'entries',
+          {'payload': jsonEncode(d)},
+          where: 'id=?',
+          whereArgs: [e.id],
+        );
+      }
+      for (final pid in partyIds) {
+        await t.delete('rules', where: 'supplier=?', whereArgs: [pid]);
+        await t.delete('parties', where: 'id=?', whereArgs: [pid]);
+      }
+      // Old undo snapshots must not resurrect data belonging to a deleted account.
+      final audits = await t.query('audit');
+      for (final row in audits) {
+        final payload = Map<String, dynamic>.from(
+          jsonDecode(row['payload'] as String),
+        );
+        bool linked(Map row) =>
+            partyIds.contains(row['customer']) ||
+            partyIds.contains(row['supplier']) ||
+            partyIds.contains(row['party']);
+        final before = payload['before'];
+        if ((payload['undoType'] == 'restoreParty' &&
+                before is Map &&
+                partyIds.contains(before['id'])) ||
+            (payload['entries'] is List &&
+                (payload['entries'] as List).any((e) => linked(e as Map))) ||
+            (payload['ledger'] is List &&
+                (payload['ledger'] as List).any((e) => linked(e as Map)))) {
+          await t.delete('audit', where: 'id=?', whereArgs: [row['id']]);
+        }
+      }
+      await audit(t, 'حذف حساب وبياناته', '$id');
+    });
+    await reload();
+  }
+
+  int expenseBalance(Currency currency) {
+    int value = 0;
+    for (final e in entries.where((e) => e.posted && e.currency == currency)) {
+      if (['ticket', 'hotel', 'visa', 'refund'].contains(e.kind)) {
+        value += e.profit * (e.kind == 'refund' ? -1 : 1);
+      }
+      if (e.kind == 'funding') value += e.data['amount'] as int? ?? 0;
+      if (e.kind == 'expense') value -= e.data['amount'] as int? ?? 0;
+    }
+    return value;
+  }
+
+  List<String> reviewIssues(Entry e) {
+    final problems = <String>[];
+    if (!e.posted) problems.add('مسودة تحتاج مراجعة');
+    if (['ticket', 'visa', 'hotel'].contains(e.kind)) {
+      if (e.data['customer'] == null) problems.add('حساب الزبون غير محدد');
+      if (e.data['supplier'] == null) problems.add('جهة الإصدار غير محددة');
+      if (e.sale == 0) problems.add('سعر البيع صفر');
+      if (e.cost == 0) problems.add('التكلفة صفر');
+      if (e.profit < 0) problems.add('عملية بخسارة');
+      if (e.passengers.isNotEmpty &&
+          e.kind != 'hotel' &&
+          e.passengers.length != e.quantity) {
+        problems.add('عدد المسافرين يختلف عن عدد الخدمة');
+      }
+    }
+    if (e.data['passengers'] is List &&
+        (e.data['passengers'] as List).length != e.passengers.toSet().length) {
+      problems.add('مسافر مكرر');
+    }
+    return problems;
   }
 
   Future<int> balance(int id, Currency currency, {String? before}) async {
@@ -631,6 +843,7 @@ class Store extends ChangeNotifier {
       'profit': sale - cost,
       'expenses': expenses,
       'net': sale - cost - expenses,
+      'payable': -(values['payable'] ?? 0),
     };
   }
 }
