@@ -1,7 +1,7 @@
 name: eslam_office
 description: Eslam Money - offline travel office and accounting.
 publish_to: none
-version: 1.2.1+2003
+version: 1.3.0+2004
 environment:
   sdk: '>=3.9.0 <4.0.0'
 dependencies:

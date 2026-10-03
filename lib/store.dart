@@ -216,6 +216,7 @@ class Store extends ChangeNotifier {
       for (final r in await db.query('settings'))
         r['key'] as String: jsonDecode(r['value'] as String),
     };
+    displayPreferences = Map<String, dynamic>.from(settings);
     notifyListeners();
   }
 

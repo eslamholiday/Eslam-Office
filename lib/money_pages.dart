@@ -148,7 +148,26 @@ class ReviewPage extends StatelessWidget {
                 child: ListTile(
                   leading: const Icon(Icons.fact_check_outlined),
                   title: Text('#${e.id} ${e.label} • ${entryLabel(s, e)}'),
-                  subtitle: Text(s.reviewIssues(e).join('\n')),
+                  subtitle: Wrap(
+                    spacing: 5,
+                    runSpacing: 4,
+                    children: s
+                        .reviewIssues(e)
+                        .map(
+                          (issue) => Chip(
+                            label: Text(
+                              issue,
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                            backgroundColor: Colors.orange.withValues(
+                              alpha: .1,
+                            ),
+                            side: BorderSide.none,
+                          ),
+                        )
+                        .toList(),
+                  ),
+                  trailing: const Icon(Icons.chevron_left),
                   onTap: () => Navigator.push(
                     c,
                     MaterialPageRoute(builder: (_) => EntryDetail(s, e)),

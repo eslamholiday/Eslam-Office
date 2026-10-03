@@ -3,12 +3,30 @@ import 'package:intl/intl.dart';
 
 enum Currency { USD, IQD }
 
+Map<String, dynamic> displayPreferences = {};
+String localizedDigits(String value) {
+  if (displayPreferences['arabicDigits'] != true) return value;
+  for (var i = 0; i < 10; i++) {
+    value = value.replaceAll('$i', '٠١٢٣٤٥٦٧٨٩'[i]);
+  }
+  return value;
+}
+
 extension CurrencyInfo on Currency {
   int get scale => this == Currency.USD ? 100 : 1;
   String get symbol => this == Currency.USD ? r'$' : 'د.ع';
   String format(int minor) {
-    final whole = roundedRatio(minor, scale);
-    final value = NumberFormat('#,##0', 'en').format(whole);
+    final decimals = this == Currency.USD
+        ? (displayPreferences['usdDecimals'] as int? ?? 0)
+        : 0;
+    final pattern =
+        '${displayPreferences['groupNumbers'] == false ? '0' : '#,##0'}${decimals == 0 ? '' : '.${'0' * decimals}'}';
+    final value = localizedDigits(
+      NumberFormat(
+        pattern,
+        'en',
+      ).format(decimals == 0 ? roundedRatio(minor, scale) : minor / scale),
+    );
     return this == Currency.USD ? '\$ $value' : '$value د.ع';
   }
 
@@ -246,8 +264,14 @@ String displayDate(String? iso, {bool weekday = true}) {
   if (iso == null || iso.isEmpty) return '';
   final d = DateTime.tryParse(iso);
   if (d == null) return iso;
-  final numeric = '${d.day}/${d.month}/${d.year}';
-  return weekday ? '${_arabicWeekdays[d.weekday]} $numeric' : numeric;
+  final numeric = localizedDigits(
+    displayPreferences['dateFormat'] == 'iso'
+        ? iso.substring(0, 10)
+        : '${d.day}/${d.month}/${d.year}',
+  );
+  return weekday && displayPreferences['showWeekday'] != false
+      ? '${_arabicWeekdays[d.weekday]} $numeric'
+      : numeric;
 }
 
 String normalizePhone(String raw) {

@@ -98,7 +98,7 @@ class OfficeApp extends StatelessWidget {
     builder: (c, _) {
       final dark = s.settings['dark'] == true;
       final color = Color(s.settings['color'] as int? ?? navy.toARGB32());
-      final radius = (s.settings['radius'] as num? ?? 18).toDouble();
+      final radius = (s.settings['radius'] as num? ?? 14).toDouble();
       return MaterialApp(
         title: 'Eslam Money',
         debugShowCheckedModeBanner: false,
@@ -133,6 +133,8 @@ class OfficeApp extends StatelessWidget {
             ),
           ),
           cardTheme: CardThemeData(
+            color: dark ? const Color(0xff1c2937) : Colors.white,
+            surfaceTintColor: Colors.transparent,
             elevation: 0,
             margin: const EdgeInsets.only(bottom: 12),
             shape: RoundedRectangleBorder(
@@ -143,6 +145,16 @@ class OfficeApp extends StatelessWidget {
             ),
           ),
           inputDecorationTheme: InputDecorationTheme(
+            floatingLabelBehavior: FloatingLabelBehavior.always,
+            labelStyle: TextStyle(
+              color: dark ? Colors.white70 : const Color(0xff465568),
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: color, width: 2),
+            ),
             filled: true,
             fillColor: dark ? const Color(0xff202d3a) : const Color(0xfff7f9fc),
             contentPadding: const EdgeInsets.symmetric(
@@ -166,7 +178,20 @@ class OfficeApp extends StatelessWidget {
               ),
             ),
           ),
-          iconTheme: const IconThemeData(size: 26),
+          listTileTheme: ListTileThemeData(
+            titleTextStyle: TextStyle(
+              fontFamily: 'Cairo',
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: dark ? Colors.white : const Color(0xff1b2b3c),
+            ),
+            subtitleTextStyle: TextStyle(
+              fontFamily: 'Cairo',
+              fontSize: 13,
+              color: dark ? Colors.white70 : const Color(0xff526273),
+            ),
+          ),
+          iconTheme: const IconThemeData(size: 24),
         ),
         builder: (c, child) => MediaQuery(
           data: MediaQuery.of(c).copyWith(
@@ -360,11 +385,7 @@ class HomePage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      Icons.account_balance_wallet_outlined,
-                      color: gold,
-                      size: 46,
-                    ),
+                    Icon(Icons.flight_takeoff_rounded, color: gold, size: 46),
                     SizedBox(height: 12),
                     Text(
                       'Eslam Money',
@@ -401,7 +422,7 @@ class HomePage extends StatelessWidget {
                 onTap: () => showAboutDialog(
                   context: c,
                   applicationName: 'Eslam Money',
-                  applicationVersion: '1.2.1',
+                  applicationVersion: '1.3.0',
                   children: [
                     const Text(
                       'Eslam Holiday\nEslamholiday.com\n07713414312\nجميع الحقوق محفوظة 2026',
@@ -419,7 +440,7 @@ class HomePage extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           children: [
             Container(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   colors: [navy, Color(0xff1f557d)],
@@ -433,7 +454,7 @@ class HomePage extends StatelessWidget {
                     'أهلًا إسلام',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 26,
+                      fontSize: 23,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -471,7 +492,7 @@ class HomePage extends StatelessWidget {
                     onPressed: () => showAboutDialog(
                       context: c,
                       applicationName: 'Eslam Money',
-                      applicationVersion: '1.2.1',
+                      applicationVersion: '1.3.0',
                       children: [const Text('Eslamholiday.com • 07713414312')],
                     ),
                   ),
@@ -542,10 +563,12 @@ class HomePage extends StatelessWidget {
                                           child: Text(
                                             s.settings['hideAmounts'] == true
                                                 ? '••••'
-                                                : '${Currency.values[i].name}  ${Currency.values[i].format(snap.data?[i][key] ?? 0)}',
+                                                : Currency.values[i].format(
+                                                    snap.data?[i][key] ?? 0,
+                                                  ),
                                             textDirection: TextDirection.ltr,
                                             style: const TextStyle(
-                                              fontSize: 19,
+                                              fontSize: 22,
                                               fontWeight: FontWeight.w700,
                                             ),
                                           ),
@@ -571,7 +594,15 @@ class HomePage extends StatelessWidget {
                   children: statActions
                       .map(
                         (stat) => SizedBox(
-                          width: (constraints.maxWidth - 10) / 2,
+                          width:
+                              (constraints.maxWidth -
+                                  (MediaQuery.textScalerOf(context).scale(1) >
+                                          1.1
+                                      ? 10
+                                      : 30)) /
+                              (MediaQuery.textScalerOf(context).scale(1) > 1.1
+                                  ? 2
+                                  : 4),
                           child: Material(
                             color: Color.alphaBlend(
                               stat.$3.withValues(alpha: .14),
@@ -584,34 +615,28 @@ class HomePage extends StatelessWidget {
                               onTap: () => open(stat.$4),
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 12,
+                                  horizontal: 6,
+                                  vertical: 10,
                                 ),
-                                child: Row(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(stat.$2, color: stat.$3, size: 27),
-                                    const SizedBox(width: 9),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            '${counts[stat.$1]}',
-                                            style: TextStyle(
-                                              color: stat.$3,
-                                              fontSize: 21,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          Text(
-                                            stat.$1,
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ],
+                                    Icon(stat.$2, color: stat.$3, size: 22),
+                                    Text(
+                                      '${counts[stat.$1]}',
+                                      style: TextStyle(
+                                        color: stat.$3,
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    Text(
+                                      stat.$1,
+                                      textAlign: TextAlign.center,
+                                      maxLines: 2,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
                                       ),
                                     ),
                                   ],
@@ -626,9 +651,19 @@ class HomePage extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 16),
-            const Text(
-              'آخر الحركات',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'آخر الحركات',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => open(EntriesPage(s)),
+                  child: const Text('عرض الكل'),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
             if (s.entries.isEmpty)

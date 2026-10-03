@@ -12,6 +12,7 @@ import 'domain.dart';
 const navy = Color(0xFF123B5D), gold = Color(0xFFD4A84F);
 IconData kindIcon(String kind) => switch (kind) {
   'ticket' => Icons.flight_takeoff_rounded,
+  'change' => Icons.change_circle_outlined,
   'hotel' => Icons.hotel_rounded,
   'visa' => Icons.badge_rounded,
   'settlement' => Icons.swap_horiz_rounded,
@@ -20,7 +21,8 @@ IconData kindIcon(String kind) => switch (kind) {
   _ => Icons.account_balance_wallet_rounded,
 };
 Color kindColor(String kind) => switch (kind) {
-  'ticket' => const Color(0xff2878bb),
+  'ticket' || 'change' => const Color(0xff2878bb),
+  'expense' => const Color(0xffb65b80),
   'hotel' => const Color(0xff9067be),
   'visa' => const Color(0xff249786),
   'settlement' => const Color(0xffbc8936),
@@ -45,33 +47,51 @@ class Section extends StatelessWidget {
   final String title;
   final List<Widget> children;
   final Widget? trailing;
-  const Section(this.title, this.children, {super.key, this.trailing});
+  final bool collapsible;
+  const Section(
+    this.title,
+    this.children, {
+    super.key,
+    this.trailing,
+    this.collapsible = false,
+  });
   @override
-  Widget build(BuildContext c) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: Theme.of(c).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              if (trailing != null) trailing!,
-            ],
+  Widget build(BuildContext c) => collapsible
+      ? Card(
+          child: ExpansionTile(
+            title: Text(
+              title,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            childrenPadding: const EdgeInsets.all(16),
+            children: children,
           ),
-          const SizedBox(height: 12),
-          ...children,
-        ],
-      ),
-    ),
-  );
+        )
+      : Card(
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: Theme.of(c).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    if (trailing != null) trailing!,
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ...children,
+              ],
+            ),
+          ),
+        );
 }
 
 class EmptyState extends StatelessWidget {
@@ -408,11 +428,13 @@ const profileAvatars = <String>[
 class ProfileAvatar extends StatelessWidget {
   final String? imagePath;
   final String? avatar;
+  final String? name;
   final double radius;
   const ProfileAvatar({
     super.key,
     this.imagePath,
     this.avatar,
+    this.name,
     this.radius = 24,
   });
 
@@ -431,7 +453,16 @@ class ProfileAvatar extends StatelessWidget {
       child: hasImage
           ? null
           : Text(
-              avatar?.isNotEmpty == true ? avatar! : '👤',
+              avatar?.isNotEmpty == true
+                  ? avatar!
+                  : (name?.trim().isNotEmpty == true
+                        ? name!
+                              .trim()
+                              .split(RegExp(r'\s+'))
+                              .take(2)
+                              .map((v) => v.characters.first)
+                              .join()
+                        : '👤'),
               style: TextStyle(fontSize: radius * .95),
             ),
     );
@@ -640,5 +671,108 @@ Future<void> openAttachment(BuildContext c, String path) async {
   } else {
     final r = await OpenFilex.open(path);
     if (r.type != ResultType.done && c.mounted) message(c, r.message);
+  }
+}
+
+class ChoiceField<T> extends StatelessWidget {
+  final bool isExpanded;
+  final T? initialValue;
+  final List<DropdownMenuItem<T>>? items;
+  final ValueChanged<T?>? onChanged;
+  final InputDecoration? decoration;
+  const ChoiceField({
+    super.key,
+    this.isExpanded = true,
+    this.initialValue,
+    this.items,
+    this.onChanged,
+    this.decoration,
+  });
+  @override
+  Widget build(BuildContext context) {
+    final selected = items?.where((i) => i.value == initialValue).firstOrNull;
+    return InkWell(
+      onTap: onChanged == null
+          ? null
+          : () async {
+              var query = '';
+              await showModalBottomSheet<void>(
+                context: context,
+                showDragHandle: true,
+                isScrollControlled: true,
+                builder: (ctx) => StatefulBuilder(
+                  builder: (ctx, set) => SafeArea(
+                    child: SizedBox(
+                      height: MediaQuery.sizeOf(ctx).height * .65,
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          16,
+                          0,
+                          16,
+                          MediaQuery.viewInsetsOf(ctx).bottom,
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              decoration?.labelText ?? 'اختر من القائمة',
+                              style: Theme.of(ctx).textTheme.titleLarge,
+                            ),
+                            if ((items?.length ?? 0) > 5)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                child: TextField(
+                                  decoration: const InputDecoration(
+                                    prefixIcon: Icon(Icons.search),
+                                    hintText: 'بحث',
+                                  ),
+                                  onChanged: (v) =>
+                                      set(() => query = normalize(v)),
+                                ),
+                              ),
+                            Expanded(
+                              child: ListView(
+                                children: (items ?? <DropdownMenuItem<T>>[])
+                                    .where(
+                                      (i) =>
+                                          query.isEmpty ||
+                                          (i.child is Text &&
+                                              normalize(
+                                                (i.child as Text).data ?? '',
+                                              ).contains(query)),
+                                    )
+                                    .map(
+                                      (i) => ListTile(
+                                        title: i.child,
+                                        trailing: i.value == initialValue
+                                            ? const Icon(
+                                                Icons.check_circle_outline,
+                                              )
+                                            : null,
+                                        onTap: () {
+                                          onChanged?.call(i.value);
+                                          Navigator.pop(ctx);
+                                        },
+                                      ),
+                                    )
+                                    .toList(),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+      child: InputDecorator(
+        decoration: (decoration ?? const InputDecoration()).copyWith(
+          suffixIcon: const Icon(Icons.expand_more),
+        ),
+        child: selected?.child ?? const Text('اختياري'),
+      ),
+    );
   }
 }

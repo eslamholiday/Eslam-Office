@@ -86,35 +86,100 @@ class EntryTile extends StatelessWidget {
   final Entry e;
   const EntryTile(this.s, this.e, {super.key});
   @override
-  Widget build(BuildContext c) => Card(
-    child: ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      leading: CircleAvatar(
-        backgroundColor: kindColor(e.kind).withValues(alpha: .1),
-        child: Icon(kindIcon(e.kind), color: kindColor(e.kind)),
+  Widget build(BuildContext c) {
+    final kind = e.data['ticketType'] == 'change' ? 'change' : e.kind;
+    final state = entryStatus(s, e);
+    final color = !e.posted
+        ? Colors.orange.shade800
+        : state.contains('مسترجع')
+        ? Colors.red.shade700
+        : Colors.teal.shade700;
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => Navigator.push(
+          c,
+          MaterialPageRoute(builder: (_) => EntryDetail(s, e)),
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(s.settings['compact'] == true ? 10 : 15),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                backgroundColor: kindColor(kind).withValues(alpha: .12),
+                child: Icon(kindIcon(kind), color: kindColor(kind)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${e.label} • ${entryLabel(s, e)}',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      '#${e.id} • ${displayDate(e.date)}',
+                      style: Theme.of(c).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 5,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: .1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            state,
+                            style: TextStyle(
+                              color: color,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        if ((e.data['attachments'] as List? ?? []).isNotEmpty)
+                          const Icon(Icons.attach_file, size: 17),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.sizeOf(c).width * .3,
+                ),
+                child: Text(
+                  s.settings['hideAmounts'] == true
+                      ? '••••'
+                      : e.currency.format(e.data['amount'] as int? ?? e.sale),
+                  textDirection: TextDirection.ltr,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 17,
+                    color: Theme.of(c).colorScheme.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
-      title: Text(
-        '${e.label} • ${entryLabel(s, e)}',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      subtitle: Text(
-        '#${e.id} • ${displayDate(e.date)} • ${entryStatus(s, e)}'
-        '${(e.data['attachments'] as List? ?? const []).isEmpty ? '' : ' • 📎 ${(e.data['attachments'] as List).length}'}',
-      ),
-      trailing: Text(
-        s.settings['hideAmounts'] == true
-            ? '••••'
-            : e.currency.format(e.data['amount'] as int? ?? e.sale),
-        textDirection: TextDirection.ltr,
-        style: const TextStyle(fontWeight: FontWeight.bold),
-      ),
-      onTap: () => Navigator.push(
-        c,
-        MaterialPageRoute(builder: (_) => EntryDetail(s, e)),
-      ),
-    ),
-  );
+    );
+  }
 }
 
 class EntriesPage extends StatefulWidget {
@@ -129,6 +194,13 @@ class _EntriesPageState extends State<EntriesPage> {
   String query = '';
   String? currency, kind;
   bool drafts = false;
+  final searchController = TextEditingController();
+  @override
+  void dispose() {
+    searchController.dispose();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -153,12 +225,30 @@ class _EntriesPageState extends State<EntriesPage> {
       return Scaffold(
         appBar: AppBar(
           title: Text(widget.kind == null ? 'العمليات' : types[widget.kind]!),
+          actions: [
+            if (query.isNotEmpty ||
+                currency != null ||
+                drafts ||
+                kind != widget.kind)
+              IconButton(
+                tooltip: 'مسح الفلاتر',
+                icon: const Icon(Icons.filter_alt_off_outlined),
+                onPressed: () => setState(() {
+                  query = '';
+                  searchController.clear();
+                  currency = null;
+                  drafts = false;
+                  kind = widget.kind;
+                }),
+              ),
+          ],
         ),
         body: Column(
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
               child: TextField(
+                controller: searchController,
                 decoration: const InputDecoration(
                   prefixIcon: Icon(Icons.search),
                   hintText: 'اسم أو رقم العملية',
@@ -237,6 +327,24 @@ class EntryDetail extends StatelessWidget {
       appBar: AppBar(
         title: Text('${e.label} #${e.id}'),
         actions: [
+          if (['ticket', 'visa', 'hotel'].contains(e.kind))
+            IconButton(
+              tooltip: 'نسخ لإضافة عملية مشابهة',
+              icon: const Icon(Icons.copy_all_outlined),
+              onPressed: () {
+                final copy = Map<String, dynamic>.from(e.data)
+                  ..remove('id')
+                  ..remove('corrects')
+                  ..remove('original');
+                copy.addAll({
+                  'date': day(DateTime.now()),
+                  'posted': false,
+                  'pnr': '',
+                  'attachments': <String>[],
+                });
+                newEntry(c, s, e.kind, draft: Entry(copy));
+              },
+            ),
           if (e.posted && ['ticket', 'hotel', 'visa'].contains(e.kind))
             IconButton(
               tooltip: 'تصحيح العملية مع حفظ تاريخها',
@@ -456,6 +564,12 @@ class _PartiesPageState extends State<PartiesPage> {
   Widget build(BuildContext c) => AnimatedBuilder(
     animation: widget.s,
     builder: (c, _) {
+      if (widget.kind == 'passenger') return PassengerGroupsPage(widget.s);
+      final sort = widget.s.settings['partySort_${widget.kind}'] ?? 'name';
+      int amount(int id, Currency v) => widget.s
+          .history(id)
+          .where((e) => e.currency == v)
+          .fold<int>(0, (total, e) => total + widget.s.movement(e, id));
       final rows =
           widget.s
               .list(widget.kind)
@@ -468,6 +582,21 @@ class _PartiesPageState extends State<PartiesPage> {
                 a['favorite'] == true ? 1 : 0,
               );
               if (favorite != 0) return favorite;
+              if (sort == 'new') {
+                return (b['id'] as int).compareTo(a['id'] as int);
+              }
+              if (sort == 'recent') {
+                return (widget.s.history(b['id']).lastOrNull?.date ?? '')
+                    .compareTo(
+                      widget.s.history(a['id']).lastOrNull?.date ?? '',
+                    );
+              }
+              if (sort == 'USD' || sort == 'IQD') {
+                return amount(
+                  b['id'],
+                  Currency.values.byName(sort),
+                ).compareTo(amount(a['id'], Currency.values.byName(sort)));
+              }
               return partyDisplayName(a).compareTo(partyDisplayName(b));
             });
       return Scaffold(
@@ -481,6 +610,19 @@ class _PartiesPageState extends State<PartiesPage> {
             }[widget.kind]!,
           ),
           actions: [
+            PopupMenuButton<String>(
+              tooltip: 'ترتيب الحسابات',
+              icon: const Icon(Icons.sort),
+              initialValue: sort,
+              onSelected: (v) => widget.s.set('partySort_${widget.kind}', v),
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'name', child: Text('أبجديًا')),
+                PopupMenuItem(value: 'new', child: Text('الأحدث إضافة')),
+                PopupMenuItem(value: 'recent', child: Text('آخر تعامل')),
+                PopupMenuItem(value: 'USD', child: Text('الأعلى رصيدًا USD')),
+                PopupMenuItem(value: 'IQD', child: Text('الأعلى رصيدًا IQD')),
+              ],
+            ),
             IconButton(
               onPressed: () => editParty(c, widget.s, widget.kind),
               icon: const Icon(Icons.person_add_alt),
@@ -517,19 +659,45 @@ class _PartiesPageState extends State<PartiesPage> {
                             leading: ProfileAvatar(
                               imagePath: r['profileImage'],
                               avatar: r['avatar'],
+                              name: partyDisplayName(r),
                             ),
                             title: Text(partyDisplayName(r)),
-                            subtitle: r['phone'] == ''
-                                ? Text(r['notes'] ?? '')
-                                : InkWell(
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if ((r['phone'] ?? '').toString().isNotEmpty)
+                                  InkWell(
                                     onTap: () => phoneActions(c, r['phone']),
                                     child: Text(
                                       normalizePhone(r['phone']),
-                                      style: const TextStyle(
-                                        decoration: TextDecoration.underline,
-                                      ),
+                                      textDirection: TextDirection.ltr,
                                     ),
                                   ),
+                                if (widget.kind == 'customer')
+                                  Text(
+                                    '${widget.s.list('passenger').where((p) => p['customer'] == r['id']).length} مسافرين',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                if (widget.s.settings['showListBalances'] ==
+                                    true)
+                                  FutureBuilder<List<int>>(
+                                    future: Future.wait(
+                                      Currency.values.map(
+                                        (v) => widget.s.balance(r['id'], v),
+                                      ),
+                                    ),
+                                    builder: (c, snapshot) => Text(
+                                      widget.s.settings['hideAmounts'] == true
+                                          ? '••••'
+                                          : snapshot.hasData
+                                          ? '${Currency.USD.format(snapshot.data![0])}  |  ${Currency.IQD.format(snapshot.data![1])}'
+                                          : '…',
+                                      textDirection: TextDirection.ltr,
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                  ),
+                              ],
+                            ),
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -577,10 +745,18 @@ class _PartiesPageState extends State<PartiesPage> {
   );
 }
 
-class AccountPage extends StatelessWidget {
+class AccountPage extends StatefulWidget {
   final Store s;
   final int id;
   const AccountPage(this.s, this.id, {super.key});
+  @override
+  State<AccountPage> createState() => _AccountPageState();
+}
+
+class _AccountPageState extends State<AccountPage> {
+  Store get s => widget.s;
+  int get id => widget.id;
+  String tab = 'operations';
   @override
   Widget build(BuildContext c) => AnimatedBuilder(
     animation: s,
@@ -623,6 +799,7 @@ class AccountPage extends StatelessWidget {
                 child: ProfileAvatar(
                   imagePath: p['profileImage'],
                   avatar: p['avatar'],
+                  name: partyDisplayName(p),
                   radius: 40,
                 ),
               ),
@@ -728,7 +905,26 @@ class AccountPage extends StatelessWidget {
                   ],
                 ],
               ),
-            if (p['kind'] == 'customer') ...[
+            if (p['kind'] == 'customer')
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: 'operations', label: Text('العمليات')),
+                    ButtonSegment(
+                      value: 'passengers',
+                      label: Text('المسافرون'),
+                    ),
+                    ButtonSegment(
+                      value: 'attachments',
+                      label: Text('المرفقات'),
+                    ),
+                  ],
+                  selected: {tab},
+                  onSelectionChanged: (v) => setState(() => tab = v.first),
+                ),
+              ),
+            if (p['kind'] == 'customer' && tab == 'passengers') ...[
               Section('المسافرون التابعون', [
                 TextButton.icon(
                   icon: const Icon(Icons.person_add_alt),
@@ -747,7 +943,7 @@ class AccountPage extends StatelessWidget {
                     ),
               ]),
             ],
-            if (financial)
+            if (financial && (p['kind'] != 'customer' || tab == 'operations'))
               Section('ملخص الحساب', [
                 Text(
                   'عدد الخدمات: ${history.where((e) => ['ticket', 'visa', 'hotel'].contains(e.kind)).length}',
@@ -777,7 +973,7 @@ class AccountPage extends StatelessWidget {
                       ),
                     ),
                   ),
-            if (financial)
+            if (financial && (p['kind'] != 'customer' || tab == 'operations'))
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 child: Row(
@@ -797,56 +993,69 @@ class AccountPage extends StatelessWidget {
                   ],
                 ),
               ),
-            if (s.settings['table_$id'] == true)
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: DataTable(
-                  columns: const [
-                    DataColumn(label: Text('التاريخ')),
-                    DataColumn(label: Text('العملية')),
-                    DataColumn(label: Text('الحركة')),
-                  ],
-                  rows: history
-                      .map(
-                        (e) => DataRow(
-                          cells: [
-                            DataCell(Text(displayDate(e.date, weekday: false))),
-                            DataCell(
-                              Text('#${e.id} ${e.label}'),
-                              onTap: () => Navigator.push(
-                                c,
-                                MaterialPageRoute(
-                                  builder: (_) => EntryDetail(s, e),
+            if (p['kind'] != 'customer' || tab == 'operations') ...[
+              if (s.settings['table_$id'] == true)
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: DataTable(
+                    columns: const [
+                      DataColumn(label: Text('التاريخ')),
+                      DataColumn(label: Text('العملية')),
+                      DataColumn(label: Text('الحركة')),
+                    ],
+                    rows: history
+                        .map(
+                          (e) => DataRow(
+                            cells: [
+                              DataCell(
+                                Text(displayDate(e.date, weekday: false)),
+                              ),
+                              DataCell(
+                                Text('#${e.id} ${e.label}'),
+                                onTap: () => Navigator.push(
+                                  c,
+                                  MaterialPageRoute(
+                                    builder: (_) => EntryDetail(s, e),
+                                  ),
                                 ),
                               ),
-                            ),
-                            DataCell(
-                              Text(e.currency.format(s.movement(e, id))),
-                            ),
-                          ],
+                              DataCell(
+                                Text(e.currency.format(s.movement(e, id))),
+                              ),
+                            ],
+                          ),
+                        )
+                        .toList(),
+                  ),
+                )
+              else
+                ...types.entries
+                    .where((k) => history.any((e) => e.kind == k.key))
+                    .map(
+                      (k) => Card(
+                        child: ExpansionTile(
+                          initiallyExpanded: true,
+                          title: Text(
+                            '${k.value} (${history.where((e) => e.kind == k.key).length})',
+                          ),
+                          children: history.reversed
+                              .where((e) => e.kind == k.key)
+                              .map((e) => EntryTile(s, e))
+                              .toList(),
                         ),
-                      )
-                      .toList(),
-                ),
-              )
-            else
-              ...types.entries
-                  .where((k) => history.any((e) => e.kind == k.key))
-                  .map(
-                    (k) => Card(
-                      child: ExpansionTile(
-                        initiallyExpanded: true,
-                        title: Text(
-                          '${k.value} (${history.where((e) => e.kind == k.key).length})',
-                        ),
-                        children: history.reversed
-                            .where((e) => e.kind == k.key)
-                            .map((e) => EntryTile(s, e))
-                            .toList(),
                       ),
                     ),
-                  ),
-            if ((p['attachments'] as List? ?? []).isNotEmpty)
+            ],
+            if (p['kind'] == 'customer' &&
+                tab == 'attachments' &&
+                (p['attachments'] as List? ?? []).isEmpty)
+              const EmptyState(
+                'لا توجد مرفقات',
+                'أضف مرفقات من تعديل الحساب',
+                icon: Icons.attach_file,
+              ),
+            if ((p['kind'] != 'customer' || tab == 'attachments') &&
+                (p['attachments'] as List? ?? []).isNotEmpty)
               Section(
                 'المرفقات',
                 List<String>.from(p['attachments'])
@@ -1034,4 +1243,144 @@ class _SearchPageState extends State<SearchPage> {
       ),
     );
   }
+}
+
+class PassengerGroupsPage extends StatefulWidget {
+  final Store s;
+  const PassengerGroupsPage(this.s, {super.key});
+  @override
+  State<PassengerGroupsPage> createState() => _PassengerGroupsPageState();
+}
+
+class _PassengerGroupsPageState extends State<PassengerGroupsPage> {
+  String query = '';
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: widget.s,
+    builder: (context, _) {
+      final s = widget.s;
+      final passengers = s.list('passenger');
+      final owners = s.parties.where((p) => p['kind'] == 'customer').toList();
+      final ids = owners.map((p) => p['id']).toSet();
+      final groups = <Map<String, dynamic>>[
+        ...owners,
+        {'id': null, 'name': 'مسافرون غير مرتبطين'},
+      ];
+      final visible = groups.where((owner) {
+        final children = passengers.where(
+          (p) => owner['id'] == null
+              ? !ids.contains(p['customer'])
+              : p['customer'] == owner['id'],
+        );
+        return (owner['id'] != null || children.isNotEmpty) &&
+            (normalize('${owner['name']}').contains(query) ||
+                children.any(
+                  (p) =>
+                      normalize('${p['name']} ${p['phone']}').contains(query),
+                ));
+      }).toList();
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('المسافرون حسب الزبون'),
+          actions: [
+            IconButton(
+              tooltip: 'إضافة مسافر',
+              onPressed: () => editParty(context, s, 'passenger'),
+              icon: const Icon(Icons.person_add_alt),
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: TextField(
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.search),
+                  hintText: 'اسم الزبون أو المسافر أو الهاتف',
+                ),
+                onChanged: (v) => setState(() => query = normalize(v)),
+              ),
+            ),
+            Expanded(
+              child: visible.isEmpty
+                  ? const EmptyState(
+                      'لا توجد نتائج',
+                      'أضف زبونًا ومسافريه أو غيّر البحث',
+                    )
+                  : ListView(
+                      padding: const EdgeInsets.all(12),
+                      children: visible.map((owner) {
+                        final all = passengers
+                            .where(
+                              (p) => owner['id'] == null
+                                  ? !ids.contains(p['customer'])
+                                  : p['customer'] == owner['id'],
+                            )
+                            .toList();
+                        final children = all
+                            .where(
+                              (p) =>
+                                  normalize(
+                                    '${owner['name']}',
+                                  ).contains(query) ||
+                                  normalize(
+                                    '${p['name']} ${p['phone']}',
+                                  ).contains(query),
+                            )
+                            .toList();
+                        return Card(
+                          child: ExpansionTile(
+                            key: ValueKey('${owner['id']}-$query'),
+                            initiallyExpanded: query.isNotEmpty,
+                            leading: ProfileAvatar(
+                              name: owner['name'],
+                              imagePath: owner['profileImage'],
+                              avatar: owner['avatar'],
+                            ),
+                            title: Text('${owner['name']}'),
+                            subtitle: Text(
+                              '${all.length} مسافرين${owner['archived'] == 1 ? ' • زبون مؤرشف' : ''}',
+                            ),
+                            children: [
+                              ...children.map(
+                                (p) => ListTile(
+                                  leading: const Icon(Icons.person_outline),
+                                  title: Text(partyDisplayName(p)),
+                                  subtitle: Text('تابع إلى: ${owner['name']}'),
+                                  trailing: const Icon(Icons.chevron_left),
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => AccountPage(s, p['id']),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              if (children.isEmpty)
+                                const Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: Text('لا يوجد مسافرون لهذا الزبون'),
+                                ),
+                              TextButton.icon(
+                                onPressed: () => editParty(
+                                  context,
+                                  s,
+                                  'passenger',
+                                  party: {'customer': owner['id']},
+                                ),
+                                icon: const Icon(Icons.person_add_alt),
+                                label: const Text('إضافة مسافر'),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
 }

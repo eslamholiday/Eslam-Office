@@ -11,6 +11,7 @@ import 'domain.dart';
 import 'store.dart';
 import 'ui.dart';
 import 'pages.dart';
+import 'gallery.dart';
 
 int displayConvert(
   int amount,
@@ -261,7 +262,7 @@ class _StatementPageState extends State<StatementPage> {
       padding: const EdgeInsets.all(12),
       children: [
         Section(widget.s.name(widget.party), [
-          DropdownButtonFormField<String>(
+          ChoiceField<String>(
             isExpanded: true,
             initialValue: mode,
             decoration: const InputDecoration(labelText: 'عرض العملة'),
@@ -493,15 +494,15 @@ class PdfPage extends StatelessWidget {
             data: rows.map((r) => r.reversed.toList()).toList(),
             headerStyle: pw.TextStyle(
               font: font,
-              fontSize: 9,
+              fontSize: 11,
               color: PdfColors.white,
             ),
-            cellStyle: pw.TextStyle(font: font, fontSize: 8),
+            cellStyle: pw.TextStyle(font: font, fontSize: 10),
             headerDecoration: const pw.BoxDecoration(
               color: PdfColor.fromInt(0xff123b5d),
             ),
             cellAlignment: pw.Alignment.centerRight,
-            cellPadding: const pw.EdgeInsets.all(5),
+            cellPadding: const pw.EdgeInsets.all(7),
             oddRowDecoration: const pw.BoxDecoration(
               color: PdfColor.fromInt(0xfff3f6f8),
             ),
@@ -510,7 +511,13 @@ class PdfPage extends StatelessWidget {
           ...summary.map(
             (text) => pw.Padding(
               padding: const pw.EdgeInsets.only(bottom: 6),
-              child: pw.Text(text, style: const pw.TextStyle(fontSize: 10)),
+              child: pw.Container(
+                padding: const pw.EdgeInsets.all(10),
+                decoration: const pw.BoxDecoration(
+                  color: PdfColor.fromInt(0xffeef3f8),
+                ),
+                child: pw.Text(text, style: const pw.TextStyle(fontSize: 12)),
+              ),
             ),
           ),
         ],
@@ -519,36 +526,83 @@ class PdfPage extends StatelessWidget {
     return doc.save();
   }
 
+  Future<void> saveImages(BuildContext context, {required bool gallery}) async {
+    final progress = ValueNotifier<int>(0);
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          content: ValueListenableBuilder<int>(
+            valueListenable: progress,
+            builder: (_, count, child) => Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text('حفظ صفحات الكشف… $count'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    var count = 0;
+    try {
+      final bytes = await document(PdfPageFormat.a4);
+      final root = await getApplicationDocumentsDirectory();
+      final dir = Directory('${root.path}/saved_statements');
+      await dir.create(recursive: true);
+      final stamp = DateTime.now().millisecondsSinceEpoch;
+      final filename = Gallery.safeName('$title-${day(DateTime.now())}-$stamp');
+      await for (final page in Printing.raster(
+        bytes,
+        dpi: (s.settings['imageDpi'] as num? ?? 180).toDouble(),
+      )) {
+        final png = await page.toPng();
+        final name = '${filename}_p${count + 1}.png';
+        await File('${dir.path}/$name').writeAsBytes(png, flush: true);
+        if (gallery &&
+            !await Gallery.save(
+              png,
+              name,
+              album: s.settings['galleryAlbum'] ?? 'Eslam Money',
+            )) {
+          break;
+        }
+        count++;
+        progress.value = count;
+      }
+    } finally {
+      if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
+      // The dialog owns the listener until its closing animation finishes.
+      Future.delayed(const Duration(seconds: 1), progress.dispose);
+    }
+    if (context.mounted) {
+      message(
+        context,
+        count == 0
+            ? 'لم يتم الحفظ في المعرض'
+            : gallery
+            ? 'تم حفظ $count صفحة في معرض الهاتف وداخل التطبيق'
+            : 'تم حفظ $count صفحة داخل التطبيق',
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext c) => Scaffold(
     appBar: AppBar(
-      title: const Text('معاينة PDF'),
+      title: const Text('معاينة الكشف'),
       actions: [
         IconButton(
           tooltip: 'حفظ كصورة داخل التطبيق',
           icon: const Icon(Icons.image_outlined),
-          onPressed: () => guarded(c, () async {
-            final bytes = await document(PdfPageFormat.a4);
-            final root = await getApplicationDocumentsDirectory();
-            final dir = Directory('${root.path}/saved_statements');
-            await dir.create(recursive: true);
-            final stamp = DateTime.now().millisecondsSinceEpoch;
-            var index = 0;
-            await for (final page in Printing.raster(bytes, dpi: 144)) {
-              index++;
-              final png = await page.toPng();
-              final file = File('${dir.path}/statement_${stamp}_p$index.png');
-              await file.writeAsBytes(png, flush: true);
-            }
-            if (c.mounted) {
-              message(
-                c,
-                index == 1
-                    ? 'حُفظ الكشف كصورة داخل التطبيق'
-                    : 'حُفظ الكشف داخلياً — $index صفحات',
-              );
-            }
-          }),
+          onPressed: () => guarded(
+            c,
+            () => saveImages(c, gallery: s.settings['autoGallery'] == true),
+          ),
         ),
         IconButton(
           tooltip: 'حفظ PDF',
@@ -565,6 +619,16 @@ class PdfPage extends StatelessWidget {
           }),
         ),
       ],
+    ),
+    bottomNavigationBar: SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: FilledButton.icon(
+          onPressed: () => guarded(c, () => saveImages(c, gallery: true)),
+          icon: const Icon(Icons.download_outlined),
+          label: const Text('حفظ صورة في معرض الهاتف'),
+        ),
+      ),
     ),
     body: PdfPreview(
       build: document,
@@ -632,13 +696,31 @@ class _SavedStatementsPageState extends State<SavedStatementsPage> {
                 title: Text('صورة كشف ${i + 1}'),
                 subtitle: Text(p.basename(file.path)),
                 onTap: () => openAttachment(context, file.path),
-                trailing: IconButton(
-                  tooltip: 'حذف الصورة',
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () async {
-                    await file.delete();
-                    if (mounted) setState(() {});
-                  },
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'حفظ في معرض الهاتف',
+                      icon: const Icon(Icons.download_outlined),
+                      onPressed: () => guarded(context, () async {
+                        final saved = await Gallery.save(
+                          await file.readAsBytes(),
+                          p.basename(file.path),
+                        );
+                        if (saved && context.mounted) {
+                          message(context, 'تم حفظ الصورة في معرض الهاتف');
+                        }
+                      }),
+                    ),
+                    IconButton(
+                      tooltip: 'حذف الصورة',
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () async {
+                        await file.delete();
+                        if (mounted) setState(() {});
+                      },
+                    ),
+                  ],
                 ),
               ),
             );
@@ -758,6 +840,28 @@ class _ReportsPageState extends State<ReportsPage> {
       body: ListView(
         padding: const EdgeInsets.all(12),
         children: [
+          Section('نتائج فعلية — ${currency.name}', [
+            pair(
+              AmountBox('المبيعات', currency.format(sale)),
+              AmountBox('التكلفة', currency.format(cost)),
+            ),
+            pair(
+              AmountBox('ربح الخدمات', currency.format(sale - cost)),
+              AmountBox('مصروف المكتب', currency.format(expenses)),
+            ),
+            AmountBox(
+              'صافي الربح',
+              currency.format(sale - cost - expenses),
+              color: sale - cost - expenses < 0
+                  ? Colors.red
+                  : const Color(0xff23836c),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'عدد الحركات: ${rows.length} • المصروف الشخصي: ${currency.format(personal)}',
+            ),
+            Text('العمولات المسجلة: ${currency.format(commission)}'),
+          ]),
           Section('الفترة والفلاتر', [
             SegmentedButton<Currency>(
               segments: Currency.values
@@ -819,7 +923,7 @@ class _ReportsPageState extends State<ReportsPage> {
               widget.s.list('supplier'),
               (v) => setState(() => supplier = v),
             ),
-            DropdownButtonFormField<String>(
+            ChoiceField<String>(
               isExpanded: true,
               initialValue: kind ?? '',
               decoration: const InputDecoration(labelText: 'نوع العملية'),
@@ -831,29 +935,7 @@ class _ReportsPageState extends State<ReportsPage> {
               ],
               onChanged: (v) => setState(() => kind = v == '' ? null : v),
             ),
-          ]),
-          Section('نتائج فعلية — ${currency.name}', [
-            pair(
-              AmountBox('المبيعات', currency.format(sale)),
-              AmountBox('التكلفة', currency.format(cost)),
-            ),
-            pair(
-              AmountBox('ربح الخدمات', currency.format(sale - cost)),
-              AmountBox('مصروف المكتب', currency.format(expenses)),
-            ),
-            AmountBox(
-              'صافي الربح',
-              currency.format(sale - cost - expenses),
-              color: sale - cost - expenses < 0
-                  ? Colors.red
-                  : const Color(0xff23836c),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'عدد الحركات: ${rows.length} • المصروف الشخصي: ${currency.format(personal)}',
-            ),
-            Text('العمولات المسجلة: ${currency.format(commission)}'),
-          ]),
+          ], collapsible: true),
           Section(
             'مصادر الربح',
             rows
