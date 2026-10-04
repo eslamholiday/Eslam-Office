@@ -12,6 +12,7 @@ import 'store.dart';
 import 'ui.dart';
 import 'pages.dart';
 import 'gallery.dart';
+import 'statement_image.dart';
 
 int displayConvert(
   int amount,
@@ -408,10 +409,16 @@ class PdfPage extends StatelessWidget {
     };
     doc.addPage(
       pw.MultiPage(
-        pageFormat: format,
-        margin: const pw.EdgeInsets.all(28),
-        theme: pw.ThemeData.withFont(base: font, bold: font),
-        textDirection: pw.TextDirection.rtl,
+        pageTheme: pw.PageTheme(
+          pageFormat: format,
+          margin: const pw.EdgeInsets.all(28),
+          theme: pw.ThemeData.withFont(base: font, bold: font),
+          textDirection: pw.TextDirection.rtl,
+          buildBackground: (_) => pw.FullPage(
+            ignoreMargins: true,
+            child: pw.Container(color: PdfColors.white),
+          ),
+        ),
         header: (_) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.stretch,
           children: [
@@ -558,9 +565,9 @@ class PdfPage extends StatelessWidget {
       final filename = Gallery.safeName('$title-${day(DateTime.now())}-$stamp');
       await for (final page in Printing.raster(
         bytes,
-        dpi: (s.settings['imageDpi'] as num? ?? 180).toDouble(),
+        dpi: statementImageDpi(s.settings['imageDpi']).toDouble(),
       )) {
-        final png = await page.toPng();
+        final png = await whiteStatementPng(await page.toPng());
         final name = '${filename}_p${count + 1}.png';
         await File('${dir.path}/$name').writeAsBytes(png, flush: true);
         if (gallery &&

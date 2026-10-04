@@ -1404,7 +1404,7 @@ class AboutPage extends StatelessWidget {
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
         ),
-        const Text('1.3.0 • فكرة وإشراف إسلام', textAlign: TextAlign.center),
+        const Text('1.3.1 • فكرة وإشراف إسلام', textAlign: TextAlign.center),
         const SizedBox(height: 24),
         const Text(
           'إدارة مكتب السفر والحسابات\nحفظ محلي • دولار ودينار • بحث موحّد',
@@ -1443,7 +1443,9 @@ class PreferencesPage extends StatelessWidget {
       key: ValueKey('$key-${s.settings[key]}'),
       isExpanded: true,
       decoration: InputDecoration(labelText: title),
-      initialValue: '${s.settings[key] ?? fallback}',
+      initialValue: key == 'imageDpi'
+          ? '${s.settings[key] == 400 ? 400 : 300}'
+          : '${s.settings[key] ?? fallback}',
       items: values.entries
           .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
           .toList(),
@@ -1492,10 +1494,10 @@ class PreferencesPage extends StatelessWidget {
           ]),
           Section('صور الكشوف', [
             option('جودة الصور', 'imageDpi', {
-              '144': 'عادية',
-              '180': 'واضحة',
-              '240': 'عالية',
-            }, '180'),
+              '300': 'عالية — 300 DPI',
+              '400': 'فائقة — 400 DPI',
+            }, '300'),
+            const Text('PNG بدون فقدان جودة • خلفية بيضاء ثابتة'),
             option('ألبوم الحفظ في المعرض', 'galleryAlbum', {
               'Eslam Money': 'Eslam Money',
               'Passengers Statements': 'Passengers Statements',

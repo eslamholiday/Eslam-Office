@@ -26,3 +26,9 @@ Built from Eslam Office source at 62aaff18527f6a48c4121aab2a45fb4688374039.
 - Existing app icon retained pending the user's logo choice; no arbitrary logo selection was imposed.
 
 Validation: domain/store/PDF/widget tests, including v1 database migration, isolated currencies, atomic account removal, derived expense balance, posting review cancellation/approval, and narrow phone layouts. No physical Samsung device test was available.
+# 1.3.1
+
+- Export statement images with an explicit white page background and opaque PNG pixels.
+- Upgrade legacy image quality to 300 DPI by default; offer 400 DPI for extra detail.
+- Apply the same lossless image bytes to Gallery and private saved statements.
+- Preserve application ID, database and accounting behavior.
