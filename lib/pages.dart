@@ -345,22 +345,12 @@ class EntryDetail extends StatelessWidget {
                 newEntry(c, s, e.kind, draft: Entry(copy));
               },
             ),
-          if (e.posted && ['ticket', 'hotel', 'visa'].contains(e.kind))
+          if (e.posted && e.kind != 'refund')
             IconButton(
-              tooltip: 'تصحيح العملية مع حفظ تاريخها',
+              tooltip: 'تعديل العملية',
               icon: const Icon(Icons.edit_note),
               onPressed: () async {
-                await newEntry(
-                  c,
-                  s,
-                  e.kind,
-                  draft: Entry({
-                    ...e.data,
-                    'posted': false,
-                    'corrects': e.id,
-                    'date': day(DateTime.now()),
-                  }),
-                );
+                await newEntry(c, s, e.kind, draft: e);
                 if (c.mounted) Navigator.pop(c);
               },
             ),
@@ -453,7 +443,7 @@ class EntryDetail extends StatelessWidget {
                   )
                   .toList(),
             ),
-          if (e.posted && ['ticket', 'hotel', 'visa'].contains(e.kind))
+          if (e.posted && e.kind != 'refund')
             Padding(
               padding: const EdgeInsets.all(8),
               child: Wrap(
@@ -678,22 +668,62 @@ class _PartiesPageState extends State<PartiesPage> {
                                     '${widget.s.list('passenger').where((p) => p['customer'] == r['id']).length} مسافرين',
                                     style: const TextStyle(fontSize: 12),
                                   ),
-                                if (widget.s.settings['showListBalances'] ==
-                                    true)
+                                if (widget.kind == 'customer' ||
+                                    widget.s.settings['showListBalances'] ==
+                                        true)
                                   FutureBuilder<List<int>>(
                                     future: Future.wait(
                                       Currency.values.map(
                                         (v) => widget.s.balance(r['id'], v),
                                       ),
                                     ),
-                                    builder: (c, snapshot) => Text(
-                                      widget.s.settings['hideAmounts'] == true
-                                          ? '••••'
-                                          : snapshot.hasData
-                                          ? '${Currency.USD.format(snapshot.data![0])}  |  ${Currency.IQD.format(snapshot.data![1])}'
-                                          : '…',
-                                      textDirection: TextDirection.ltr,
-                                      style: const TextStyle(fontSize: 12),
+                                    builder: (c, snapshot) => Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: Currency.values
+                                          .asMap()
+                                          .entries
+                                          .map((item) {
+                                            final value =
+                                                snapshot.data?[item.key];
+                                            final hidden =
+                                                widget
+                                                    .s
+                                                    .settings['hideAmounts'] ==
+                                                true;
+                                            final label = value == null
+                                                ? '…'
+                                                : value == 0
+                                                ? 'متوازن'
+                                                : value > 0
+                                                ? 'عليه'
+                                                : 'له';
+                                            return Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 4,
+                                              ),
+                                              child: Text(
+                                                hidden
+                                                    ? '${item.value.name}: ••••'
+                                                    : '${item.value.name}: $label ${value == null ? '' : item.value.format(value.abs())}',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                  color:
+                                                      hidden ||
+                                                          value == null ||
+                                                          value == 0
+                                                      ? Theme.of(c)
+                                                            .colorScheme
+                                                            .onSurfaceVariant
+                                                      : value > 0
+                                                      ? const Color(0xffa33b36)
+                                                      : const Color(0xff19725a),
+                                                ),
+                                              ),
+                                            );
+                                          })
+                                          .toList(),
                                     ),
                                   ),
                               ],

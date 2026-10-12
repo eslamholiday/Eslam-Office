@@ -54,7 +54,7 @@ void main() {
     expect(await s.balance(customer, Currency.USD), 0);
     await s.saveEntry(sale(), id: id);
     expect(await s.balance(customer, Currency.USD), 26000);
-    await expectLater(s.saveEntry(sale(), id: id), throwsFormatException);
+    await s.saveEntry(sale(), id: id);
     expect(await s.balance(customer, Currency.USD), 26000);
   });
   test(
@@ -177,24 +177,71 @@ void main() {
     expect(rows.every((r) => r['total'] == 0), isTrue);
   });
   test(
-    'posted correction reverses old sale and posts replacement atomically',
+    'posted correction preserves ID and replaces ledger atomically',
     () async {
       final id = await s.saveEntry(sale());
       final replacement = sale()..addAll({'corrects': id, 'rate': 1000});
-      await s.saveEntry(replacement);
-      expect(s.entries.length, 3);
+      expect(await s.saveEntry(replacement), id);
+      expect(s.entries.length, 1);
       expect(await s.balance(customer, Currency.USD), 26000);
       expect(await s.balance(supplier, Currency.USD), 22000);
       expect((await s.summary(Currency.USD))['profit'], 4000);
-      await expectLater(s.saveEntry(replacement), throwsFormatException);
-      expect(s.entries.length, 3);
+      await s.saveEntry(replacement);
+      expect(s.entries.length, 1);
+      expect(await s.balance(supplier, Currency.USD), 22000);
     },
   );
-  test('invalid replacement rolls back reversing entry too', () async {
+  test('invalid edit preserves original ledger', () async {
     final id = await s.saveEntry(sale());
     final replacement = sale()..addAll({'corrects': id, 'customer': null});
     await expectLater(s.saveEntry(replacement), throwsFormatException);
     expect((await s.db.query('entries')).length, 1);
     expect(await s.balance(customer, Currency.USD), 26000);
   });
+  test('editing currency and parties clears old balances', () async {
+    final id = await s.saveEntry(sale());
+    final other = await s.saveParty({'kind': 'customer', 'name': 'آخر'});
+    await s.saveEntry(sale(currency: 'IQD')..['customer'] = other, id: id);
+    expect(s.entries.length, 1);
+    expect(await s.balance(customer, Currency.USD), 0);
+    expect(await s.balance(supplier, Currency.USD), 0);
+    expect(await s.balance(other, Currency.IQD), 26000);
+    expect(await s.balance(supplier, Currency.IQD), 23000);
+  });
+  test(
+    'editing with real refund preserves refund and rejects invalid totals',
+    () async {
+      final id = await s.saveEntry(sale());
+      await s.saveEntry({
+        'kind': 'refund',
+        'original': id,
+        'currency': 'USD',
+        'posted': true,
+        'date': '2026-10-03',
+        'customer': customer,
+        'supplier': supplier,
+        'sale': 13000,
+        'cost': 11500,
+      });
+      await s.saveEntry(sale()..['notes'] = 'updated', id: id);
+      expect(s.entries.length, 2);
+      expect(await s.balance(customer, Currency.USD), 13000);
+      await expectLater(
+        s.saveEntry(sale(currency: 'IQD'), id: id),
+        throwsFormatException,
+      );
+      await expectLater(
+        s.saveEntry(
+          sale()
+            ..['lines'] = [
+              {'qty': 1, 'base': 100, 'gross': 200, 'sell': 300},
+            ],
+          id: id,
+        ),
+        throwsFormatException,
+      );
+      expect(await s.balance(customer, Currency.USD), 13000);
+      expect(await s.balance(customer, Currency.IQD), 0);
+    },
+  );
 }

@@ -415,62 +415,40 @@ class Store extends ChangeNotifier {
       throw const FormatException('أدخل مبلغًا أكبر من صفر');
     }
     final key = await db.transaction((t) async {
+      // Older callers may still supply corrects; edit the original in place.
+      id ??= d['corrects'] as int?;
+      d.remove('corrects');
       if (id != null) {
-        final old = await t.query('entries', where: 'id=?', whereArgs: [id]);
-        if (old.isEmpty || old.first['posted'] == 1) {
+        final rows = await t.query('entries', where: 'id=?', whereArgs: [id]);
+        if (rows.isEmpty) {
+          throw const FormatException('العملية غير موجودة');
+        }
+        final old = Entry.row(rows.first);
+        if (old.kind != d['kind'] || (old.posted && !post)) {
           throw const FormatException(
-            'العملية المعتمدة محفوظة؛ استخدم الاسترجاع للتصحيح',
+            'لا يمكن تغيير نوع العملية أو تحويلها إلى مسودة',
           );
         }
-      }
-      if (post && d['corrects'] != null) {
-        final previous = await t.query(
+        final refunds = (await t.query(
           'entries',
-          where: 'id=?',
-          whereArgs: [d['corrects']],
-        );
-        if (previous.isEmpty) {
-          throw const FormatException('العملية السابقة غير موجودة');
+          where: 'kind=? AND posted=1',
+          whereArgs: ['refund'],
+        )).map(Entry.row).where((e) => e.data['original'] == id).toList();
+        if (refunds.isNotEmpty &&
+            (d['currency'] != old.currency.name ||
+                d['customer'] != old.data['customer'] ||
+                d['supplier'] != old.data['supplier'] ||
+                (d['sale'] as int) <
+                    refunds.fold<int>(0, (sum, e) => sum + e.sale) ||
+                (d['cost'] as int) <
+                    refunds.fold<int>(0, (sum, e) => sum + e.cost))) {
+          throw const FormatException(
+            'التعديل يتعارض مع استرجاع مسجل؛ راجع الاسترجاع أولاً',
+          );
         }
-        final old = Entry.row(previous.first);
-        if (!old.posted || !['ticket', 'hotel', 'visa'].contains(old.kind)) {
-          throw const FormatException('هذه العملية لا تقبل تصحيح بيع');
-        }
-        final reverse = <String, dynamic>{
-          'kind': 'refund',
-          'original': old.id,
-          'customer': old.data['customer'],
-          'supplier': old.data['supplier'],
-          'currency': old.currency.name,
-          'date': d['date'],
-          'sale': old.sale,
-          'cost': old.cost,
-          'posted': true,
-          'notes': 'قيد عكس لتصحيح العملية #${old.id}',
-        };
-        await _validateRefund(t, reverse);
-        final rid = await t.insert('entries', {
-          'kind': 'refund',
-          'currency': old.currency.name,
-          'date': reverse['date'],
-          'customer': reverse['customer'],
-          'supplier': reverse['supplier'],
-          'posted': 1,
-          'payload': jsonEncode(reverse),
-        });
-        for (final l in journal(reverse)) {
-          await t.insert('ledger', {
-            'entry_id': rid,
-            'currency': old.currency.name,
-            'account': l.account,
-            'party': l.party,
-            'debit': l.debit,
-            'credit': l.credit,
-          });
-        }
-        await audit(t, 'عكس وتصحيح', '${old.id}');
+        await t.delete('ledger', where: 'entry_id=?', whereArgs: [id]);
       }
-      if (d['kind'] == 'refund') await _validateRefund(t, d);
+      if (d['kind'] == 'refund') await _validateRefund(t, d, excludeId: id);
       final passengerIds = List<int>.from(
         d['passengers'] ?? (d['passenger'] == null ? [] : [d['passenger']]),
       );
@@ -525,14 +503,26 @@ class Store extends ChangeNotifier {
           'credit': l.credit,
         });
       }
-      await audit(t, post ? 'اعتماد ${types[d['kind']]}' : 'حفظ مسودة', '$eid');
+      await audit(
+        t,
+        id != null
+            ? 'تعديل ${types[d['kind']]}'
+            : post
+            ? 'اعتماد ${types[d['kind']]}'
+            : 'حفظ مسودة',
+        '$eid',
+      );
       return eid;
     });
     await reload();
     return key;
   }
 
-  Future<void> _validateRefund(Transaction t, Map<String, dynamic> d) async {
+  Future<void> _validateRefund(
+    Transaction t,
+    Map<String, dynamic> d, {
+    int? excludeId,
+  }) async {
     final r = await t.query(
       'entries',
       where: 'id=?',
@@ -547,11 +537,16 @@ class Store extends ChangeNotifier {
         d['supplier'] != original.data['supplier']) {
       throw const FormatException('بيانات الاسترجاع غير متطابقة');
     }
-    final all = (await t.query(
-      'entries',
-      where: 'kind=? AND posted=1',
-      whereArgs: ['refund'],
-    )).map(Entry.row).where((e) => e.data['original'] == original.id);
+    final all =
+        (await t.query(
+              'entries',
+              where: 'kind=? AND posted=1',
+              whereArgs: ['refund'],
+            ))
+            .map(Entry.row)
+            .where(
+              (e) => e.data['original'] == original.id && e.id != excludeId,
+            );
     final sale = all.fold<int>(0, (s, e) => s + e.sale),
         cost = all.fold<int>(0, (s, e) => s + e.cost);
     if (d['sale'] < 0 ||

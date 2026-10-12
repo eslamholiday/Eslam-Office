@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'pages.dart';
 import 'domain.dart';
 import 'store.dart';
@@ -38,6 +39,27 @@ class _PartyFormState extends State<PartyForm> {
   late String? profileImage = widget.party?['profileImage'];
   late String? avatar = widget.party?['avatar'];
   bool busy = false;
+  Future<void> pickContact() async {
+    try {
+      final contact = await const MethodChannel(
+        'eslam_money/contacts',
+      ).invokeMapMethod<String, dynamic>('pickPhone');
+      if (!mounted || contact == null) return;
+      setState(() {
+        name.text = (contact['name'] ?? '').toString();
+        phone.text = normalizePhone((contact['phone'] ?? '').toString());
+      });
+    } on PlatformException {
+      if (mounted)
+        message(
+          context,
+          'تعذر فتح جهات الاتصال، يمكنك إدخال الاسم والرقم يدويًا',
+        );
+    } on MissingPluginException {
+      if (mounted) message(context, 'اختيار جهات الاتصال متاح على Android');
+    }
+  }
+
   @override
   void dispose() {
     name.dispose();
@@ -59,6 +81,12 @@ class _PartyFormState extends State<PartyForm> {
       padding: const EdgeInsets.all(12),
       children: [
         Section('البيانات الأساسية', [
+          if (widget.kind == 'customer')
+            OutlinedButton.icon(
+              onPressed: pickContact,
+              icon: const Icon(Icons.contacts_outlined),
+              label: const Text('من جهات الاتصال'),
+            ),
           textField(name, 'الاسم'),
           if (widget.kind != 'family') ...[
             textField(phone, 'رقم الهاتف', number: true),
@@ -167,7 +195,11 @@ class _EntryFormState extends State<EntryForm> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('تعديلات غير محفوظة'),
-        content: const Text('حفظ كمسودة أو تجاهل التعديلات؟'),
+        content: Text(
+          widget.draft?.posted == true
+              ? 'حفظ التعديلات أو تجاهلها؟'
+              : 'حفظ كمسودة أو تجاهل التعديلات؟',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, 'continue'),
@@ -186,7 +218,7 @@ class _EntryFormState extends State<EntryForm> {
     );
     if (!mounted) return;
     if (action == 'save') {
-      await save(false);
+      await save(widget.draft?.posted == true);
     }
     if (action == 'discard') {
       setState(() => allowLeave = true);
@@ -392,7 +424,10 @@ class _EntryFormState extends State<EntryForm> {
       if (mounted) {
         setState(() => allowLeave = true);
         message(context, 'تم حفظ ${Entry(v).label}');
-        if (another || (post && widget.s.settings['afterSave'] == 'another')) {
+        if (another ||
+            (post &&
+                widget.draft?.id == null &&
+                widget.s.settings['afterSave'] == 'another')) {
           await Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -961,14 +996,21 @@ class _EntryFormState extends State<EntryForm> {
                     child: FilledButton.icon(
                       onPressed: busy ? null : () => save(true),
                       icon: const Icon(Icons.check),
-                      label: Text(busy ? 'جارٍ الحفظ…' : 'حفظ واعتماد'),
+                      label: Text(
+                        busy
+                            ? 'جارٍ الحفظ…'
+                            : widget.draft?.posted == true
+                            ? 'حفظ التعديل'
+                            : 'حفظ واعتماد',
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
-                  OutlinedButton(
-                    onPressed: busy ? null : () => save(false),
-                    child: const Text('مسودة'),
-                  ),
+                  if (widget.draft?.posted != true)
+                    OutlinedButton(
+                      onPressed: busy ? null : () => save(false),
+                      child: const Text('مسودة'),
+                    ),
                 ],
               ),
             ),
