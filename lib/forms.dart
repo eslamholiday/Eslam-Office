@@ -50,11 +50,12 @@ class _PartyFormState extends State<PartyForm> {
         phone.text = normalizePhone((contact['phone'] ?? '').toString());
       });
     } on PlatformException {
-      if (mounted)
+      if (mounted) {
         message(
           context,
           'تعذر فتح جهات الاتصال، يمكنك إدخال الاسم والرقم يدويًا',
         );
+      }
     } on MissingPluginException {
       if (mounted) message(context, 'اختيار جهات الاتصال متاح على Android');
     }
