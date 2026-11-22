@@ -845,7 +845,13 @@ class _EntryFormState extends State<EntryForm> {
                   label: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(widget.s.name(id)),
+                      Flexible(
+                        child: Text(
+                          widget.s.name(id),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                       if (typeLabels.containsKey(
                         widget.s.parties
                             .where((r) => r['id'] == id)
