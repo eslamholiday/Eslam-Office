@@ -124,7 +124,10 @@ class _PartyFormState extends State<PartyForm> {
 
   Widget partyInput(InputSpec f) => KeyedSubtree(
     key: anchors.putIfAbsent(f.key, GlobalKey.new),
-    child: partyInputContent(f),
+    child: AbsorbPointer(
+      absorbing: widget.preview,
+      child: partyInputContent(f),
+    ),
   );
   Widget partyInputContent(InputSpec f) {
     final label = layout.label(f);
@@ -139,7 +142,9 @@ class _PartyFormState extends State<PartyForm> {
         (v) => setState(() => customer = v),
         store: widget.s,
         listKey: 'customer',
-        add: () => editParty(context, widget.s, 'customer'),
+        add: widget.preview
+            ? null
+            : () => editParty(context, widget.s, 'customer'),
       ),
       'notes' => textField(notes, label, lines: 3),
       'profile' => ProfilePicker(
@@ -400,8 +405,8 @@ class _EntryFormState extends State<EntryForm> {
       await save(widget.draft?.posted == true);
     }
     if (action == 'discard') {
-      await widget.s.set(recoveryKey, null);
       recoveryTimer?.cancel();
+      unawaited(widget.s.set(recoveryKey, null).catchError((Object _) {}));
       setState(() => allowLeave = true);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) Navigator.pop(context);
@@ -501,7 +506,9 @@ class _EntryFormState extends State<EntryForm> {
             dirty &&
             widget.s.settings['autoRecoverForms'] != false) {
           try {
-            widget.s.set(recoveryKey, collect());
+            unawaited(
+              widget.s.set(recoveryKey, collect()).catchError((Object _) {}),
+            );
           } catch (_) {}
         }
       });
@@ -795,22 +802,24 @@ class _EntryFormState extends State<EntryForm> {
               .map(
                 (id) => InputChip(
                   label: Text(widget.s.name(id)),
-                  onPressed: () async {
-                    final person = widget.s.parties
-                        .where((r) => r['id'] == id)
-                        .firstOrNull;
-                    if (person != null) {
-                      await editParty(
-                        context,
-                        widget.s,
-                        'passenger',
-                        party: person,
-                      );
-                    }
-                    if (mounted) {
-                      setState(() {});
-                    }
-                  },
+                  onPressed: widget.preview
+                      ? null
+                      : () async {
+                          final person = widget.s.parties
+                              .where((r) => r['id'] == id)
+                              .firstOrNull;
+                          if (person != null) {
+                            await editParty(
+                              context,
+                              widget.s,
+                              'passenger',
+                              party: person,
+                            );
+                          }
+                          if (mounted) {
+                            setState(() {});
+                          }
+                        },
                   onDeleted: () => setState(() {
                     ids.remove(id);
                     d['passengers'] = ids;
@@ -826,7 +835,7 @@ class _EntryFormState extends State<EntryForm> {
             OutlinedButton.icon(
               icon: const Icon(Icons.people_outline),
               label: const Text('اختيار المسافرين'),
-              onPressed: d['customer'] == null
+              onPressed: widget.preview || d['customer'] == null
                   ? null
                   : () async {
                       final selected = ids.toSet();
@@ -1025,7 +1034,9 @@ class _EntryFormState extends State<EntryForm> {
         }),
         store: widget.s,
         listKey: kind,
-        add: party
+        add: widget.preview
+            ? null
+            : party
             ? () => editParty(context, widget.s, kind)
             : () => addReference(context, widget.s, kind),
       );
@@ -1119,7 +1130,7 @@ class _EntryFormState extends State<EntryForm> {
 
   Widget input(InputSpec f) => KeyedSubtree(
     key: anchors.putIfAbsent(f.key, GlobalKey.new),
-    child: inputContent(f),
+    child: AbsorbPointer(absorbing: widget.preview, child: inputContent(f)),
   );
   Widget inputContent(InputSpec f) {
     final label = layout.label(f);
@@ -1229,6 +1240,25 @@ class _EntryFormState extends State<EntryForm> {
       f,
       current: d[f.key],
     );
+    if (f.key == 'ticketType' && choices.isNotEmpty && choices.length <= 3) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(label, style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 8),
+            SegmentedButton<String>(
+              segments: choices.entries
+                  .map((e) => ButtonSegment(value: e.key, label: Text(e.value)))
+                  .toList(),
+              selected: {d[f.key]?.toString() ?? choices.keys.first},
+              onSelectionChanged: (v) => setState(() => d[f.key] = v.first),
+            ),
+          ],
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: ChoiceField<String>(
@@ -1361,8 +1391,17 @@ class _EntryFormState extends State<EntryForm> {
     builder: (c, _) {
       final sale = ['ticket', 'hotel', 'visa'].contains(widget.kind);
       Totals? totals;
+      var hiddenValues = <InputSpec>[];
       try {
-        if (sale) totals = calculate(collect());
+        final values = collect();
+        if (sale) totals = calculate(values);
+        hiddenValues = layout.fields.where((f) {
+          final value = layout.value(f, values);
+          return layout.mode(f) == 'hidden' &&
+              ['money', 'count', 'number'].contains(f.type) &&
+              value is num &&
+              value != 0;
+        }).toList();
         calcError = null;
       } catch (e) {
         calcError = e.toString().replaceFirst('FormatException: ', '');
@@ -1413,6 +1452,19 @@ class _EntryFormState extends State<EntryForm> {
                   ),
                 if (widget.s.settings['showInputSearch'] != false)
                   InputSearch(layout: layout, onSelect: revealField),
+                if (hiddenValues.isNotEmpty)
+                  ListTile(
+                    leading: const Icon(Icons.visibility_off_outlined),
+                    title: Text(
+                      'حقول مخفية بها قيم: ${hiddenValues.map(layout.label).join('، ')}',
+                    ),
+                    subtitle: const Text(
+                      'قيمها محفوظة وتدخل في الحساب. اضغط لإظهارها في هذه العملية.',
+                    ),
+                    onTap: () => setState(
+                      () => revealed.addAll(hiddenValues.map((f) => f.key)),
+                    ),
+                  ),
                 for (final group in layout.groups) formGroup(group),
                 if (sale) summary(totals),
                 if (!widget.preview)

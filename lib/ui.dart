@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' show NumberFormat;
@@ -324,7 +325,9 @@ Future<int?> chooseListItem(
               ).contains(normalize(query)),
             )
             .toList();
-        final sort = store?.settings['pickerSort'] ?? 'recent';
+        final sort =
+            store?.settings['pickerSort'] ??
+            (store == null ? 'original' : 'recent');
         if (sort != 'original') {
           rows.sort((a, b) {
             if (sort == 'recent' && showFavorites) {
@@ -338,7 +341,9 @@ Future<int?> chooseListItem(
                 return cmp;
               }
             }
-            return '${a['name']}'.compareTo('${b['name']}');
+            return sort == 'name'
+                ? '${a['name']}'.compareTo('${b['name']}')
+                : items.indexOf(a).compareTo(items.indexOf(b));
           });
         }
         return SafeArea(
@@ -427,9 +432,13 @@ Future<int?> chooseListItem(
     ),
   );
   if (result != null && result >= 0 && store != null) {
-    await store.set(
-      'recent_$listKey',
-      [result, ...recent.where((id) => id != result)].take(15).toList(),
+    unawaited(
+      store
+          .set(
+            'recent_$listKey',
+            [result, ...recent.where((id) => id != result)].take(15).toList(),
+          )
+          .catchError((Object _) {}),
     );
   }
   return result;

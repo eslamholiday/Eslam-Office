@@ -372,7 +372,26 @@ class InputLayout {
 
   List<String> get groups {
     final all = inputSpecs(scope).map((f) => f.group).toSet();
-    final order = List<String>.from(config['groups'] ?? []);
+    final order = List<String>.from(
+      config['groups'] ??
+          [
+            'identity',
+            'main',
+            'passengers',
+            'adult',
+            'child',
+            'infant',
+            'commission',
+            'booking',
+            'service',
+            'movement',
+            'expense',
+            'travel',
+            'payment',
+            'notes',
+            'profile',
+          ],
+    );
     return [
       ...{...order, ...all},
     ].where(all.contains).toList();

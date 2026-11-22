@@ -705,6 +705,9 @@ class _ReferencePageState extends State<ReferencePage> {
   Future<void> edit(BuildContext c, [Map<String, dynamic>? r]) async {
     final name = TextEditingController(text: r?['name'] ?? ''),
         code = TextEditingController(text: r?['code'] ?? ''),
+        subcategories = TextEditingController(
+          text: List<String>.from(r?['subcategories'] ?? []).join('\n'),
+        ),
         rate = TextEditingController(
           text: (r?['rate'] ?? 0) == 0
               ? ''
@@ -727,6 +730,12 @@ class _ReferencePageState extends State<ReferencePage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 textField(name, 'الاسم'),
+                if (kind == 'expenseCategory')
+                  textField(
+                    subcategories,
+                    'التصنيفات الفرعية — اسم بكل سطر',
+                    lines: 5,
+                  ),
                 if (kind == 'airline') ...[
                   textField(code, 'رمز الطيران'),
                   ChoiceField<String>(
@@ -787,8 +796,13 @@ class _ReferencePageState extends State<ReferencePage> {
                   throw const FormatException('العمولة أكبر من 100%');
                 }
                 await s.saveRef(kind, name.text.trim(), {
-                  if (r?['subcategories'] != null)
-                    'subcategories': r!['subcategories'],
+                  if (kind == 'expenseCategory')
+                    'subcategories': subcategories.text
+                        .split('\n')
+                        .map((s) => s.trim())
+                        .where((s) => s.isNotEmpty)
+                        .toSet()
+                        .toList(),
                   if (r?['personal'] != null) 'personal': r!['personal'],
                   'code': code.text,
                   'rate': pct,
@@ -805,7 +819,7 @@ class _ReferencePageState extends State<ReferencePage> {
       ),
     );
     Future.delayed(const Duration(milliseconds: 400), () {
-      for (final t in [name, code, rate, fee]) {
+      for (final t in [name, code, rate, fee, subcategories]) {
         t.dispose();
       }
     });
