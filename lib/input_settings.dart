@@ -622,7 +622,11 @@ class _FormCustomizationPageState extends State<FormCustomizationPage> {
     );
     if (result != null) {
       if (result == 'clear') {
-        defaults.remove(f.key);
+        if (['currency', 'date'].contains(f.key)) {
+          defaults.remove(f.key);
+        } else {
+          defaults[f.key] = f.type == 'count' ? 0 : null;
+        }
       } else {
         defaults[f.key] = value;
       }

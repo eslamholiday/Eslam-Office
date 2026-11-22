@@ -804,6 +804,7 @@ class ChoiceField<T> extends StatelessWidget {
   final List<DropdownMenuItem<T>>? items;
   final ValueChanged<T?>? onChanged;
   final InputDecoration? decoration;
+  final VoidCallback? onClear;
   const ChoiceField({
     super.key,
     this.isExpanded = true,
@@ -811,6 +812,7 @@ class ChoiceField<T> extends StatelessWidget {
     this.items,
     this.onChanged,
     this.decoration,
+    this.onClear,
   });
   @override
   Widget build(BuildContext context) {
@@ -894,7 +896,19 @@ class ChoiceField<T> extends StatelessWidget {
       child: InputDecorator(
         decoration: (decoration ?? const InputDecoration()).copyWith(
           floatingLabelBehavior: FloatingLabelBehavior.always,
-          suffixIcon: const Icon(Icons.expand_more),
+          suffixIcon: onClear == null
+              ? const Icon(Icons.expand_more)
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'مسح الاختيار',
+                      icon: const Icon(Icons.clear, size: 18),
+                      onPressed: onClear,
+                    ),
+                    const Icon(Icons.expand_more),
+                  ],
+                ),
         ),
         child: selected?.child ?? const Text('اختياري'),
       ),

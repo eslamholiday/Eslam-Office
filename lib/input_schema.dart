@@ -21,6 +21,8 @@ const inputModes = {
   'hidden': 'مخفي',
 };
 
+const travelerTypes = {'ADT': 'بالغ', 'CHD': 'طفل', 'INF': 'رضيع'};
+
 Map<String, String> inputChoices(
   Map<String, dynamic> settings,
   String scope,
@@ -83,6 +85,13 @@ List<InputSpec> inputSpecs(String scope) {
       if (scope != 'family')
         const InputSpec('phone', 'رقم الهاتف', 'identity', type: 'phone'),
       if (scope == 'passenger') ...[
+        const InputSpec(
+          'travelerType',
+          'نوع المسافر',
+          'identity',
+          type: 'choice',
+          choices: travelerTypes,
+        ),
         const InputSpec(
           'customer',
           'حساب الزبون',

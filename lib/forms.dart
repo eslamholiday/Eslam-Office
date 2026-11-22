@@ -68,6 +68,9 @@ class _PartyFormState extends State<PartyForm> {
   );
   late String? profileImage = widget.party?['profileImage'];
   late String? avatar = widget.party?['avatar'];
+  late String? travelerType =
+      widget.party?['travelerType'] ??
+      (widget.s.settings['defaults_${widget.kind}'] as Map?)?['travelerType'];
   bool busy = false;
   final Set<String> revealed = {};
   final Map<String, GlobalKey> anchors = {};
@@ -135,6 +138,28 @@ class _PartyFormState extends State<PartyForm> {
       'name' => textField(name, label),
       'phone' => textField(phone, label, number: true),
       'passport' => textField(passport, label),
+      'travelerType' => Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: ChoiceField<String>(
+          initialValue: travelerType,
+          onClear: travelerType == null
+              ? null
+              : () => setState(() => travelerType = null),
+          decoration: InputDecoration(labelText: label),
+          items:
+              inputChoices(
+                    widget.s.settings,
+                    widget.kind,
+                    f,
+                    current: travelerType,
+                  ).entries
+                  .map(
+                    (e) => DropdownMenuItem(value: e.key, child: Text(e.value)),
+                  )
+                  .toList(),
+          onChanged: (v) => setState(() => travelerType = v),
+        ),
+      ),
       'customer' => PickField(
         label,
         customer,
@@ -183,6 +208,7 @@ class _PartyFormState extends State<PartyForm> {
     'attachments': attachments,
     'profileImage': profileImage,
     'avatar': avatar,
+    'travelerType': travelerType,
   };
   @override
   Widget build(BuildContext c) => AnimatedBuilder(
@@ -782,6 +808,12 @@ class _EntryFormState extends State<EntryForm> {
   }
 
   Widget passengerPicker() {
+    final typeLabels = {
+      ...travelerTypes,
+      ...Map<String, String>.from(
+        (widget.s.settings['choices_travelerType'] as Map?)?['labels'] ?? {},
+      ),
+    };
     final ids = List<int>.from(
       d['passengers'] ?? (d['passenger'] == null ? [] : [d['passenger']]),
     );
@@ -810,7 +842,20 @@ class _EntryFormState extends State<EntryForm> {
           children: ids
               .map(
                 (id) => InputChip(
-                  label: Text(widget.s.name(id)),
+                  label: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(widget.s.name(id)),
+                      if (typeLabels.containsKey(
+                        widget.s.parties
+                            .where((r) => r['id'] == id)
+                            .firstOrNull?['travelerType'],
+                      ))
+                        Text(
+                          ' · ${typeLabels[widget.s.parties.where((r) => r['id'] == id).firstOrNull?['travelerType']]}',
+                        ),
+                    ],
+                  ),
                   onPressed: widget.preview
                       ? null
                       : () async {
