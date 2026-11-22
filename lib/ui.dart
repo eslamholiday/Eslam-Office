@@ -8,6 +8,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'domain.dart';
+import 'store.dart';
 
 const navy = Color(0xFF123B5D), gold = Color(0xFFD4A84F);
 IconData kindIcon(String kind) => switch (kind) {
@@ -48,28 +49,41 @@ class Section extends StatelessWidget {
   final List<Widget> children;
   final Widget? trailing;
   final bool collapsible;
+  final bool initiallyExpanded;
+  final String? subtitle;
   const Section(
     this.title,
     this.children, {
     super.key,
     this.trailing,
     this.collapsible = false,
+    this.initiallyExpanded = false,
+    this.subtitle,
   });
   @override
   Widget build(BuildContext c) => collapsible
       ? Card(
           child: ExpansionTile(
+            initiallyExpanded: initiallyExpanded,
+            maintainState: true,
+            subtitle: subtitle == null
+                ? null
+                : Text(subtitle!, maxLines: 2, overflow: TextOverflow.ellipsis),
             title: Text(
               title,
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),
-            childrenPadding: const EdgeInsets.all(16),
+            childrenPadding: EdgeInsets.all(
+              displayPreferences['compactForms'] == true ? 10 : 16,
+            ),
             children: children,
           ),
         )
       : Card(
           child: Padding(
-            padding: const EdgeInsets.all(18),
+            padding: EdgeInsets.all(
+              displayPreferences['compactForms'] == true ? 10 : 18,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -220,7 +234,10 @@ Widget textField(
   padding: const EdgeInsets.only(bottom: 12),
   child: TextField(
     controller: controller,
-    decoration: InputDecoration(labelText: label),
+    decoration: InputDecoration(
+      labelText: label,
+      floatingLabelBehavior: FloatingLabelBehavior.always,
+    ),
     keyboardType: number
         ? const TextInputType.numberWithOptions(decimal: true)
         : null,
@@ -261,6 +278,7 @@ class DateField extends StatelessWidget {
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: label,
+          floatingLabelBehavior: FloatingLabelBehavior.always,
           suffixIcon: value != null && optional
               ? IconButton(
                   icon: const Icon(Icons.clear, size: 18),
@@ -277,12 +295,148 @@ class DateField extends StatelessWidget {
   );
 }
 
+Future<int?> chooseListItem(
+  BuildContext context,
+  String label,
+  List<Map<String, dynamic>> items,
+  int? selected, {
+  bool add = false,
+  Store? store,
+  String? listKey,
+}) async {
+  var query = '';
+  final favorites = List<int>.from(store?.settings['favorites_$listKey'] ?? []);
+  final recent = List<int>.from(store?.settings['recent_$listKey'] ?? []);
+  final showFavorites = store?.settings['pickerFavorites'] != false;
+  final result = await showModalBottomSheet<int>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, set) {
+        final rows = items
+            .where(
+              (r) => normalize(
+                '${r['name']} ${r['phone'] ?? ''} ${r['code'] ?? ''}',
+              ).contains(normalize(query)),
+            )
+            .toList();
+        final sort = store?.settings['pickerSort'] ?? 'recent';
+        if (sort != 'original')
+          rows.sort((a, b) {
+            if (sort == 'recent' && showFavorites) {
+              int rank(Map<String, dynamic> r) => favorites.contains(r['id'])
+                  ? -10000 + favorites.indexOf(r['id'])
+                  : recent.contains(r['id'])
+                  ? recent.indexOf(r['id'])
+                  : 10000;
+              final cmp = rank(a).compareTo(rank(b));
+              if (cmp != 0) return cmp;
+            }
+            return '${a['name']}'.compareTo('${b['name']}');
+          });
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.viewInsetsOf(ctx).bottom,
+            ),
+            child: SizedBox(
+              height: MediaQuery.sizeOf(ctx).height * .65,
+              child: Column(
+                children: [
+                  Text(label, style: Theme.of(ctx).textTheme.titleLarge),
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        labelText: 'بحث في القائمة',
+                        prefixIcon: Icon(Icons.search),
+                      ),
+                      onChanged: (v) => set(() => query = v),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, -1),
+                        child: const Text('بدون اختيار'),
+                      ),
+                      if (add)
+                        TextButton.icon(
+                          onPressed: () => Navigator.pop(ctx, -2),
+                          icon: const Icon(Icons.add),
+                          label: const Text('إضافة جديد'),
+                        ),
+                    ],
+                  ),
+                  Expanded(
+                    child: rows.isEmpty
+                        ? const Center(child: Text('لا توجد نتائج'))
+                        : ListView.builder(
+                            itemCount: rows.length,
+                            itemBuilder: (ctx, i) {
+                              final r = rows[i];
+                              return ListTile(
+                                title: Text('${r['name']}'),
+                                subtitle: r['phone'] != null && r['phone'] != ''
+                                    ? Text('${r['phone']}')
+                                    : r['code'] != null && r['code'] != ''
+                                    ? Text('${r['code']}')
+                                    : null,
+                                leading: selected == r['id']
+                                    ? const Icon(Icons.check_circle_outline)
+                                    : null,
+                                trailing: store != null && showFavorites
+                                    ? IconButton(
+                                        tooltip: 'المفضلة',
+                                        icon: Icon(
+                                          favorites.contains(r['id'])
+                                              ? Icons.star
+                                              : Icons.star_border,
+                                        ),
+                                        onPressed: () async {
+                                          set(() {
+                                            favorites.contains(r['id'])
+                                                ? favorites.remove(r['id'])
+                                                : favorites.add(r['id'] as int);
+                                          });
+                                          await store.set(
+                                            'favorites_$listKey',
+                                            favorites,
+                                          );
+                                        },
+                                      )
+                                    : null,
+                                onTap: () => Navigator.pop(ctx, r['id'] as int),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    ),
+  );
+  if (result != null && result >= 0 && store != null) {
+    await store.set(
+      'recent_$listKey',
+      [result, ...recent.where((id) => id != result)].take(15).toList(),
+    );
+  }
+  return result;
+}
+
 class PickField extends StatelessWidget {
   final String label;
   final int? value;
   final List<Map<String, dynamic>> items;
   final ValueChanged<int?> onChanged;
   final Future<int?> Function()? add;
+  final Store? store;
+  final String? listKey;
   const PickField(
     this.label,
     this.value,
@@ -290,85 +444,24 @@ class PickField extends StatelessWidget {
     this.onChanged, {
     super.key,
     this.add,
+    this.store,
+    this.listKey,
   });
   @override
   Widget build(BuildContext c) => Padding(
     padding: const EdgeInsets.only(bottom: 12),
     child: InkWell(
       onTap: () async {
-        var query = '';
-        final result = await showModalBottomSheet<int>(
-          context: c,
-          isScrollControlled: true,
-          showDragHandle: true,
-          builder: (ctx) => StatefulBuilder(
-            builder: (ctx, set) => SafeArea(
-              child: SizedBox(
-                height: MediaQuery.sizeOf(ctx).height * .75,
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    20,
-                    0,
-                    20,
-                    MediaQuery.viewInsetsOf(ctx).bottom,
-                  ),
-                  child: Column(
-                    children: [
-                      Text(label, style: Theme.of(ctx).textTheme.titleLarge),
-                      const SizedBox(height: 12),
-                      TextField(
-                        autofocus: false,
-                        decoration: const InputDecoration(
-                          prefixIcon: Icon(Icons.search),
-                          hintText: 'بحث في القائمة',
-                        ),
-                        onChanged: (s) => set(() => query = normalize(s)),
-                      ),
-                      if (add != null)
-                        TextButton.icon(
-                          onPressed: () {
-                            Navigator.pop(ctx, -2);
-                          },
-                          icon: const Icon(Icons.add),
-                          label: const Text('إضافة جديد'),
-                        ),
-                      Expanded(
-                        child: ListView(
-                          children: [
-                            ListTile(
-                              title: const Text('بدون اختيار'),
-                              onTap: () => Navigator.pop(ctx, -1),
-                            ),
-                            ...items
-                                .where(
-                                  (r) => normalize(
-                                    '${r['name']} ${r['phone'] ?? ''} ${r['code'] ?? ''}',
-                                  ).contains(query),
-                                )
-                                .map(
-                                  (r) => ListTile(
-                                    title: Text(r['name']),
-                                    subtitle:
-                                        r['code'] != null && r['code'] != ''
-                                        ? Text(r['code'])
-                                        : null,
-                                    trailing: value == r['id']
-                                        ? const Icon(Icons.check)
-                                        : null,
-                                    onTap: () =>
-                                        Navigator.pop(ctx, r['id'] as int),
-                                  ),
-                                ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
+        final result = await chooseListItem(
+          c,
+          label,
+          items,
+          value,
+          add: add != null,
+          store: store,
+          listKey: listKey ?? label,
         );
+
         if (result == -2) {
           final id = await add!();
           if (id != null) onChanged(id);
@@ -379,7 +472,19 @@ class PickField extends StatelessWidget {
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: label,
-          suffixIcon: const Icon(Icons.expand_more),
+          floatingLabelBehavior: FloatingLabelBehavior.always,
+          suffixIcon: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (value != null)
+                IconButton(
+                  tooltip: 'مسح الاختيار',
+                  icon: const Icon(Icons.clear, size: 18),
+                  onPressed: () => onChanged(null),
+                ),
+              const Icon(Icons.expand_more),
+            ],
+          ),
         ),
         child: Text(
           items.where((r) => r['id'] == value).firstOrNull?['name'] ??
@@ -769,6 +874,7 @@ class ChoiceField<T> extends StatelessWidget {
             },
       child: InputDecorator(
         decoration: (decoration ?? const InputDecoration()).copyWith(
+          floatingLabelBehavior: FloatingLabelBehavior.always,
           suffixIcon: const Icon(Icons.expand_more),
         ),
         child: selected?.child ?? const Text('اختياري'),

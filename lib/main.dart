@@ -136,7 +136,9 @@ class OfficeApp extends StatelessWidget {
             color: dark ? const Color(0xff1c2937) : Colors.white,
             surfaceTintColor: Colors.transparent,
             elevation: 0,
-            margin: const EdgeInsets.only(bottom: 12),
+            margin: EdgeInsets.only(
+              bottom: s.settings['compactForms'] == true ? 8 : 12,
+            ),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(radius),
               side: BorderSide(
@@ -157,9 +159,9 @@ class OfficeApp extends StatelessWidget {
             ),
             filled: true,
             fillColor: dark ? const Color(0xff202d3a) : const Color(0xfff7f9fc),
-            contentPadding: const EdgeInsets.symmetric(
+            contentPadding: EdgeInsets.symmetric(
               horizontal: 14,
-              vertical: 16,
+              vertical: s.settings['compactForms'] == true ? 10 : 16,
             ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),

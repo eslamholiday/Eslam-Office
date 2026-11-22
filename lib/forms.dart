@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'dart:async';
+import 'input_schema.dart';
+import 'input_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'pages.dart';
@@ -20,25 +23,70 @@ class PartyForm extends StatefulWidget {
   final Store s;
   final String kind;
   final Map<String, dynamic>? party;
-  const PartyForm(this.s, this.kind, {super.key, this.party});
+  final bool preview;
+  const PartyForm(
+    this.s,
+    this.kind, {
+    super.key,
+    this.party,
+    this.preview = false,
+  });
   @override
   State<PartyForm> createState() => _PartyFormState();
 }
 
 class _PartyFormState extends State<PartyForm> {
-  late final name = TextEditingController(text: widget.party?['name'] ?? '');
-  late final phone = TextEditingController(text: widget.party?['phone'] ?? '');
-  late final notes = TextEditingController(text: widget.party?['notes'] ?? '');
-  late final passport = TextEditingController(
-    text: widget.party?['passport'] ?? '',
+  late final name = TextEditingController(
+    text:
+        widget.party?['name'] ??
+        (widget.s.settings['defaults_${widget.kind}'] as Map?)?['name'] ??
+        '',
   );
-  late int? customer = widget.party?['customer'];
+  late final phone = TextEditingController(
+    text:
+        widget.party?['phone'] ??
+        (widget.s.settings['defaults_${widget.kind}'] as Map?)?['phone'] ??
+        '',
+  );
+  late final notes = TextEditingController(
+    text:
+        widget.party?['notes'] ??
+        (widget.s.settings['defaults_${widget.kind}'] as Map?)?['notes'] ??
+        '',
+  );
+  late final passport = TextEditingController(
+    text:
+        widget.party?['passport'] ??
+        (widget.s.settings['defaults_${widget.kind}'] as Map?)?['passport'] ??
+        '',
+  );
+  late int? customer =
+      widget.party?['customer'] ??
+      (widget.s.settings['defaults_${widget.kind}'] as Map?)?['customer'];
   late List<String> attachments = List<String>.from(
     widget.party?['attachments'] ?? [],
   );
   late String? profileImage = widget.party?['profileImage'];
   late String? avatar = widget.party?['avatar'];
   bool busy = false;
+  final Set<String> revealed = {};
+  final Map<String, GlobalKey> anchors = {};
+  void revealField(String key) {
+    setState(() => revealed.add(key));
+    Future<void>.delayed(const Duration(milliseconds: 350), () {
+      if (!mounted) return;
+      final target = anchors[key]?.currentContext;
+      if (target != null) {
+        Scrollable.ensureVisible(
+          target,
+          duration: const Duration(milliseconds: 250),
+          alignment: .15,
+        );
+      }
+    });
+  }
+
+  InputLayout get layout => InputLayout(widget.s.settings, widget.kind);
   Future<void> pickContact() async {
     try {
       final contact = await const MethodChannel(
@@ -70,89 +118,185 @@ class _PartyFormState extends State<PartyForm> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext c) => Scaffold(
-    appBar: AppBar(
-      title: Text(
-        '${widget.party?['id'] == null ? 'إضافة' : 'تعديل'} ${{'customer': 'زبون', 'supplier': 'جهة إصدار', 'passenger': 'مسافر', 'family': 'عائلة'}[widget.kind]}',
+  Widget partyInput(InputSpec f) => KeyedSubtree(
+    key: anchors.putIfAbsent(f.key, GlobalKey.new),
+    child: partyInputContent(f),
+  );
+  Widget partyInputContent(InputSpec f) {
+    final label = layout.label(f);
+    return switch (f.key) {
+      'name' => textField(name, label),
+      'phone' => textField(phone, label, number: true),
+      'passport' => textField(passport, label),
+      'customer' => PickField(
+        label,
+        customer,
+        widget.s.list('customer'),
+        (v) => setState(() => customer = v),
+        store: widget.s,
+        listKey: 'customer',
+        add: () => editParty(context, widget.s, 'customer'),
       ),
-    ),
-    body: ListView(
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.all(12),
-      children: [
-        Section('البيانات الأساسية', [
-          if (widget.kind == 'customer')
-            OutlinedButton.icon(
-              onPressed: pickContact,
-              icon: const Icon(Icons.contacts_outlined),
-              label: const Text('من جهات الاتصال'),
-            ),
-          textField(name, 'الاسم'),
-          if (widget.kind != 'family') ...[
-            textField(phone, 'رقم الهاتف', number: true),
-            if (widget.kind == 'passenger') ...[
-              PickField(
-                'حساب الزبون',
-                customer,
-                widget.s.list('customer'),
-                (v) => setState(() => customer = v),
-                add: () => editParty(c, widget.s, 'customer'),
+      'notes' => textField(notes, label, lines: 3),
+      'profile' => ProfilePicker(
+        imagePath: profileImage,
+        avatar: avatar,
+        onChanged: (image, selectedAvatar) => setState(() {
+          profileImage = image;
+          avatar = selectedAvatar;
+        }),
+      ),
+      'attachments' => Attachments(
+        attachments,
+        (v) => setState(() => attachments = v),
+      ),
+      _ => const SizedBox.shrink(),
+    };
+  }
+
+  Map<String, dynamic> partyValues() => {
+    ...?widget.party,
+    'kind': widget.kind,
+    'name': name.text.trim(),
+    'phone': normalizePhone(phone.text),
+    'notes': notes.text,
+    'passport': passport.text,
+    'customer': customer,
+    'attachments': attachments,
+    'profileImage': profileImage,
+    'avatar': avatar,
+  };
+  @override
+  Widget build(BuildContext c) => AnimatedBuilder(
+    animation: widget.s,
+    builder: (c, _) => Scaffold(
+      appBar: AppBar(
+        title: Text(
+          '${widget.preview
+              ? 'معاينة'
+              : widget.party?['id'] == null
+              ? 'إضافة'
+              : 'تعديل'} ${inputScopes[widget.kind]}',
+        ),
+        actions: [
+          if (!widget.preview)
+            IconButton(
+              tooltip: 'تخصيص الإدخالات',
+              icon: const Icon(Icons.tune),
+              onPressed: () => Navigator.push(
+                c,
+                MaterialPageRoute(
+                  builder: (_) => FormCustomizationPage(widget.s, widget.kind),
+                ),
               ),
-              textField(passport, 'رقم الجواز (اختياري)'),
-            ],
-          ],
-          textField(notes, 'ملاحظات', lines: 3),
-        ]),
-        if (widget.kind == 'customer' || widget.kind == 'supplier')
-          Section('صورة / شخصية الحساب', [
-            ProfilePicker(
-              imagePath: profileImage,
-              avatar: avatar,
-              onChanged: (image, selectedAvatar) => setState(() {
-                profileImage = image;
-                avatar = selectedAvatar;
-              }),
             ),
-          ]),
-        Section('المرفقات', [
-          Attachments(attachments, (v) => setState(() => attachments = v)),
-        ]),
-      ],
-    ),
-    bottomNavigationBar: SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: FilledButton(
-          onPressed: busy
-              ? null
-              : () async {
-                  setState(() => busy = true);
-                  try {
-                    final id = await widget.s.saveParty({
-                      ...?widget.party,
-                      'kind': widget.kind,
-                      'name': name.text.trim().isEmpty
-                          ? 'بدون اسم'
-                          : name.text.trim(),
-                      'phone': normalizePhone(phone.text),
-                      'notes': notes.text,
-                      'passport': passport.text,
-                      'customer': customer,
-                      'attachments': attachments,
-                      'profileImage': profileImage,
-                      'avatar': avatar,
-                    }, id: widget.party?['id']);
-                    if (c.mounted) Navigator.pop(c, id);
-                  } catch (e) {
-                    if (c.mounted) message(c, e);
-                  } finally {
-                    if (mounted) setState(() => busy = false);
-                  }
-                },
-          child: Text(busy ? 'جارٍ الحفظ…' : 'حفظ'),
+        ],
+      ),
+      body: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (widget.preview)
+              const ListTile(
+                leading: Icon(Icons.preview_outlined),
+                title: Text('معاينة فقط — لن تُحفظ بيانات'),
+              ),
+            if (widget.kind == 'customer')
+              OutlinedButton.icon(
+                onPressed: pickContact,
+                icon: const Icon(Icons.contacts_outlined),
+                label: const Text('من جهات الاتصال'),
+              ),
+            if (widget.s.settings['showInputSearch'] != false)
+              InputSearch(layout: layout, onSelect: revealField),
+            for (final group in layout.groups)
+              if (layout.fields.any(
+                (f) =>
+                    f.group == group &&
+                    (revealed.contains(f.key) || layout.mode(f) != 'hidden'),
+              ))
+                Section(
+                  inputGroupLabels[group] ?? group,
+                  [
+                    for (final f in layout.fields.where(
+                      (f) =>
+                          f.group == group &&
+                          (revealed.contains(f.key) ||
+                              layout.mode(f) != 'hidden'),
+                    ))
+                      if (layout.mode(f) != 'details' ||
+                          revealed.contains(f.key))
+                        partyInput(f),
+                    if (layout.fields.any(
+                      (f) =>
+                          f.group == group &&
+                          layout.mode(f) == 'details' &&
+                          !revealed.contains(f.key),
+                    ))
+                      ExpansionTile(
+                        title: const Text('تفاصيل إضافية'),
+                        children: layout.fields
+                            .where(
+                              (f) =>
+                                  f.group == group &&
+                                  layout.mode(f) == 'details' &&
+                                  !revealed.contains(f.key),
+                            )
+                            .map(partyInput)
+                            .toList(),
+                      ),
+                  ],
+                  key: ValueKey('$group-${revealed.join(',')}'),
+                  collapsible: true,
+                  initiallyExpanded:
+                      layout.expanded(group) ||
+                      layout.fields.any(
+                        (f) => f.group == group && revealed.contains(f.key),
+                      ),
+                ),
+          ],
         ),
       ),
+      bottomNavigationBar: widget.preview
+          ? null
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: FilledButton(
+                  onPressed: busy
+                      ? null
+                      : () async {
+                          final values = partyValues();
+                          final missing = layout.missing(values);
+                          if (missing.isNotEmpty) {
+                            setState(() => revealed.addAll(missing));
+                            message(
+                              c,
+                              'أكمل: ${layout.fields.where((f) => missing.contains(f.key)).map(layout.label).join('، ')}',
+                            );
+                            return;
+                          }
+                          setState(() => busy = true);
+                          try {
+                            if (values['name'] == '')
+                              values['name'] = 'بدون اسم';
+                            final id = await widget.s.saveParty(
+                              values,
+                              id: widget.party?['id'],
+                            );
+                            if (c.mounted) Navigator.pop(c, id);
+                          } catch (e) {
+                            if (c.mounted) message(c, e);
+                          } finally {
+                            if (mounted) setState(() => busy = false);
+                          }
+                        },
+                  child: Text(busy ? 'جارٍ الحفظ…' : 'حفظ'),
+                ),
+              ),
+            ),
     ),
   );
 }
@@ -163,6 +307,7 @@ class EntryForm extends StatefulWidget {
   final Entry? draft;
   final int? party;
   final bool supplier;
+  final bool preview;
   const EntryForm(
     this.s,
     this.kind, {
@@ -170,6 +315,7 @@ class EntryForm extends StatefulWidget {
     this.draft,
     this.party,
     this.supplier = false,
+    this.preview = false,
   });
   @override
   State<EntryForm> createState() => _EntryFormState();
@@ -183,6 +329,27 @@ class _EntryFormState extends State<EntryForm> {
   bool editingCustomExpenseSubcategory = false;
   String baseline = '';
   bool allowLeave = false;
+  final Set<String> revealed = {};
+  final Map<String, GlobalKey> anchors = {};
+  void revealField(String key) {
+    setState(() => revealed.add(key));
+    Future<void>.delayed(const Duration(milliseconds: 350), () {
+      if (!mounted) return;
+      final target = anchors[key]?.currentContext;
+      if (target != null) {
+        Scrollable.ensureVisible(
+          target,
+          duration: const Duration(milliseconds: 250),
+          alignment: .15,
+        );
+      }
+    });
+  }
+
+  Timer? recoveryTimer;
+  InputLayout get layout => InputLayout(widget.s.settings, widget.kind);
+  String get recoveryKey =>
+      'recovery_${widget.kind}_${widget.draft?.id ?? 'new'}';
   bool get dirty {
     try {
       return baseline != jsonEncode(collect());
@@ -222,6 +389,8 @@ class _EntryFormState extends State<EntryForm> {
       await save(widget.draft?.posted == true);
     }
     if (action == 'discard') {
+      await widget.s.set(recoveryKey, null);
+      recoveryTimer?.cancel();
       setState(() => allowLeave = true);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) Navigator.pop(context);
@@ -254,6 +423,7 @@ class _EntryFormState extends State<EntryForm> {
       'settlementMode': 'cash',
       'paymentMethod': 'cash',
       'ticketType': 'ticket',
+      'tripType': 'roundTrip',
       'personal': widget.kind == 'expense',
       'attachments': <String>[],
       ...Map<String, dynamic>.from(
@@ -290,9 +460,13 @@ class _EntryFormState extends State<EntryForm> {
     final lines =
         d['lines'] as List? ??
         [
-          {'qty': 1},
-          {'qty': 0},
-          {'qty': 0},
+          for (var i = 0; i < 3; i++)
+            {
+              'qty': d['q$i'] ?? (i == 0 ? 1 : 0),
+              'base': d['base$i'] ?? 0,
+              'gross': d['gross$i'] ?? 0,
+              'sell': d['sell$i'] ?? 0,
+            },
         ];
     for (var i = 0; i < 3; i++) {
       final row = i < lines.length ? lines[i] : <String, dynamic>{};
@@ -301,8 +475,26 @@ class _EntryFormState extends State<EntryForm> {
         tc('$key$i', currency.input(row[key] as int? ?? 0));
       }
     }
-    if (widget.draft == null && d['airline'] != null) applyRule();
+    if (widget.draft == null &&
+        d['airline'] != null &&
+        widget.s.settings['autoCommission'] != false) {
+      applyRule();
+    }
     baseline = jsonEncode(collect());
+    if (!widget.preview) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => offerRecovery());
+      recoveryTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+        if (mounted &&
+            !busy &&
+            !allowLeave &&
+            dirty &&
+            widget.s.settings['autoRecoverForms'] != false) {
+          try {
+            widget.s.set(recoveryKey, collect());
+          } catch (_) {}
+        }
+      });
+    }
     for (final controller in controllers.values) {
       controller.addListener(() {
         if (mounted) setState(() {});
@@ -312,10 +504,70 @@ class _EntryFormState extends State<EntryForm> {
 
   @override
   void dispose() {
+    recoveryTimer?.cancel();
     for (final c in controllers.values) {
       c.dispose();
     }
     super.dispose();
+  }
+
+  Future<void> offerRecovery() async {
+    final saved = widget.s.settings[recoveryKey];
+    if (saved is! Map ||
+        widget.s.settings['autoRecoverForms'] == false ||
+        !mounted) {
+      return;
+    }
+    final restore = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('إدخال غير مكتمل'),
+        content: const Text(
+          'توجد بيانات محفوظة تلقائيًا لهذا النموذج. تريد استعادتها؟ لم تُسجَّل كحركة مالية.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('تجاهل المحفوظ'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('استعادة'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (restore == true) {
+      setState(() {
+        d = {...d, ...Map<String, dynamic>.from(saved)};
+        for (final key in [
+          'notes',
+          'hotelName',
+          'meals',
+          'visaType',
+          'days',
+          'entriesCount',
+          'expenseSubcategory',
+          'rooms',
+          'people',
+        ])
+          tc(key).text = '${d[key] ?? ''}';
+        for (final key in ['sell', 'costUnit', 'amount', 'fee'])
+          tc(key).text = currency.input(d[key] as int? ?? 0);
+        tc('rate').text = ((d['rate'] as int? ?? 0) / 100).toString();
+        tc('qty').text = '${d['qty'] ?? 1}';
+        final rows = d['lines'] as List? ?? [];
+        for (var i = 0; i < 3; i++) {
+          final row = i < rows.length ? rows[i] as Map : <String, dynamic>{};
+          tc('q$i').text = '${row['qty'] ?? 0}';
+          for (final key in ['base', 'gross', 'sell'])
+            tc('$key$i').text = currency.input(row[key] as int? ?? 0);
+        }
+      });
+    } else if (restore == false) {
+      await widget.s.set(recoveryKey, null);
+    }
   }
 
   void applyRule() {
@@ -371,11 +623,21 @@ class _EntryFormState extends State<EntryForm> {
   }
 
   Future<void> save(bool post, {bool another = false}) async {
+    if (busy || widget.preview) return;
     setState(() => busy = true);
     try {
       final v = collect();
       v['posted'] = post;
       if (post) {
+        final missing = layout.missing(v);
+        if (missing.isNotEmpty) {
+          setState(() => revealed.addAll(missing));
+          throw FormatException(
+            'أكمل: ${layout.fields.where((f) => missing.contains(f.key)).map(layout.label).join('، ')}',
+          );
+        }
+      }
+      if (post && widget.s.settings['confirmPost'] != false) {
         final totals = ['ticket', 'hotel', 'visa'].contains(widget.kind)
             ? calculate(v)
             : null;
@@ -403,7 +665,7 @@ class _EntryFormState extends State<EntryForm> {
                       ),
                   ] else
                     Text('المبلغ: ${currency.format(v['amount'] ?? 0)}'),
-                  Text('التسديد: ${paymentMethods[v['paymentMethod']] ?? ''}'),
+                  Text('التسديد: ${paymentLabel(v['paymentMethod'])}'),
                 ],
               ),
             ),
@@ -422,6 +684,8 @@ class _EntryFormState extends State<EntryForm> {
         if (confirmed != true) return;
       }
       final savedId = await widget.s.saveEntry(v, id: widget.draft?.id);
+      recoveryTimer?.cancel();
+      await widget.s.set(recoveryKey, null);
       if (mounted) {
         setState(() => allowLeave = true);
         message(context, 'تم حفظ ${Entry(v).label}');
@@ -457,7 +721,13 @@ class _EntryFormState extends State<EntryForm> {
         }
       }
     } catch (e) {
-      if (mounted) message(context, e);
+      if (mounted) {
+        if (e.toString().contains('حساب الزبون'))
+          setState(() => revealed.add('customer'));
+        if (e.toString().contains('اختر الحساب'))
+          setState(() => revealed.add('account'));
+        message(context, e);
+      }
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -467,56 +737,188 @@ class _EntryFormState extends State<EntryForm> {
     final ids = List<int>.from(
       d['passengers'] ?? (d['passenger'] == null ? [] : [d['passenger']]),
     );
-    final rows = widget.s
-        .list('passenger')
-        .where((p) => p['customer'] == d['customer'] && d['customer'] != null)
-        .toList();
+    int quantity = 0;
+    try {
+      quantity = widget.kind == 'ticket'
+          ? [
+              0,
+              1,
+              2,
+            ].fold<int>(0, (sum, i) => sum + decimalUnits(tc('q$i').text, 0))
+          : widget.kind == 'visa'
+          ? decimalUnits(tc('qty').text, 0)
+          : 1;
+    } catch (_) {}
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text('المسافرون التابعون للزبون'),
-        ...rows.map(
-          (p) => CheckboxListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(p['name']),
-            subtitle: Text('تابع إلى: ${widget.s.name(p['customer'])}'),
-            value: ids.contains(p['id']),
-            onChanged: (selected) => setState(() {
-              if (selected == true) {
-                ids.add(p['id']);
-              } else {
-                ids.remove(p['id']);
-              }
-              d['passengers'] = ids;
-              d['passenger'] = null;
-            }),
-          ),
+        Text('تم تحديد ${ids.length} من $quantity مسافر'),
+        const SizedBox(height: 8),
+        if (ids.isEmpty)
+          const Text('لم تحدد أسماء بعد؛ العدد المالي من خانات الخدمة.'),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: ids
+              .map(
+                (id) => InputChip(
+                  label: Text(widget.s.name(id)),
+                  onPressed: () async {
+                    final person = widget.s.parties
+                        .where((r) => r['id'] == id)
+                        .firstOrNull;
+                    if (person != null)
+                      await editParty(
+                        context,
+                        widget.s,
+                        'passenger',
+                        party: person,
+                      );
+                    if (mounted) setState(() {});
+                  },
+                  onDeleted: () => setState(() {
+                    ids.remove(id);
+                    d['passengers'] = ids;
+                    d['passenger'] = null;
+                  }),
+                ),
+              )
+              .toList(),
         ),
-        TextButton.icon(
-          icon: const Icon(Icons.person_add_alt),
-          label: const Text('إضافة مسافر للزبون'),
-          onPressed: d['customer'] == null
-              ? null
-              : () async {
-                  final id = await Navigator.push<int>(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => PartyForm(
+        Wrap(
+          spacing: 8,
+          children: [
+            OutlinedButton.icon(
+              icon: const Icon(Icons.people_outline),
+              label: const Text('اختيار المسافرين'),
+              onPressed: d['customer'] == null
+                  ? null
+                  : () async {
+                      final selected = ids.toSet();
+                      var query = '';
+                      final result = await showModalBottomSheet<List<int>>(
+                        context: context,
+                        isScrollControlled: true,
+                        showDragHandle: true,
+                        builder: (ctx) => StatefulBuilder(
+                          builder: (ctx, set) {
+                            final rows = widget.s
+                                .list('passenger')
+                                .where(
+                                  (r) =>
+                                      (r['customer'] == d['customer'] ||
+                                          r['customer'] == null) &&
+                                      normalize(
+                                        '${r['name']} ${r['passport'] ?? ''} ${r['phone'] ?? ''}',
+                                      ).contains(query),
+                                )
+                                .toList();
+                            return SafeArea(
+                              child: Padding(
+                                padding: EdgeInsets.only(
+                                  bottom: MediaQuery.viewInsetsOf(ctx).bottom,
+                                ),
+                                child: SizedBox(
+                                  height: MediaQuery.sizeOf(ctx).height * .65,
+                                  child: Column(
+                                    children: [
+                                      Text(
+                                        'مسافرو ${widget.s.name(d['customer'])}',
+                                      ),
+                                      Padding(
+                                        padding: const EdgeInsets.all(12),
+                                        child: TextField(
+                                          decoration: const InputDecoration(
+                                            labelText: 'بحث بالاسم أو الجواز',
+                                            prefixIcon: Icon(Icons.search),
+                                          ),
+                                          onChanged: (v) =>
+                                              set(() => query = normalize(v)),
+                                        ),
+                                      ),
+                                      Text('المحدد: ${selected.length}'),
+                                      Expanded(
+                                        child: rows.isEmpty
+                                            ? const Center(
+                                                child: Text(
+                                                  'لا توجد أسماء مطابقة',
+                                                ),
+                                              )
+                                            : ListView.builder(
+                                                itemCount: rows.length,
+                                                itemBuilder: (ctx, i) {
+                                                  final r = rows[i];
+                                                  return CheckboxListTile(
+                                                    title: Text('${r['name']}'),
+                                                    subtitle: Text(
+                                                      r['customer'] == null
+                                                          ? 'غير مرتبط — سيُربط بهذا الزبون عند الحفظ'
+                                                          : 'تابع إلى: ${widget.s.name(r['customer'])}',
+                                                    ),
+                                                    value: selected.contains(
+                                                      r['id'],
+                                                    ),
+                                                    onChanged: (v) => set(() {
+                                                      v == true
+                                                          ? selected.add(
+                                                              r['id'] as int,
+                                                            )
+                                                          : selected.remove(
+                                                              r['id'],
+                                                            );
+                                                    }),
+                                                  );
+                                                },
+                                              ),
+                                      ),
+                                      Padding(
+                                        padding: const EdgeInsets.all(12),
+                                        child: FilledButton(
+                                          onPressed: () => Navigator.pop(
+                                            ctx,
+                                            selected.toList(),
+                                          ),
+                                          child: const Text('تم الاختيار'),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                      if (result != null && mounted)
+                        setState(() {
+                          d['passengers'] = result;
+                          d['passenger'] = null;
+                        });
+                    },
+            ),
+            TextButton.icon(
+              icon: const Icon(Icons.person_add_alt),
+              label: const Text('إضافة مسافر للزبون'),
+              onPressed: d['customer'] == null
+                  ? null
+                  : () async {
+                      final id = await editParty(
+                        context,
                         widget.s,
                         'passenger',
                         party: {'customer': d['customer']},
-                      ),
-                    ),
-                  );
-                  if (id != null && mounted) {
-                    setState(() {
-                      ids.add(id);
-                      d['passengers'] = ids;
-                    });
-                  }
-                },
+                      );
+                      if (id != null && mounted)
+                        setState(() {
+                          d['passengers'] = {...ids, id}.toList();
+                          d['passenger'] = null;
+                        });
+                    },
+            ),
+          ],
         ),
-        Text('المحدد: ${ids.length} — أدخل العدد المالي في خانات الخدمة.'),
+        if (d['customer'] == null)
+          const Text('اختر حساب الزبون أولًا لإضافة أسمائه.'),
       ],
     );
   }
@@ -537,7 +939,21 @@ class _EntryFormState extends State<EntryForm> {
       PickField(
         label,
         d[key],
-        party ? widget.s.list(kind) : widget.s.referenceList(kind),
+        party
+            ? widget.s.parties
+                  .where(
+                    (r) =>
+                        r['kind'] == kind &&
+                        (r['archived'] == 0 || r['id'] == d[key]),
+                  )
+                  .toList()
+            : widget.s.refs
+                  .where(
+                    (r) =>
+                        r['kind'] == kind &&
+                        (r['archived'] == 0 || r['id'] == d[key]),
+                  )
+                  .toList(),
         (v) => setState(() {
           d[key] = v;
           if (key == 'expenseCategory') {
@@ -557,13 +973,21 @@ class _EntryFormState extends State<EntryForm> {
                   RegExp(r'^(base|gross|sell)[0-2]$').hasMatch(p.key) &&
                   (double.tryParse(p.value.text) ?? 0) != 0,
             );
-            if (!hasPrices && ref != null) {
+            if (!hasPrices &&
+                ref != null &&
+                widget.s.settings['autoAirlineCurrency'] != false) {
               d['currency'] = ref['currency'] ?? d['currency'];
             }
           }
-          if (key == 'airline' || key == 'supplier') applyRule();
+          if ((key == 'airline' || key == 'supplier') &&
+              widget.s.settings['autoCommission'] != false)
+            applyRule();
         }),
-        add: party ? () => editParty(context, widget.s, kind) : null,
+        store: widget.s,
+        listKey: kind,
+        add: party
+            ? () => editParty(context, widget.s, kind)
+            : () => addReference(context, widget.s, kind),
       );
   Widget expenseSubcategoryPicker() {
     final category = widget.s.refs
@@ -653,373 +1077,351 @@ class _EntryFormState extends State<EntryForm> {
     ];
   }
 
-  @override
-  Widget build(BuildContext c) {
-    final sale = ['ticket', 'hotel', 'visa'].contains(widget.kind);
-    Totals? totals;
-    try {
-      if (sale) totals = calculate(collect());
-      calcError = null;
-    } catch (e) {
-      calcError = e.toString().replaceFirst('FormatException: ', '');
+  Widget input(InputSpec f) => KeyedSubtree(
+    key: anchors.putIfAbsent(f.key, GlobalKey.new),
+    child: inputContent(f),
+  );
+  Widget inputContent(InputSpec f) {
+    final label = layout.label(f);
+    if ([
+      'text',
+      'multiline',
+      'phone',
+      'number',
+      'count',
+      'money',
+    ].contains(f.type)) {
+      if (f.key == 'expenseSubcategory') return expenseSubcategoryPicker();
+      final presets = editableLists.containsKey(f.key)
+          ? widget.s.referenceList(f.key)
+          : <Map<String, dynamic>>[];
+      return Column(
+        children: [
+          textField(
+            tc(f.key),
+            label,
+            number: ['phone', 'number', 'count', 'money'].contains(f.type),
+            grouped: f.type == 'money',
+            lines: f.type == 'multiline' ? 3 : 1,
+          ),
+          if (editableLists.containsKey(f.key))
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: TextButton.icon(
+                icon: const Icon(Icons.list_alt, size: 18),
+                label: const Text('من قائمة محفوظة'),
+                onPressed: () async {
+                  final id = await chooseListItem(
+                    context,
+                    label,
+                    presets,
+                    null,
+                    add: true,
+                    store: widget.s,
+                    listKey: f.key,
+                  );
+                  if (!mounted || id == null) return;
+                  if (id == -2) {
+                    final added = await addReference(context, widget.s, f.key);
+                    if (added != null)
+                      tc(f.key).text = widget.s.reference(added);
+                  } else if (id >= 0) {
+                    tc(f.key).text = widget.s.reference(id);
+                  }
+                },
+              ),
+            ),
+        ],
+      );
     }
-    return PopScope(
-      canPop: allowLeave || !dirty,
-      onPopInvokedWithResult: (didPop, result) {
-        if (!didPop && !busy) confirmLeave();
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          backgroundColor: Color.alphaBlend(
-            kindColor(widget.kind).withValues(alpha: .12),
-            Theme.of(c).colorScheme.surface,
-          ),
-          title: Text(
-            '${widget.draft == null ? 'إضافة' : 'تعديل'} ${types[widget.kind]}',
-          ),
-        ),
-        body: Theme(
-          data: Theme.of(c).copyWith(
-            inputDecorationTheme: Theme.of(c).inputDecorationTheme.copyWith(
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: widget.s.settings['compactForms'] == true ? 10 : 18,
-              ),
-            ),
-          ),
-          child: ListView(
-            padding: const EdgeInsets.all(12),
-            children: [
-              Section('معلومات العملية', [
-                if (widget.kind == 'ticket') ...[
-                  SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment(value: 'ticket', label: Text('تذكرة')),
-                      ButtonSegment(value: 'change', label: Text('تغيير')),
-                    ],
-                    selected: {d['ticketType'] ?? 'ticket'},
-                    onSelectionChanged: (v) =>
-                        setState(() => d['ticketType'] = v.first),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-                if (sale)
-                  pick('customer', 'حساب الزبون', 'customer', party: true),
-                if (widget.kind == 'settlement' ||
-                    widget.kind == 'opening') ...[
-                  SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment(value: 'customer', label: Text('زبون')),
-                      ButtonSegment(
-                        value: 'supplier',
-                        label: Text('جهة إصدار'),
-                      ),
-                    ],
-                    selected: {d['partyType']},
-                    onSelectionChanged: (v) => setState(() {
-                      d['partyType'] = v.first;
-                      d['customer'] = null;
-                      d['supplier'] = null;
-                    }),
-                  ),
-                  const SizedBox(height: 16),
-                  pick(d['partyType'], 'الحساب', d['partyType'], party: true),
-                ],
-                pair(
-                  ChoiceField<String>(
-                    isExpanded: true,
-                    key: ValueKey(currency.name),
-                    initialValue: currency.name,
-                    decoration: const InputDecoration(labelText: 'العملة'),
-                    items: Currency.values
-                        .map(
-                          (v) => DropdownMenuItem(
-                            value: v.name,
-                            child: Text(v.name),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) => setState(() {
-                      d['currency'] = v;
-                      if (widget.kind == 'ticket') applyRule();
-                    }),
-                  ),
-                  DateField(
-                    'تاريخ العملية',
-                    d['date'],
-                    (v) => setState(() => d['date'] = v),
-                    optional: false,
-                  ),
-                ),
-                if (sale)
-                  pick(
-                    'supplier',
-                    'جهة الإصدار / المورد',
-                    'supplier',
-                    party: true,
-                  ),
-                if (widget.kind == 'ticket')
-                  pick('airline', 'شركة الطيران', 'airline'),
-              ]),
-              if (widget.kind == 'ticket') ...[
-                Section('العمولة', [
-                  SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment(value: 'percent', label: Text('خصم عمولة')),
-                      ButtonSegment(
-                        value: 'fee',
-                        label: Text('رسم إصدار إضافي'),
-                      ),
-                    ],
-                    selected: {d['commissionMode']},
-                    onSelectionChanged: (v) =>
-                        setState(() => d['commissionMode'] = v.first),
-                  ),
-                  const SizedBox(height: 16),
-                  if (d['commissionMode'] == 'percent')
-                    field(
-                      'rate',
-                      'نسبة العمولة من السعر الأساسي %',
-                      number: true,
-                    )
-                  else
-                    field(
-                      'fee',
-                      'رسم الإصدار لكل تذكرة',
-                      number: true,
-                      grouped: true,
-                    ),
-                ]),
-                Section('بالغ / Adult', [category(0, 'بالغ')]),
-                Card(
-                  child: ExpansionTile(
-                    title: Text('طفل / Child — ${tc('q1').text}'),
-                    childrenPadding: const EdgeInsets.all(16),
-                    children: [category(1, 'طفل')],
-                  ),
-                ),
-                Card(
-                  child: ExpansionTile(
-                    title: Text('رضيع / Infant — ${tc('q2').text}'),
-                    childrenPadding: const EdgeInsets.all(16),
-                    children: [category(2, 'رضيع')],
-                  ),
-                ),
-              ],
-              if (widget.kind == 'hotel')
-                Section('الحجز', [
-                  field('hotelName', 'اسم الفندق'),
-                  pair(
-                    date('checkIn', 'تاريخ الدخول'),
-                    date('checkOut', 'تاريخ الخروج'),
-                  ),
-                  if (d['checkIn'] != null && d['checkOut'] != null)
-                    Text(
-                      'عدد الليالي: ${DateTime.parse(d['checkOut']).difference(DateTime.parse(d['checkIn'])).inDays}',
-                    ),
-                  const SizedBox(height: 12),
-                  field(
-                    'costUnit',
-                    'التكلفة الكاملة للحجز',
-                    number: true,
-                    grouped: true,
-                  ),
-                  field(
-                    'sell',
-                    'البيع الكامل للحجز',
-                    number: true,
-                    grouped: true,
-                  ),
-                ]),
-              if (widget.kind == 'visa')
-                Section('تفاصيل الفيزا', [
-                  field('visaType', 'نوع الفيزا'),
-                  field('qty', 'العدد', number: true),
-                  pair(
-                    field(
-                      'costUnit',
-                      'تكلفة الواحدة',
-                      number: true,
-                      grouped: true,
-                    ),
-                    field('sell', 'بيع الواحدة', number: true, grouped: true),
-                  ),
-                ]),
-              if (widget.kind == 'settlement' || widget.kind == 'opening')
-                Section('حركة الحساب', [
-                  field('amount', 'المبلغ', number: true, grouped: true),
-                  ChoiceField<int>(
-                    isExpanded: true,
-                    initialValue: d['direction'],
-                    decoration: const InputDecoration(labelText: 'أثر الحركة'),
-                    items: const [
-                      DropdownMenuItem(
-                        value: -1,
-                        child: Text('تخفيض المستحق / إضافة رصيد'),
-                      ),
-                      DropdownMenuItem(value: 1, child: Text('زيادة المستحق')),
-                    ],
-                    onChanged: (v) => setState(() => d['direction'] = v),
-                  ),
-                  if (widget.kind == 'settlement')
-                    Padding(
-                      padding: const EdgeInsets.only(top: 16),
-                      child: ChoiceField<String>(
-                        isExpanded: true,
-                        initialValue: d['settlementMode'],
-                        decoration: const InputDecoration(
-                          labelText: 'نوع التسوية',
-                        ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'cash',
-                            child: Text('قبض / دفع نقدي'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'adjustment',
-                            child: Text('تسوية رصيد دون نقد'),
-                          ),
-                        ],
-                        onChanged: (v) =>
-                            setState(() => d['settlementMode'] = v),
-                      ),
-                    ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'التسوية والرصيد الافتتاحي لا يغيّران ربح الخدمات.',
-                  ),
-                ]),
-              if (widget.kind == 'expense' || widget.kind == 'funding')
-                Section('المصروف', [
-                  field('amount', 'المبلغ', number: true),
-                  if (widget.kind == 'expense') ...[
-                    pick('expenseCategory', 'تصنيف المصروف', 'expenseCategory'),
-                    expenseSubcategoryPicker(),
-                  ],
-                  if (widget.kind == 'expense')
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('مصروف شخصي'),
-                      subtitle: const Text('الشخصي لا يخصم من صافي ربح المكتب'),
-                      value: d['personal'] == true,
-                      onChanged: (v) => setState(() => d['personal'] = v),
-                    ),
-                ]),
-              if (sale)
-                Section('تفاصيل إضافية', optionalFields(), collapsible: true),
-              if (sale)
-                Section('النتيجة المباشرة', [
-                  if (calcError != null)
-                    Text(calcError!, style: const TextStyle(color: Colors.red)),
-                  if (totals != null) ...[
-                    pair(
-                      AmountBox('البيع', currency.format(totals.sale)),
-                      AmountBox('التسديد', currency.format(totals.cost)),
-                    ),
-                    pair(
-                      AmountBox('العمولة', currency.format(totals.commission)),
-                      AmountBox(
-                        'الربح',
-                        currency.format(totals.profit),
-                        color: totals.profit < 0
-                            ? Colors.red
-                            : const Color(0xff23836c),
-                      ),
-                    ),
-                  ],
-                ]),
-              if (widget.kind != 'opening')
-                Section('طريقة التسديد', [
-                  ChoiceField<String>(
-                    isExpanded: true,
-                    initialValue: d['paymentMethod'] ?? 'cash',
-                    items: paymentMethods.entries
-                        .map(
-                          (e) => DropdownMenuItem(
-                            value: e.key,
-                            child: Text(e.value),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) => setState(() => d['paymentMethod'] = v),
-                  ),
-                  ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('طريقة الدفع وصف للعملية'),
-                    trailing: IconButton(
-                      tooltip: 'توضيح طريقة التسديد',
-                      icon: const Icon(Icons.info_outline),
-                      onPressed: () => showDialog<void>(
-                        context: c,
-                        builder: (ctx) => AlertDialog(
-                          title: const Text('طريقة التسديد'),
-                          content: const Text(
-                            'اختيار الطريقة لا يسجّل قبضًا أو دفعًا؛ سجّل المبلغ في التسوية.',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(ctx),
-                              child: const Text('تم'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ]),
-              Section('الملاحظات والمرفقات', [
-                field('notes', 'ملاحظات / سبب الحركة'),
-                Attachments(
-                  List<String>.from(d['attachments']),
-                  (v) => setState(() => d['attachments'] = v),
-                ),
-              ], collapsible: true),
-              TextButton.icon(
-                onPressed: busy ? null : () => save(true, another: true),
-                icon: const Icon(Icons.add_task),
-                label: const Text('حفظ وإضافة أخرى'),
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
-        ),
-        bottomNavigationBar: SafeArea(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              border: Border(top: BorderSide(color: Theme.of(c).dividerColor)),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: busy ? null : () => save(true),
-                      icon: const Icon(Icons.check),
-                      label: Text(
-                        busy
-                            ? 'جارٍ الحفظ…'
-                            : widget.draft?.posted == true
-                            ? 'حفظ التعديل'
-                            : 'حفظ واعتماد',
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  if (widget.draft?.posted != true)
-                    OutlinedButton(
-                      onPressed: busy ? null : () => save(false),
-                      child: const Text('مسودة'),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ),
+    if (f.type == 'reference')
+      return pick(
+        f.key,
+        label,
+        f.reference!,
+        party: ['customer', 'supplier'].contains(f.reference),
+      );
+    if (f.type == 'account')
+      return pick(
+        d['partyType'] ?? 'customer',
+        label,
+        d['partyType'] ?? 'customer',
+        party: true,
+      );
+    if (f.type == 'date')
+      return DateField(
+        label,
+        d[f.key],
+        (v) => setState(() => d[f.key] = v),
+        optional: f.key != 'date',
+      );
+    if (f.type == 'passengers') return passengerPicker();
+    if (f.type == 'attachments')
+      return Attachments(
+        List<String>.from(d['attachments'] ?? []),
+        (v) => setState(() => d['attachments'] = v),
+      );
+    if (f.type == 'bool')
+      return SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: Text(label),
+        subtitle: f.key == 'personal'
+            ? const Text('الشخصي لا يخصم من صافي ربح المكتب')
+            : null,
+        value: d[f.key] == true,
+        onChanged: (v) => setState(() => d[f.key] = v),
+      );
+    final choices = inputChoices(
+      widget.s.settings,
+      widget.kind,
+      f,
+      current: d[f.key],
+    );
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: ChoiceField<String>(
+        initialValue: d[f.key]?.toString(),
+        decoration: InputDecoration(labelText: label),
+        items: choices.entries
+            .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+            .toList(),
+        onChanged: (v) => setState(() {
+          if (f.type == 'direction') {
+            d[f.key] = int.parse(v!);
+          } else {
+            d[f.key] = v;
+          }
+          if (f.key == 'partyType') {
+            d['customer'] = null;
+            d['supplier'] = null;
+          }
+          if (f.key == 'commissionMode' && v == 'percent')
+            revealed.remove('fee');
+        }),
       ),
     );
   }
+
+  bool showField(InputSpec f) =>
+      revealed.contains(f.key) ||
+      (layout.mode(f) != 'hidden' && layout.applicable(f, d));
+  Widget formGroup(String group) {
+    final fields = layout.fields
+        .where((f) => f.group == group && showField(f))
+        .toList();
+    if (fields.isEmpty) return const SizedBox.shrink();
+    final regular = fields
+        .where((f) => layout.mode(f) != 'details' || revealed.contains(f.key))
+        .toList();
+    final details = fields
+        .where((f) => layout.mode(f) == 'details' && !revealed.contains(f.key))
+        .toList();
+    final ids = List<int>.from(
+      d['passengers'] ?? (d['passenger'] == null ? [] : [d['passenger']]),
+    );
+    final subtitle = group == 'passengers' && ids.isNotEmpty
+        ? ids.map(widget.s.name).join('، ')
+        : null;
+    return Section(
+      inputGroupLabels[group] ?? group,
+      [
+        ...regular.map(input),
+        if (details.isNotEmpty)
+          ExpansionTile(
+            title: const Text('تفاصيل إضافية'),
+            children: details.map(input).toList(),
+          ),
+        if (group == 'travel' && widget.kind == 'ticket')
+          TextButton.icon(
+            icon: const Icon(Icons.swap_horiz),
+            label: const Text('تبديل المغادرة والوصول'),
+            onPressed: () => setState(() {
+              final from = d['from'];
+              d['from'] = d['to'];
+              d['to'] = from;
+            }),
+          ),
+        if (group == 'booking' && d['checkIn'] != null && d['checkOut'] != null)
+          Text(
+            'عدد الليالي: ${DateTime.parse(d['checkOut']).difference(DateTime.parse(d['checkIn'])).inDays}',
+          ),
+        if (group == 'payment')
+          const Text(
+            'طريقة الدفع وصف للعملية؛ تسجيل القبض أو الدفع من التسويات.',
+          ),
+      ],
+      key: ValueKey('$group-${revealed.join(',')}'),
+      collapsible: true,
+      subtitle: subtitle,
+      initiallyExpanded:
+          layout.expanded(group) || fields.any((f) => revealed.contains(f.key)),
+    );
+  }
+
+  Widget summary(Totals? totals, {bool compact = false}) {
+    if (totals == null)
+      return calcError == null
+          ? const SizedBox.shrink()
+          : Text(calcError!, style: const TextStyle(color: Colors.red));
+    if (compact)
+      return Wrap(
+        spacing: 16,
+        runSpacing: 4,
+        children: [
+          Text('البيع ${currency.format(totals.sale)}'),
+          Text('الكلفة ${currency.format(totals.cost)}'),
+          Text(
+            'الربح ${currency.format(totals.profit)}',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: totals.profit < 0 ? Colors.red : const Color(0xff23836c),
+            ),
+          ),
+        ],
+      );
+    return Section('النتيجة المباشرة', [
+      pair(
+        AmountBox('البيع', currency.format(totals.sale)),
+        AmountBox('كلفة الشراء', currency.format(totals.cost)),
+      ),
+      pair(
+        AmountBox('العمولة', currency.format(totals.commission)),
+        AmountBox(
+          'الربح',
+          currency.format(totals.profit),
+          color: totals.profit < 0 ? Colors.red : const Color(0xff23836c),
+        ),
+      ),
+      const Text(
+        'كلفة الشراء هي مستحق المورد؛ الدفعات النقدية تُسجَّل كتسويات.',
+      ),
+    ]);
+  }
+
+  @override
+  Widget build(BuildContext c) => AnimatedBuilder(
+    animation: widget.s,
+    builder: (c, _) {
+      final sale = ['ticket', 'hotel', 'visa'].contains(widget.kind);
+      Totals? totals;
+      try {
+        if (sale) totals = calculate(collect());
+        calcError = null;
+      } catch (e) {
+        calcError = e.toString().replaceFirst('FormatException: ', '');
+      }
+      return PopScope(
+        canPop: widget.preview || allowLeave || !dirty,
+        onPopInvokedWithResult: (didPop, result) {
+          if (!didPop && !busy) confirmLeave();
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            title: Text(
+              '${widget.preview
+                  ? 'معاينة'
+                  : widget.draft == null
+                  ? 'إضافة'
+                  : 'تعديل'} ${types[widget.kind]}',
+            ),
+            backgroundColor: Color.alphaBlend(
+              kindColor(widget.kind).withValues(alpha: .12),
+              Theme.of(c).colorScheme.surface,
+            ),
+            actions: [
+              if (!widget.preview)
+                IconButton(
+                  tooltip: 'تخصيص الإدخالات',
+                  icon: const Icon(Icons.tune),
+                  onPressed: () => Navigator.push(
+                    c,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          FormCustomizationPage(widget.s, widget.kind),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          body: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (widget.preview)
+                  const ListTile(
+                    leading: Icon(Icons.preview_outlined),
+                    title: Text('معاينة فقط — لن تُحفظ عملية أو حركة مالية'),
+                  ),
+                if (widget.s.settings['showInputSearch'] != false)
+                  InputSearch(layout: layout, onSelect: revealField),
+                for (final group in layout.groups) formGroup(group),
+                if (sale) summary(totals),
+                if (!widget.preview)
+                  TextButton.icon(
+                    onPressed: busy ? null : () => save(true, another: true),
+                    icon: const Icon(Icons.add_task),
+                    label: const Text('حفظ وإضافة أخرى'),
+                  ),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+          bottomNavigationBar: widget.preview
+              ? null
+              : SafeArea(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Theme.of(c).colorScheme.surface,
+                      border: Border(
+                        top: BorderSide(color: Theme.of(c).dividerColor),
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (sale &&
+                              widget.s.settings['stickySummary'] != false)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: summary(totals, compact: true),
+                            ),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: FilledButton.icon(
+                                  onPressed: busy ? null : () => save(true),
+                                  icon: const Icon(Icons.check),
+                                  label: Text(
+                                    busy
+                                        ? 'جارٍ الحفظ…'
+                                        : widget.draft?.posted == true
+                                        ? 'حفظ التعديل'
+                                        : 'حفظ واعتماد',
+                                  ),
+                                ),
+                              ),
+                              if (widget.draft?.posted != true) ...[
+                                const SizedBox(width: 10),
+                                OutlinedButton(
+                                  onPressed: busy ? null : () => save(false),
+                                  child: const Text('مسودة'),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+        ),
+      );
+    },
+  );
 }
 
 Future<void> newEntry(

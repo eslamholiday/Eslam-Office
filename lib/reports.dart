@@ -156,7 +156,7 @@ class _StatementPageState extends State<StatementPage> {
             e.passengers.map(widget.s.name).join('، '),
           if (widget.s.settings['statementShowPayment'] != false &&
               e.data['paymentMethod'] != null)
-            paymentMethods[e.data['paymentMethod']] ?? '',
+            paymentLabel(e.data['paymentMethod']),
           if (widget.s.settings['statementShowNotes'] == true &&
               (e.data['notes'] ?? '').isNotEmpty)
             e.data['notes'],

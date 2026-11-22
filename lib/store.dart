@@ -238,6 +238,7 @@ class Store extends ChangeNotifier {
       'value': jsonEncode(value),
     }, conflictAlgorithm: ConflictAlgorithm.replace);
     settings[key] = value;
+    displayPreferences = Map<String, dynamic>.from(settings);
     notifyListeners();
   }
 
@@ -380,6 +381,12 @@ class Store extends ChangeNotifier {
   Future<int> saveEntry(Map<String, dynamic> raw, {int? id}) async {
     final d = Map<String, dynamic>.from(raw);
     final currency = Currency.values.byName(d['currency']);
+    if (d['posted'] == true &&
+        d['depart'] != null &&
+        d['return'] != null &&
+        '${d['return']}'.compareTo('${d['depart']}') < 0) {
+      throw const FormatException('تاريخ العودة يجب ألا يسبق الذهاب');
+    }
     if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(d['date'])) {
       throw const FormatException('تاريخ غير صالح');
     }

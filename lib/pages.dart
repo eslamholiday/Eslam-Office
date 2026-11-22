@@ -389,9 +389,7 @@ class EntryDetail extends StatelessWidget {
             if (e.passengers.isNotEmpty)
               Text('المسافرون: ${e.passengers.map(s.name).join('، ')}'),
             if (e.data['paymentMethod'] != null)
-              Text(
-                'طريقة التسديد: ${paymentMethods[e.data['paymentMethod']] ?? ''}',
-              ),
+              Text('طريقة التسديد: ${paymentLabel(e.data['paymentMethod'])}'),
             if (sale) ...[
               const SizedBox(height: 16),
               pair(

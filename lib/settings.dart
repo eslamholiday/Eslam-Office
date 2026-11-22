@@ -4,6 +4,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'domain.dart';
 import 'store.dart';
 import 'ui.dart';
+import 'input_settings.dart';
+import 'input_schema.dart';
 
 const themeNames = [
   'مكتب فاخر',
@@ -71,99 +73,92 @@ const fieldGroups = {
 class SettingsPage extends StatelessWidget {
   final Store s;
   const SettingsPage(this.s, {super.key});
+  Widget tile(
+    BuildContext c,
+    String title,
+    IconData icon,
+    Widget page, [
+    String? subtitle,
+  ]) => ListTile(
+    leading: Icon(icon),
+    title: Text(title),
+    subtitle: subtitle == null ? null : Text(subtitle),
+    trailing: const Icon(Icons.chevron_left),
+    onTap: () => Navigator.push(c, MaterialPageRoute(builder: (_) => page)),
+  );
   @override
-  Widget build(BuildContext c) => AnimatedBuilder(
-    animation: s,
-    builder: (c, _) => Scaffold(
-      appBar: AppBar(
-        title: const Text('الإعدادات'),
-        actions: [
-          IconButton(
-            tooltip: 'بحث بالإعدادات',
-            icon: const Icon(Icons.search),
-            onPressed: () =>
-                showSearch(context: c, delegate: SettingsSearch(s)),
+  Widget build(BuildContext c) => Scaffold(
+    appBar: AppBar(
+      title: const Text('الإعدادات'),
+      actions: [
+        IconButton(
+          tooltip: 'بحث بالإعدادات',
+          icon: const Icon(Icons.search),
+          onPressed: () => showSearch(context: c, delegate: SettingsSearch(s)),
+        ),
+      ],
+    ),
+    body: ListView(
+      padding: const EdgeInsets.all(12),
+      children: [
+        Section('الإدخال والقوائم', [
+          tile(
+            c,
+            'تخصيص كل الإدخالات والقوائم',
+            Icons.tune,
+            InputCenterPage(s),
+            'التذاكر والخدمات والحسابات — الحقول والترتيب والافتراضيات',
           ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(12),
-        children: [
-          Section('المظهر والتخصيص', [
-            tile(c, 'الأرقام والتواريخ والحفظ', Icons.tune, PreferencesPage(s)),
-            tile(
-              c,
-              'الثيمات والألوان والخطوط',
-              Icons.palette_outlined,
-              AppearancePage(s),
-            ),
-          ]),
-          Section('الواجهات والأقسام', [
-            tile(
-              c,
-              'الرئيسية وشريط التنقل',
-              Icons.dashboard_customize_outlined,
-              LayoutPage(s),
-            ),
-            for (final kind in [
-              'ticket',
-              'hotel',
-              'visa',
-              'settlement',
-              'expense',
-            ])
-              tile(
-                c,
-                '${types[kind]} — الحقول والافتراضيات',
-                kindIcon(kind),
-                FieldSettings(s, kind),
-              ),
-            tile(
-              c,
-              'بيانات المكتب والشعار والكشوف',
-              Icons.business_outlined,
-              OfficeSettings(s),
-            ),
-          ]),
-          Section('النظام', [
-            for (final item in {
-              'airline': 'شركات الطيران',
-              'country': 'الدول',
-              'city': 'المدن',
-              'expenseCategory': 'تصنيفات المصروف',
-            }.entries)
-              tile(
-                c,
-                item.value,
-                Icons.list_alt,
-                ReferencePage(s, item.key, item.value),
-              ),
-            tile(
-              c,
-              'عمولات الطيران × جهات الإصدار',
-              Icons.percent,
-              RulesPage(s),
-            ),
-            tile(
-              c,
-              'المحذوفات / الأرشيف',
-              Icons.archive_outlined,
-              ArchivePage(s),
-            ),
-            tile(c, 'سجل التعديلات', Icons.history, AuditPage(s)),
-            tile(c, 'حول Eslam Money', Icons.info_outline, AboutPage(s)),
-          ]),
-        ],
-      ),
+          tile(
+            c,
+            'سلوك الإدخال',
+            Icons.touch_app_outlined,
+            InputBehaviorPage(s),
+            'الكثافة والبحث والحفظ التلقائي والاختيار',
+          ),
+        ]),
+        Section('المظهر والتنقل', [
+          tile(
+            c,
+            'الثيمات والألوان والخطوط',
+            Icons.palette_outlined,
+            AppearancePage(s),
+          ),
+          tile(
+            c,
+            'الرئيسية وشريط التنقل',
+            Icons.dashboard_customize_outlined,
+            LayoutPage(s),
+          ),
+        ]),
+        Section('المكتب والكشوف والحساب', [
+          tile(
+            c,
+            'الأرقام والتواريخ والحفظ',
+            Icons.numbers,
+            PreferencesPage(s),
+          ),
+          tile(
+            c,
+            'بيانات المكتب والشعار والكشوف',
+            Icons.business_outlined,
+            OfficeSettings(s),
+          ),
+          tile(c, 'عمولات الطيران وجهات الإصدار', Icons.percent, RulesPage(s)),
+        ]),
+        Section('السجل والتطبيق', [
+          tile(
+            c,
+            'المحذوفات / الأرشيف',
+            Icons.archive_outlined,
+            ArchivePage(s),
+          ),
+          tile(c, 'سجل التعديلات', Icons.history, AuditPage(s)),
+          tile(c, 'حول Eslam Money', Icons.info_outline, AboutPage(s)),
+        ]),
+      ],
     ),
   );
-  Widget tile(BuildContext c, String title, IconData icon, Widget page) =>
-      ListTile(
-        leading: Icon(icon),
-        title: Text(title),
-        trailing: const Icon(Icons.chevron_left),
-        onTap: () => Navigator.push(c, MaterialPageRoute(builder: (_) => page)),
-      );
 }
 
 class AppearancePage extends StatelessWidget {
@@ -562,230 +557,7 @@ class FieldSettings extends StatelessWidget {
   final String kind;
   const FieldSettings(this.s, this.kind, {super.key});
   @override
-  Widget build(BuildContext c) => AnimatedBuilder(
-    animation: s,
-    builder: (c, _) {
-      final order = List<String>.from(
-        s.settings['fields_$kind'] ?? fieldGroups[kind] ?? <String>[],
-      );
-      final hidden = List<String>.from(s.settings['hidden_$kind'] ?? []);
-      final defaults = Map<String, dynamic>.from(
-        s.settings['defaults_$kind'] ?? {},
-      );
-      return Scaffold(
-        appBar: AppBar(title: Text('إعدادات ${types[kind]}')),
-        body: ListView(
-          padding: const EdgeInsets.all(12),
-          children: [
-            Section('افتراضيات من القوائم المحفوظة', [
-              PickField(
-                'جهة الإصدار',
-                defaults['supplier'],
-                s.list('supplier'),
-                (v) {
-                  defaults['supplier'] = v;
-                  s.set('defaults_$kind', defaults);
-                },
-              ),
-              if (kind == 'ticket') ...[
-                PickField(
-                  'شركة الطيران',
-                  defaults['airline'],
-                  s.referenceList('airline'),
-                  (v) {
-                    defaults['airline'] = v;
-                    s.set('defaults_$kind', defaults);
-                  },
-                ),
-                PickField(
-                  'مدينة المغادرة',
-                  defaults['from'],
-                  s.referenceList('city'),
-                  (v) {
-                    defaults['from'] = v;
-                    s.set('defaults_$kind', defaults);
-                  },
-                ),
-              ],
-              PickField(
-                'الدولة',
-                defaults['country'],
-                s.referenceList('country'),
-                (v) {
-                  defaults['country'] = v;
-                  s.set('defaults_$kind', defaults);
-                },
-              ),
-              ChoiceField<String>(
-                isExpanded: true,
-                initialValue: defaults['currency'] ?? 'USD',
-                decoration: const InputDecoration(
-                  labelText: 'العملة الافتراضية',
-                ),
-                items: Currency.values
-                    .map(
-                      (v) =>
-                          DropdownMenuItem(value: v.name, child: Text(v.name)),
-                    )
-                    .toList(),
-                onChanged: (v) {
-                  defaults['currency'] = v;
-                  s.set('defaults_$kind', defaults);
-                },
-              ),
-            ]),
-            Section('افتراضيات إضافية', [
-              ChoiceField<String>(
-                isExpanded: true,
-                initialValue: defaults['paymentMethod'] ?? 'cash',
-                decoration: const InputDecoration(
-                  labelText: 'طريقة التسديد الافتراضية',
-                ),
-                items: paymentMethods.entries
-                    .map(
-                      (e) =>
-                          DropdownMenuItem(value: e.key, child: Text(e.value)),
-                    )
-                    .toList(),
-                onChanged: (v) {
-                  defaults['paymentMethod'] = v;
-                  s.set('defaults_$kind', defaults);
-                },
-              ),
-              if (kind == 'ticket') ...[
-                const SizedBox(height: 12),
-                PickField(
-                  'مدينة الوصول',
-                  defaults['to'],
-                  s.referenceList('city'),
-                  (v) {
-                    defaults['to'] = v;
-                    s.set('defaults_$kind', defaults);
-                  },
-                ),
-              ],
-              if (kind == 'hotel')
-                PickField(
-                  'المدينة',
-                  defaults['city'],
-                  s.referenceList('city'),
-                  (v) {
-                    defaults['city'] = v;
-                    s.set('defaults_$kind', defaults);
-                  },
-                ),
-              if (kind == 'expense')
-                PickField(
-                  'تصنيف المصروف',
-                  defaults['expenseCategory'],
-                  s.referenceList('expenseCategory'),
-                  (v) {
-                    defaults['expenseCategory'] = v;
-                    s.set('defaults_$kind', defaults);
-                  },
-                ),
-            ]),
-            Section('ترتيب وإظهار الحقول الاختيارية', [
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  OutlinedButton(
-                    onPressed: () => s.set('hidden_$kind', <String>[]),
-                    child: const Text('إظهار الكل'),
-                  ),
-                  OutlinedButton(
-                    onPressed: () => s.set(
-                      'hidden_$kind',
-                      List<String>.from(fieldGroups[kind] ?? const <String>[]),
-                    ),
-                    child: const Text('إخفاء الاختياري'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      final visible = order
-                          .where((key) => !hidden.contains(key))
-                          .map((key) => fieldNames[key] ?? key)
-                          .toList();
-                      showDialog<void>(
-                        context: c,
-                        builder: (ctx) => AlertDialog(
-                          title: const Text('معاينة ترتيب النموذج'),
-                          content: SizedBox(
-                            width: double.maxFinite,
-                            child: visible.isEmpty
-                                ? const Text('لا توجد حقول اختيارية ظاهرة.')
-                                : ListView.separated(
-                                    shrinkWrap: true,
-                                    itemCount: visible.length,
-                                    separatorBuilder: (_, __) =>
-                                        const Divider(height: 1),
-                                    itemBuilder: (_, i) => ListTile(
-                                      dense: true,
-                                      leading: CircleAvatar(
-                                        radius: 13,
-                                        child: Text('${i + 1}'),
-                                      ),
-                                      title: Text(visible[i]),
-                                    ),
-                                  ),
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(ctx),
-                              child: const Text('إغلاق'),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.preview_outlined),
-                    label: const Text('معاينة النموذج'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              ReorderableListView(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                onReorder: (a, b) {
-                  if (b > a) b--;
-                  final key = order.removeAt(a);
-                  order.insert(b, key);
-                  s.set('fields_$kind', order);
-                },
-                children: order
-                    .map(
-                      (key) => CheckboxListTile(
-                        key: ValueKey(key),
-                        title: Text(fieldNames[key]!),
-                        value: !hidden.contains(key),
-                        onChanged: (v) {
-                          if (v == true) {
-                            hidden.remove(key);
-                          } else {
-                            hidden.add(key);
-                          }
-                          s.set('hidden_$kind', hidden);
-                        },
-                      ),
-                    )
-                    .toList(),
-              ),
-            ], collapsible: true),
-            TextButton(
-              onPressed: () async {
-                await s.set('fields_$kind', fieldGroups[kind]);
-                await s.set('hidden_$kind', []);
-                await s.set('defaults_$kind', {});
-              },
-              child: const Text('استعادة إعدادات هذا القسم'),
-            ),
-          ],
-        ),
-      );
-    },
-  );
+  Widget build(BuildContext c) => FormCustomizationPage(s, kind);
 }
 
 class OfficeSettings extends StatefulWidget {
@@ -1404,7 +1176,7 @@ class AboutPage extends StatelessWidget {
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
         ),
-        const Text('1.3.1 • فكرة وإشراف إسلام', textAlign: TextAlign.center),
+        const Text('1.5.0 • فكرة وإشراف إسلام', textAlign: TextAlign.center),
         const SizedBox(height: 24),
         const Text(
           'إدارة مكتب السفر والحسابات\nحفظ محلي • دولار ودينار • بحث موحّد',
@@ -1538,8 +1310,11 @@ class SettingsSearch extends SearchDelegate<void> {
     'الثيمات الألوان الخطوط المظهر': AppearancePage(s),
     'الأرقام التاريخ حفظ الصور المعرض': PreferencesPage(s),
     'الرئيسية ترتيب شريط التنقل': LayoutPage(s),
-    for (final k in ['ticket', 'hotel', 'visa', 'settlement', 'expense'])
-      '${types[k]} الحقول الافتراضية': FieldSettings(s, k),
+    'الإدخالات القوائم تخصيص كل الحقول': InputCenterPage(s),
+    'سلوك الإدخال الحفظ التلقائي المفضلة': InputBehaviorPage(s),
+    for (final k in inputScopes.keys)
+      '${inputScopes[k]} الحقول الافتراضية الإخفاء الإظهار':
+          FormCustomizationPage(s, k),
     'بيانات المكتب الشعار الكشوف': OfficeSettings(s),
     'الطيران': ReferencePage(s, 'airline', 'شركات الطيران'),
     'الدول': ReferencePage(s, 'country', 'الدول'),

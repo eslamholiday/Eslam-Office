@@ -295,6 +295,15 @@ const paymentMethods = {
   'credit': 'آجل',
 };
 
+String paymentLabel(dynamic value) {
+  final labels =
+      (displayPreferences['choices_paymentMethod'] as Map?)?['labels'] as Map?;
+  return labels?[value]?.toString() ??
+      paymentMethods[value] ??
+      value?.toString() ??
+      '';
+}
+
 const statementOptions = {
   'statementShowPrevious': 'رصيد أول المدة',
   'statementShowTravel': 'تفاصيل السفر والخدمة',
