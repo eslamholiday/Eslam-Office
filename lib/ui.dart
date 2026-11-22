@@ -215,7 +215,10 @@ class ThousandsSeparatorFormatter extends TextInputFormatter {
       return const TextEditingValue(text: '');
     }
     final value = int.tryParse(digits) ?? 0;
-    final formatted = NumberFormat('#,##0', 'en').format(value);
+    final decimal = normalized.contains('.')
+        ? '.${normalized.split('.').skip(1).join().replaceAll(RegExp(r'[^0-9]'), '')}'
+        : '';
+    final formatted = '${NumberFormat('#,##0', 'en').format(value)}$decimal';
     return TextEditingValue(
       text: formatted,
       selection: TextSelection.collapsed(offset: formatted.length),
@@ -322,7 +325,7 @@ Future<int?> chooseListItem(
             )
             .toList();
         final sort = store?.settings['pickerSort'] ?? 'recent';
-        if (sort != 'original')
+        if (sort != 'original') {
           rows.sort((a, b) {
             if (sort == 'recent' && showFavorites) {
               int rank(Map<String, dynamic> r) => favorites.contains(r['id'])
@@ -331,10 +334,13 @@ Future<int?> chooseListItem(
                   ? recent.indexOf(r['id'])
                   : 10000;
               final cmp = rank(a).compareTo(rank(b));
-              if (cmp != 0) return cmp;
+              if (cmp != 0) {
+                return cmp;
+              }
             }
             return '${a['name']}'.compareTo('${b['name']}');
           });
+        }
         return SafeArea(
           child: Padding(
             padding: EdgeInsets.only(
@@ -591,7 +597,9 @@ class ProfilePicker extends StatelessWidget {
         source: source,
         imageQuality: 88,
       );
-      if (picked == null) return;
+      if (picked == null) {
+        return;
+      }
       final base = (await getApplicationDocumentsDirectory()).path;
       final dir = Directory('$base/profiles');
       await dir.create(recursive: true);
@@ -690,7 +698,9 @@ class _AttachmentsState extends State<Attachments> {
     } catch (e) {
       if (mounted) message(context, 'تعذر اختيار المرفق: $e');
     } finally {
-      if (mounted) setState(() => busy = false);
+      if (mounted) {
+        setState(() => busy = false);
+      }
     }
   }
 

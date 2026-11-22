@@ -21,6 +21,19 @@ void main() {
   tearDown(() => displayPreferences = {});
 
   test(
+    'editing a dollar amount preserves cents and grouped input decimals',
+    () {
+      expect(Currency.USD.editInput(123456), '1,234.56');
+      expect(money(Currency.USD.editInput(123456), Currency.USD), 123456);
+      final formatted = const ThousandsSeparatorFormatter().formatEditUpdate(
+        const TextEditingValue(),
+        const TextEditingValue(text: '1234.56'),
+      );
+      expect(formatted.text, '1,234.56');
+    },
+  );
+
+  test(
     'every input scope has unique fields and complete layout; legacy hiding survives',
     () {
       for (final scope in inputScopes.keys) {

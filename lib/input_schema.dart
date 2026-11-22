@@ -406,6 +406,7 @@ class InputLayout {
       .toList();
 
   dynamic value(InputSpec f, Map<String, dynamic> data) {
+    if (f.key == 'profile') return data['profileImage'] ?? data['avatar'];
     if (f.key == 'account') {
       return data[data['partyType'] ?? 'customer'];
     }

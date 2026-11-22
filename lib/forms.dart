@@ -74,9 +74,11 @@ class _PartyFormState extends State<PartyForm> {
   void revealField(String key) {
     setState(() => revealed.add(key));
     Future<void>.delayed(const Duration(milliseconds: 350), () {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       final target = anchors[key]?.currentContext;
-      if (target != null) {
+      if (target != null && target.mounted) {
         Scrollable.ensureVisible(
           target,
           duration: const Duration(milliseconds: 250),
@@ -92,7 +94,9 @@ class _PartyFormState extends State<PartyForm> {
       final contact = await const MethodChannel(
         'eslam_money/contacts',
       ).invokeMapMethod<String, dynamic>('pickPhone');
-      if (!mounted || contact == null) return;
+      if (!mounted || contact == null) {
+        return;
+      }
       setState(() {
         name.text = (contact['name'] ?? '').toString();
         phone.text = normalizePhone((contact['phone'] ?? '').toString());
@@ -280,8 +284,9 @@ class _PartyFormState extends State<PartyForm> {
                           }
                           setState(() => busy = true);
                           try {
-                            if (values['name'] == '')
+                            if (values['name'] == '') {
                               values['name'] = 'بدون اسم';
+                            }
                             final id = await widget.s.saveParty(
                               values,
                               id: widget.party?['id'],
@@ -290,7 +295,9 @@ class _PartyFormState extends State<PartyForm> {
                           } catch (e) {
                             if (c.mounted) message(c, e);
                           } finally {
-                            if (mounted) setState(() => busy = false);
+                            if (mounted) {
+                              setState(() => busy = false);
+                            }
                           }
                         },
                   child: Text(busy ? 'جارٍ الحفظ…' : 'حفظ'),
@@ -334,9 +341,11 @@ class _EntryFormState extends State<EntryForm> {
   void revealField(String key) {
     setState(() => revealed.add(key));
     Future<void>.delayed(const Duration(milliseconds: 350), () {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       final target = anchors[key]?.currentContext;
-      if (target != null) {
+      if (target != null && target.mounted) {
         Scrollable.ensureVisible(
           target,
           duration: const Duration(milliseconds: 250),
@@ -384,7 +393,9 @@ class _EntryFormState extends State<EntryForm> {
         ],
       ),
     );
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     if (action == 'save') {
       await save(widget.draft?.posted == true);
     }
@@ -448,7 +459,7 @@ class _EntryFormState extends State<EntryForm> {
       tc(key, '${d[key] ?? ''}');
     }
     for (final key in ['sell', 'costUnit', 'amount', 'fee']) {
-      tc(key, currency.input(d[key] as int? ?? 0));
+      tc(key, currency.editInput(d[key] as int? ?? 0));
     }
     tc(
       'rate',
@@ -472,7 +483,7 @@ class _EntryFormState extends State<EntryForm> {
       final row = i < lines.length ? lines[i] : <String, dynamic>{};
       tc('q$i', (row['qty'] ?? 0) == 0 ? '' : '${row['qty']}');
       for (final key in ['base', 'gross', 'sell']) {
-        tc('$key$i', currency.input(row[key] as int? ?? 0));
+        tc('$key$i', currency.editInput(row[key] as int? ?? 0));
       }
     }
     if (widget.draft == null &&
@@ -497,7 +508,9 @@ class _EntryFormState extends State<EntryForm> {
     }
     for (final controller in controllers.values) {
       controller.addListener(() {
-        if (mounted) setState(() {});
+        if (mounted) {
+          setState(() {});
+        }
       });
     }
   }
@@ -537,7 +550,9 @@ class _EntryFormState extends State<EntryForm> {
         ],
       ),
     );
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     if (restore == true) {
       setState(() {
         d = {...d, ...Map<String, dynamic>.from(saved)};
@@ -551,18 +566,21 @@ class _EntryFormState extends State<EntryForm> {
           'expenseSubcategory',
           'rooms',
           'people',
-        ])
+        ]) {
           tc(key).text = '${d[key] ?? ''}';
-        for (final key in ['sell', 'costUnit', 'amount', 'fee'])
-          tc(key).text = currency.input(d[key] as int? ?? 0);
+        }
+        for (final key in ['sell', 'costUnit', 'amount', 'fee']) {
+          tc(key).text = currency.editInput(d[key] as int? ?? 0);
+        }
         tc('rate').text = ((d['rate'] as int? ?? 0) / 100).toString();
         tc('qty').text = '${d['qty'] ?? 1}';
         final rows = d['lines'] as List? ?? [];
         for (var i = 0; i < 3; i++) {
           final row = i < rows.length ? rows[i] as Map : <String, dynamic>{};
           tc('q$i').text = '${row['qty'] ?? 0}';
-          for (final key in ['base', 'gross', 'sell'])
-            tc('$key$i').text = currency.input(row[key] as int? ?? 0);
+          for (final key in ['base', 'gross', 'sell']) {
+            tc('$key$i').text = currency.editInput(row[key] as int? ?? 0);
+          }
         }
       });
     } else if (restore == false) {
@@ -576,7 +594,7 @@ class _EntryFormState extends State<EntryForm> {
         ? ''
         : ((r['rate'] as int) / 100).toString();
     d['commissionMode'] = r['commissionMode'] ?? 'percent';
-    tc('fee').text = currency.input(
+    tc('fee').text = currency.editInput(
       r['currency'] == null || r['currency'] == currency.name
           ? r['fee'] as int? ?? 0
           : 0,
@@ -623,7 +641,9 @@ class _EntryFormState extends State<EntryForm> {
   }
 
   Future<void> save(bool post, {bool another = false}) async {
-    if (busy || widget.preview) return;
+    if (busy || widget.preview) {
+      return;
+    }
     setState(() => busy = true);
     try {
       final v = collect();
@@ -681,7 +701,9 @@ class _EntryFormState extends State<EntryForm> {
             ],
           ),
         );
-        if (confirmed != true) return;
+        if (confirmed != true) {
+          return;
+        }
       }
       final savedId = await widget.s.saveEntry(v, id: widget.draft?.id);
       recoveryTimer?.cancel();
@@ -722,14 +744,24 @@ class _EntryFormState extends State<EntryForm> {
       }
     } catch (e) {
       if (mounted) {
-        if (e.toString().contains('حساب الزبون'))
+        if (e.toString().contains('حساب الزبون')) {
           setState(() => revealed.add('customer'));
-        if (e.toString().contains('اختر الحساب'))
+        }
+        if (e.toString().contains('عدد التذاكر')) {
+          setState(() => revealed.addAll(['q0', 'base0', 'gross0', 'sell0']));
+        }
+        if (e.toString().contains('مبلغًا أكبر')) {
+          setState(() => revealed.add('amount'));
+        }
+        if (e.toString().contains('اختر الحساب')) {
           setState(() => revealed.add('account'));
+        }
         message(context, e);
       }
     } finally {
-      if (mounted) setState(() => busy = false);
+      if (mounted) {
+        setState(() => busy = false);
+      }
     }
   }
 
@@ -767,14 +799,17 @@ class _EntryFormState extends State<EntryForm> {
                     final person = widget.s.parties
                         .where((r) => r['id'] == id)
                         .firstOrNull;
-                    if (person != null)
+                    if (person != null) {
                       await editParty(
                         context,
                         widget.s,
                         'passenger',
                         party: person,
                       );
-                    if (mounted) setState(() {});
+                    }
+                    if (mounted) {
+                      setState(() {});
+                    }
                   },
                   onDeleted: () => setState(() {
                     ids.remove(id);
@@ -889,11 +924,12 @@ class _EntryFormState extends State<EntryForm> {
                           },
                         ),
                       );
-                      if (result != null && mounted)
+                      if (result != null && mounted) {
                         setState(() {
                           d['passengers'] = result;
                           d['passenger'] = null;
                         });
+                      }
                     },
             ),
             TextButton.icon(
@@ -908,11 +944,12 @@ class _EntryFormState extends State<EntryForm> {
                         'passenger',
                         party: {'customer': d['customer']},
                       );
-                      if (id != null && mounted)
+                      if (id != null && mounted) {
                         setState(() {
                           d['passengers'] = {...ids, id}.toList();
                           d['passenger'] = null;
                         });
+                      }
                     },
             ),
           ],
@@ -960,7 +997,9 @@ class _EntryFormState extends State<EntryForm> {
             tc('expenseSubcategory').clear();
             editingCustomExpenseSubcategory = false;
             final ref = widget.s.refs.where((r) => r['id'] == v).firstOrNull;
-            if (ref?['personal'] == true) d['personal'] = true;
+            if (ref?['personal'] == true) {
+              d['personal'] = true;
+            }
           }
           if (key == 'customer') {
             d['passengers'] = <int>[];
@@ -980,8 +1019,9 @@ class _EntryFormState extends State<EntryForm> {
             }
           }
           if ((key == 'airline' || key == 'supplier') &&
-              widget.s.settings['autoCommission'] != false)
+              widget.s.settings['autoCommission'] != false) {
             applyRule();
+          }
         }),
         store: widget.s,
         listKey: kind,
@@ -1091,7 +1131,9 @@ class _EntryFormState extends State<EntryForm> {
       'count',
       'money',
     ].contains(f.type)) {
-      if (f.key == 'expenseSubcategory') return expenseSubcategoryPicker();
+      if (f.key == 'expenseSubcategory') {
+        return expenseSubcategoryPicker();
+      }
       final presets = editableLists.containsKey(f.key)
           ? widget.s.referenceList(f.key)
           : <Map<String, dynamic>>[];
@@ -1120,11 +1162,14 @@ class _EntryFormState extends State<EntryForm> {
                     store: widget.s,
                     listKey: f.key,
                   );
-                  if (!mounted || id == null) return;
+                  if (!mounted || id == null) {
+                    return;
+                  }
                   if (id == -2) {
                     final added = await addReference(context, widget.s, f.key);
-                    if (added != null)
+                    if (added != null) {
                       tc(f.key).text = widget.s.reference(added);
+                    }
                   } else if (id >= 0) {
                     tc(f.key).text = widget.s.reference(id);
                   }
@@ -1134,34 +1179,40 @@ class _EntryFormState extends State<EntryForm> {
         ],
       );
     }
-    if (f.type == 'reference')
+    if (f.type == 'reference') {
       return pick(
         f.key,
         label,
         f.reference!,
         party: ['customer', 'supplier'].contains(f.reference),
       );
-    if (f.type == 'account')
+    }
+    if (f.type == 'account') {
       return pick(
         d['partyType'] ?? 'customer',
         label,
         d['partyType'] ?? 'customer',
         party: true,
       );
-    if (f.type == 'date')
+    }
+    if (f.type == 'date') {
       return DateField(
         label,
         d[f.key],
         (v) => setState(() => d[f.key] = v),
         optional: f.key != 'date',
       );
-    if (f.type == 'passengers') return passengerPicker();
-    if (f.type == 'attachments')
+    }
+    if (f.type == 'passengers') {
+      return passengerPicker();
+    }
+    if (f.type == 'attachments') {
       return Attachments(
         List<String>.from(d['attachments'] ?? []),
         (v) => setState(() => d['attachments'] = v),
       );
-    if (f.type == 'bool')
+    }
+    if (f.type == 'bool') {
       return SwitchListTile(
         contentPadding: EdgeInsets.zero,
         title: Text(label),
@@ -1171,6 +1222,7 @@ class _EntryFormState extends State<EntryForm> {
         value: d[f.key] == true,
         onChanged: (v) => setState(() => d[f.key] = v),
       );
+    }
     final choices = inputChoices(
       widget.s.settings,
       widget.kind,
@@ -1195,8 +1247,9 @@ class _EntryFormState extends State<EntryForm> {
             d['customer'] = null;
             d['supplier'] = null;
           }
-          if (f.key == 'commissionMode' && v == 'percent')
+          if (f.key == 'commissionMode' && v == 'percent') {
             revealed.remove('fee');
+          }
         }),
       ),
     );
@@ -1209,7 +1262,9 @@ class _EntryFormState extends State<EntryForm> {
     final fields = layout.fields
         .where((f) => f.group == group && showField(f))
         .toList();
-    if (fields.isEmpty) return const SizedBox.shrink();
+    if (fields.isEmpty) {
+      return const SizedBox.shrink();
+    }
     final regular = fields
         .where((f) => layout.mode(f) != 'details' || revealed.contains(f.key))
         .toList();
@@ -1259,11 +1314,12 @@ class _EntryFormState extends State<EntryForm> {
   }
 
   Widget summary(Totals? totals, {bool compact = false}) {
-    if (totals == null)
+    if (totals == null) {
       return calcError == null
           ? const SizedBox.shrink()
           : Text(calcError!, style: const TextStyle(color: Colors.red));
-    if (compact)
+    }
+    if (compact) {
       return Wrap(
         spacing: 16,
         runSpacing: 4,
@@ -1279,6 +1335,7 @@ class _EntryFormState extends State<EntryForm> {
           ),
         ],
       );
+    }
     return Section('النتيجة المباشرة', [
       pair(
         AmountBox('البيع', currency.format(totals.sale)),
@@ -1447,8 +1504,8 @@ Future<void> refundDialog(BuildContext c, Store s, Entry e) async {
   );
   final remainingSale = e.sale - previous.fold<int>(0, (a, r) => a + r.sale),
       remainingCost = e.cost - previous.fold<int>(0, (a, r) => a + r.cost);
-  final sale = TextEditingController(text: e.currency.input(remainingSale)),
-      cost = TextEditingController(text: e.currency.input(remainingCost)),
+  final sale = TextEditingController(text: e.currency.editInput(remainingSale)),
+      cost = TextEditingController(text: e.currency.editInput(remainingCost)),
       note = TextEditingController();
   String date = day(DateTime.now());
   bool busy = false;

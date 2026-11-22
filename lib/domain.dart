@@ -35,6 +35,10 @@ extension CurrencyInfo on Currency {
   String input(int minor) => minor == 0
       ? ''
       : NumberFormat('#,##0', 'en').format(roundedRatio(minor, scale));
+
+  String editInput(int minor) => this == Currency.USD && minor % 100 != 0
+      ? NumberFormat('#,##0.00', 'en').format(minor / 100)
+      : input(minor);
 }
 
 String normalize(String s) {
