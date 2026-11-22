@@ -543,14 +543,20 @@ class _FormCustomizationPageState extends State<FormCustomizationPage> {
                   ChoiceField<String>(
                     initialValue: value?.toString(),
                     decoration: InputDecoration(labelText: layout.label(f)),
-                    items: f.choices.entries
-                        .map(
-                          (e) => DropdownMenuItem(
-                            value: e.key,
-                            child: Text(e.value),
-                          ),
-                        )
-                        .toList(),
+                    items:
+                        inputChoices(
+                              s.settings,
+                              widget.scope,
+                              f,
+                              current: value,
+                            ).entries
+                            .map(
+                              (e) => DropdownMenuItem(
+                                value: e.key,
+                                child: Text(e.value),
+                              ),
+                            )
+                            .toList(),
                     onChanged: (v) => set(() => value = v),
                   )
                 else if (f.type == 'bool')
@@ -656,7 +662,9 @@ class _FormCustomizationPageState extends State<FormCustomizationPage> {
     if (f.type == 'bool') {
       return v == true ? 'نعم' : 'لا';
     }
-    return f.choices[v.toString()] ?? v.toString();
+    return inputChoices(s.settings, widget.scope, f, current: v)[v
+            .toString()] ??
+        v.toString();
   }
 
   Future<void> reset() async {

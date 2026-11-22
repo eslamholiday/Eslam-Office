@@ -147,17 +147,26 @@ class _PartyFormState extends State<PartyForm> {
             : () => editParty(context, widget.s, 'customer'),
       ),
       'notes' => textField(notes, label, lines: 3),
-      'profile' => ProfilePicker(
-        imagePath: profileImage,
-        avatar: avatar,
-        onChanged: (image, selectedAvatar) => setState(() {
-          profileImage = image;
-          avatar = selectedAvatar;
-        }),
+      'profile' => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(label),
+          ProfilePicker(
+            imagePath: profileImage,
+            avatar: avatar,
+            onChanged: (image, selectedAvatar) => setState(() {
+              profileImage = image;
+              avatar = selectedAvatar;
+            }),
+          ),
+        ],
       ),
-      'attachments' => Attachments(
-        attachments,
-        (v) => setState(() => attachments = v),
+      'attachments' => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(label),
+          Attachments(attachments, (v) => setState(() => attachments = v)),
+        ],
       ),
       _ => const SizedBox.shrink(),
     };
@@ -1046,7 +1055,7 @@ class _EntryFormState extends State<EntryForm> {
             ? () => editParty(context, widget.s, kind)
             : () => addReference(context, widget.s, kind),
       );
-  Widget expenseSubcategoryPicker() {
+  Widget expenseSubcategoryPicker([String label = 'التصنيف الفرعي']) {
     final category = widget.s.refs
         .where((r) => r['id'] == d['expenseCategory'])
         .firstOrNull;
@@ -1059,7 +1068,7 @@ class _EntryFormState extends State<EntryForm> {
     return Column(
       children: [
         PickField(
-          'التصنيف الفرعي',
+          label,
           selected < 0 ? null : selected,
           [
             for (var i = 0; i < names.length; i++) {'id': i, 'name': names[i]},
@@ -1149,7 +1158,7 @@ class _EntryFormState extends State<EntryForm> {
       'money',
     ].contains(f.type)) {
       if (f.key == 'expenseSubcategory') {
-        return expenseSubcategoryPicker();
+        return expenseSubcategoryPicker(label);
       }
       final presets = editableLists.containsKey(f.key)
           ? widget.s.referenceList(f.key)
@@ -1221,12 +1230,21 @@ class _EntryFormState extends State<EntryForm> {
       );
     }
     if (f.type == 'passengers') {
-      return passengerPicker();
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [Text(label), passengerPicker()],
+      );
     }
     if (f.type == 'attachments') {
-      return Attachments(
-        List<String>.from(d['attachments'] ?? []),
-        (v) => setState(() => d['attachments'] = v),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(label),
+          Attachments(
+            List<String>.from(d['attachments'] ?? []),
+            (v) => setState(() => d['attachments'] = v),
+          ),
+        ],
       );
     }
     if (f.type == 'bool') {
