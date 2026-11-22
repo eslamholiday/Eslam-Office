@@ -175,6 +175,7 @@ void main() {
       expect(find.text('وقود'), findsOneWidget);
       expect(find.text('قسط المنزل'), findsNothing);
       expect(t.takeException(), isNull);
+      await t.runAsync(s.flushSettings);
       await t.pumpWidget(const SizedBox());
       await t.runAsync(() => s.db.close());
     },

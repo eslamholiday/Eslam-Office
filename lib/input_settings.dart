@@ -510,7 +510,7 @@ class _FormCustomizationPageState extends State<FormCustomizationPage> {
           .byName(
             defaults['currency'] ?? s.settings['defaultCurrency'] ?? 'USD',
           )
-          .input(current);
+          .editInput(current);
     }
     if (f.key == 'rate' && current is int) {
       controller.text = (current / 100).toString();

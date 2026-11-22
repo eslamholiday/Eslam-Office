@@ -1019,7 +1019,13 @@ class _EntryFormState extends State<EntryForm> {
             final hasPrices = controllers.entries.any(
               (p) =>
                   RegExp(r'^(base|gross|sell)[0-2]$').hasMatch(p.key) &&
-                  (double.tryParse(p.value.text) ?? 0) != 0,
+                  (double.tryParse(
+                            normalize(
+                              p.value.text,
+                            ).replaceAll(',', '').replaceAll('٬', ''),
+                          ) ??
+                          0) !=
+                      0,
             );
             if (!hasPrices &&
                 ref != null &&

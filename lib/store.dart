@@ -9,6 +9,7 @@ class Store extends ChangeNotifier {
   List<Map<String, dynamic>> parties = [], refs = [], rules = [], logs = [];
   List<Entry> entries = [];
   Map<String, dynamic> settings = {};
+  final Set<Future<void>> _preferenceWrites = {};
   Store(this.db);
   static Future<Store> open({DatabaseFactory? factory, String? path}) async {
     final f = factory ?? databaseFactory;
@@ -232,7 +233,27 @@ class Store extends ChangeNotifier {
       parties.where((p) => p['kind'] == kind && p['archived'] == 0).toList();
   List<Map<String, dynamic>> referenceList(String kind) =>
       refs.where((p) => p['kind'] == kind && p['archived'] == 0).toList();
-  Future<void> set(String key, dynamic value) async {
+  Future<void> set(String key, dynamic value) {
+    final write = _writeSetting(key, value);
+    _preferenceWrites.add(write);
+    write.then<void>(
+      (_) {
+        _preferenceWrites.remove(write);
+      },
+      onError: (Object _, StackTrace __) {
+        _preferenceWrites.remove(write);
+      },
+    );
+    return write;
+  }
+
+  Future<void> flushSettings() async {
+    while (_preferenceWrites.isNotEmpty) {
+      await Future.wait(_preferenceWrites.toList());
+    }
+  }
+
+  Future<void> _writeSetting(String key, dynamic value) async {
     await db.insert('settings', {
       'key': key,
       'value': jsonEncode(value),
