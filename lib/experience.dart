@@ -21,8 +21,9 @@ class Experience {
     if (preview == null &&
         _last != null &&
         now.difference(_last!).inMilliseconds < 100 &&
-        (event == 'select' || event == _lastEvent))
+        (event == 'select' || event == _lastEvent)) {
       return;
+    }
     final preferences = displayPreferences;
     final sound =
         preview == 'sound' ||

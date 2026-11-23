@@ -33,7 +33,7 @@ class _BootstrapState extends State<Bootstrap> {
         home: Directionality(
           textDirection: TextDirection.rtl,
           child: Scaffold(
-            backgroundColor: navy,
+            backgroundColor: coral,
             body: Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),
@@ -43,7 +43,7 @@ class _BootstrapState extends State<Bootstrap> {
                         children: [
                           const Icon(
                             Icons.error_outline,
-                            color: gold,
+                            color: Colors.white,
                             size: 56,
                           ),
                           const SizedBox(height: 20),
@@ -67,18 +67,14 @@ class _BootstrapState extends State<Bootstrap> {
                     : const Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            Icons.flight_takeoff_rounded,
-                            color: gold,
-                            size: 70,
-                          ),
+                          ArtIcon(0, size: 94),
                           SizedBox(height: 20),
                           Text(
                             'Eslam Money',
                             style: TextStyle(color: Colors.white, fontSize: 28),
                           ),
                           SizedBox(height: 28),
-                          CircularProgressIndicator(color: gold),
+                          CircularProgressIndicator(color: Colors.white),
                         ],
                       ),
               ),
@@ -395,6 +391,32 @@ class HomePage extends StatelessWidget {
               subtitle: 'Eslam Money • مكتبك بين إيديك',
               height: 140,
             ),
+            if (s.settings['homeServiceCards'] != false) ...[
+              Tactile(
+                child: ServiceBanner(
+                  kind: 'ticket',
+                  title: 'التذاكر',
+                  subtitle: 'طيران • إصدار • تغيير',
+                  onTap: () => open(EntryForm(s, 'ticket')),
+                ),
+              ),
+              Tactile(
+                child: ServiceBanner(
+                  kind: 'visa',
+                  title: 'الفيزا',
+                  subtitle: 'جوازات • طلبات • مواعيد',
+                  onTap: () => open(EntryForm(s, 'visa')),
+                ),
+              ),
+              Tactile(
+                child: ServiceBanner(
+                  kind: 'hotel',
+                  title: 'الفنادق',
+                  subtitle: 'حجوزات • غرف • ضيافة',
+                  onTap: () => open(EntryForm(s, 'hotel')),
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             Wrap(
               spacing: 8,
@@ -509,32 +531,6 @@ class HomePage extends StatelessWidget {
                 ),
               ),
             ),
-            if (s.settings['homeServiceCards'] != false) ...[
-              Tactile(
-                child: ServiceBanner(
-                  kind: 'ticket',
-                  title: 'التذاكر',
-                  subtitle: 'طيران • إصدار • تغيير',
-                  onTap: () => open(EntryForm(s, 'ticket')),
-                ),
-              ),
-              Tactile(
-                child: ServiceBanner(
-                  kind: 'visa',
-                  title: 'الفيزا',
-                  subtitle: 'جوازات • طلبات • مواعيد',
-                  onTap: () => open(EntryForm(s, 'visa')),
-                ),
-              ),
-              Tactile(
-                child: ServiceBanner(
-                  kind: 'hotel',
-                  title: 'الفنادق',
-                  subtitle: 'حجوزات • غرف • ضيافة',
-                  onTap: () => open(EntryForm(s, 'hotel')),
-                ),
-              ),
-            ],
             if (s.settings['showHomeStats'] != false) ...[
               const SizedBox(height: 16),
               LayoutBuilder(
