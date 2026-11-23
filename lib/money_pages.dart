@@ -13,7 +13,7 @@ class StatementsHub extends StatelessWidget {
   Widget build(BuildContext c) => DefaultTabController(
     length: 2,
     child: Scaffold(
-      appBar: AppBar(
+      appBar: ClayAppBar(
         title: const Text('الكشوفات'),
         bottom: const TabBar(
           tabs: [
@@ -82,7 +82,7 @@ class SupplierBalances extends StatelessWidget {
   const SupplierBalances(this.s, {super.key});
   @override
   Widget build(BuildContext c) => Scaffold(
-    appBar: AppBar(title: const Text('مستحقات جهات الإصدار')),
+    appBar: ClayAppBar(title: const Text('مستحقات جهات الإصدار')),
     body: ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -128,7 +128,7 @@ class ReviewPage extends StatelessWidget {
           .where((e) => s.reviewIssues(e).isNotEmpty)
           .toList();
       return Scaffold(
-        appBar: AppBar(title: const Text('مركز التدقيق')),
+        appBar: ClayAppBar(title: const Text('مركز التدقيق')),
         body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -222,7 +222,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
             (categories[key] ?? 0) + (e.data['amount'] as int? ?? 0);
       }
       return Scaffold(
-        appBar: AppBar(title: const Text('المصروف')),
+        appBar: ClayAppBar(title: const Text('المصروف')),
         body: ListView(
           padding: const EdgeInsets.all(16),
           children: [

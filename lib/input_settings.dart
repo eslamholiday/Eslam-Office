@@ -126,7 +126,7 @@ class InputCenterPage extends StatelessWidget {
   const InputCenterPage(this.s, {super.key});
   @override
   Widget build(BuildContext c) => Scaffold(
-    appBar: AppBar(title: const Text('الإدخالات والقوائم')),
+    appBar: ClayAppBar(title: const Text('الإدخالات والقوائم')),
     body: ListView(
       padding: const EdgeInsets.all(12),
       children: [
@@ -142,7 +142,7 @@ class InputCenterPage extends StatelessWidget {
           inputScopes.entries
               .map(
                 (e) => ListTile(
-                  leading: Icon(kindIcon(e.key)),
+                  leading: ArtIcon(artIndex(e.key), size: 40),
                   title: Text(e.value),
                   subtitle: const Text(
                     'الحقول • ترتيب الأقسام • الافتراضيات • المعاينة',
@@ -245,7 +245,7 @@ class ChoiceOptionsPage extends StatelessWidget {
       }.where(all.containsKey).toList();
       final hidden = List<String>.from(config['hidden'] ?? []);
       return Scaffold(
-        appBar: AppBar(
+        appBar: ClayAppBar(
           title: Text('خيارات ${field.label}'),
           actions: [
             if (field.key == 'paymentMethod')
@@ -321,7 +321,7 @@ class InputBehaviorPage extends StatelessWidget {
   Widget build(BuildContext c) => AnimatedBuilder(
     animation: s,
     builder: (c, _) => Scaffold(
-      appBar: AppBar(title: const Text('سلوك الإدخال')),
+      appBar: ClayAppBar(title: const Text('سلوك الإدخال')),
       body: ListView(
         padding: const EdgeInsets.all(12),
         children: [
@@ -716,7 +716,7 @@ class _FormCustomizationPageState extends State<FormCustomizationPage> {
       return DefaultTabController(
         length: 3,
         child: Scaffold(
-          appBar: AppBar(
+          appBar: ClayAppBar(
             title: Text('إدخالات ${inputScopes[widget.scope]}'),
             actions: [
               IconButton(

@@ -61,7 +61,21 @@ Path('smoke-output/ticket-input-preview.png').write_bytes(adb('exec-out', 'scree
 adb('shell', 'uiautomator', 'dump', '/sdcard/eslam-preview.xml')
 preview = adb('shell', 'cat', '/sdcard/eslam-preview.xml').decode()
 Path('smoke-output/ticket-input-preview.xml').write_text(preview)
-assert 'معاينة' in preview and 'حساب الزبون' in preview
+assert 'معاينة' in preview and ('حساب الزبون' in preview or 'ابحث عن حقل' in preview)
+# Back out of the non-posting preview and customization; exercise appearance.
+adb('shell', 'input', 'keyevent', '4'); time.sleep(1)
+adb('shell', 'input', 'keyevent', '4'); time.sleep(1)
+adb('shell', 'input', 'keyevent', '4'); time.sleep(1)
+tap('الثيمات والألوان والخطوط')
+Path('smoke-output/appearance.png').write_bytes(adb('exec-out', 'screencap', '-p'))
+adb('shell', 'input', 'keyevent', '4'); time.sleep(1)
+# Scroll the settings hub to the feedback controls, then test actual channels.
+adb('shell', 'input', 'swipe', '550', '1600', '550', '900', '450'); time.sleep(1)
+tap('الاهتزاز')
+tap('تجربة الاهتزاز')
+Path('smoke-output/haptics.png').write_bytes(adb('exec-out', 'screencap', '-p'))
+tap('الصوت')
+Path('smoke-output/sounds.png').write_bytes(adb('exec-out', 'screencap', '-p'))
 logs = adb('logcat', '-d').decode(errors='replace')
 Path('smoke-output/input-logcat.txt').write_text(logs)
 assert not re.search(r'FATAL EXCEPTION|SQLiteException|A RenderFlex overflowed', logs)

@@ -258,7 +258,7 @@ class _StatementPageState extends State<StatementPage> {
 
   @override
   Widget build(BuildContext c) => Scaffold(
-    appBar: AppBar(title: const Text('إعداد كشف الحساب')),
+    appBar: ClayAppBar(title: const Text('إعداد كشف الحساب')),
     body: ListView(
       padding: const EdgeInsets.all(12),
       children: [
@@ -439,7 +439,7 @@ class PdfPage extends StatelessWidget {
                 s.settings['office'] ?? 'Eslam Holiday',
                 style: pw.TextStyle(
                   fontSize: 20,
-                  color: PdfColor.fromInt(0xff123b5d),
+                  color: PdfColor.fromInt(0xff087f82),
                 ),
               ),
             pw.Text(
@@ -475,7 +475,7 @@ class PdfPage extends StatelessWidget {
               ),
             pw.SizedBox(height: 12),
             pw.Text(title, style: const pw.TextStyle(fontSize: 16)),
-            pw.Divider(color: PdfColor.fromInt(0xffd4a84f)),
+            pw.Divider(color: PdfColor.fromInt(0xffef635a)),
             pw.SizedBox(height: 8),
           ],
         ),
@@ -506,12 +506,12 @@ class PdfPage extends StatelessWidget {
             ),
             cellStyle: pw.TextStyle(font: font, fontSize: 10),
             headerDecoration: const pw.BoxDecoration(
-              color: PdfColor.fromInt(0xff123b5d),
+              color: PdfColor.fromInt(0xff087f82),
             ),
             cellAlignment: pw.Alignment.centerRight,
             cellPadding: const pw.EdgeInsets.all(7),
             oddRowDecoration: const pw.BoxDecoration(
-              color: PdfColor.fromInt(0xfff3f6f8),
+              color: PdfColor.fromInt(0xfffff6ec),
             ),
           ),
           pw.SizedBox(height: 18),
@@ -521,7 +521,7 @@ class PdfPage extends StatelessWidget {
               child: pw.Container(
                 padding: const pw.EdgeInsets.all(10),
                 decoration: const pw.BoxDecoration(
-                  color: PdfColor.fromInt(0xffeef3f8),
+                  color: PdfColor.fromInt(0xffffefe4),
                 ),
                 child: pw.Text(text, style: const pw.TextStyle(fontSize: 12)),
               ),
@@ -600,7 +600,7 @@ class PdfPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext c) => Scaffold(
-    appBar: AppBar(
+    appBar: ClayAppBar(
       title: const Text('معاينة الكشف'),
       actions: [
         IconButton(
@@ -670,7 +670,7 @@ class _SavedStatementsPageState extends State<SavedStatementsPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('الكشوف المحفوظة')),
+    appBar: ClayAppBar(title: const Text('الكشوف المحفوظة')),
     body: FutureBuilder<List<File>>(
       future: files(),
       builder: (context, snapshot) {
@@ -799,7 +799,7 @@ class _ReportsPageState extends State<ReportsPage> {
       'المصروف الشخصي: ${currency.format(personal)}',
     ];
     return Scaffold(
-      appBar: AppBar(
+      appBar: ClayAppBar(
         title: const Text('الأرباح والتقارير'),
         actions: [
           IconButton(

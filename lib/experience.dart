@@ -1,0 +1,130 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'domain.dart';
+
+class Experience {
+  static const channel = MethodChannel('eslam_money/experience');
+  static const events = ['select', 'navigate', 'save', 'alert', 'error'];
+  static const eventLabels = {
+    'select': 'الضغط والاختيار',
+    'navigate': 'التنقل والرجوع',
+    'save': 'نجاح الحفظ',
+    'alert': 'التنبيه',
+    'error': 'تعذر الإجراء',
+  };
+  static DateTime? _last;
+  static String? _lastEvent;
+  static Future<void> fire(String event, {String? preview}) async {
+    if (!events.contains(event)) return;
+    final now = DateTime.now();
+    if (preview == null &&
+        _last != null &&
+        now.difference(_last!).inMilliseconds < 100 &&
+        (event == 'select' || event == _lastEvent))
+      return;
+    final preferences = displayPreferences;
+    final sound =
+        preview == 'sound' ||
+        (preview == null &&
+            preferences['soundEnabled'] != false &&
+            preferences['sound_$event'] != false);
+    final haptic =
+        preview == 'haptic' ||
+        (preview == null &&
+            preferences['hapticEnabled'] != false &&
+            preferences['haptic_$event'] != false);
+    if (!sound && !haptic) return;
+    _last = now;
+    _lastEvent = event;
+    try {
+      await channel.invokeMethod<void>('feedback', {
+        'event': event,
+        'sound': sound,
+        'haptic': haptic,
+        'volume': (preferences['soundVolume'] as num? ?? .25)
+            .clamp(0, 1)
+            .toDouble(),
+        'intensity': (preferences['hapticIntensity'] as num? ?? .45)
+            .clamp(0, 1)
+            .toDouble(),
+        'style': ['soft', 'pop', 'bell'].contains(preferences['soundStyle'])
+            ? preferences['soundStyle']
+            : 'soft',
+      });
+    } on PlatformException {
+      /* Feedback must never block an operation. */
+    } on MissingPluginException {
+      /* Other platforms and widget tests. */
+    }
+  }
+}
+
+class ExperienceObserver extends NavigatorObserver {
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    if (previousRoute != null) unawaited(Experience.fire('navigate'));
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      unawaited(Experience.fire('navigate'));
+}
+
+final experienceObserver = ExperienceObserver();
+
+class ExperienceTapRegion extends StatefulWidget {
+  final Widget child;
+  const ExperienceTapRegion({super.key, required this.child});
+  @override
+  State<ExperienceTapRegion> createState() => _ExperienceTapRegionState();
+}
+
+class _ExperienceTapRegionState extends State<ExperienceTapRegion> {
+  PointerDownEvent? down;
+  @override
+  Widget build(BuildContext context) => Listener(
+    behavior: HitTestBehavior.translucent,
+    onPointerDown: (event) => down = event,
+    onPointerCancel: (_) => down = null,
+    onPointerUp: (event) {
+      final start = down;
+      down = null;
+      if (start != null &&
+          start.pointer == event.pointer &&
+          (start.position - event.position).distance < 9 &&
+          (event.timeStamp - start.timeStamp).inMilliseconds < 450)
+        unawaited(Experience.fire('select'));
+    },
+    child: widget.child,
+  );
+}
+
+class Tactile extends StatefulWidget {
+  final Widget child;
+  const Tactile({super.key, required this.child});
+  @override
+  State<Tactile> createState() => _TactileState();
+}
+
+class _TactileState extends State<Tactile> {
+  bool pressed = false;
+  @override
+  Widget build(BuildContext context) => Listener(
+    onPointerDown: (_) => setState(() => pressed = true),
+    onPointerUp: (_) => setState(() => pressed = false),
+    onPointerCancel: (_) => setState(() => pressed = false),
+    child: AnimatedScale(
+      scale:
+          pressed &&
+              displayPreferences['reduceMotion'] != true &&
+              displayPreferences['pressMotion'] != false &&
+              !MediaQuery.disableAnimationsOf(context)
+          ? .975
+          : 1,
+      duration: const Duration(milliseconds: 100),
+      curve: Curves.easeOut,
+      child: widget.child,
+    ),
+  );
+}

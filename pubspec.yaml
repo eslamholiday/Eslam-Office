@@ -1,7 +1,7 @@
 name: eslam_office
 description: Eslam Money - offline travel office and accounting.
 publish_to: none
-version: 1.5.0+2007
+version: 2.0.0+2008
 environment:
   sdk: '>=3.9.0 <4.0.0'
 dependencies:
@@ -28,6 +28,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/fonts/
+    - assets/visuals/clay/
+    - assets/sounds/
   fonts:
     - family: Cairo
       fonts:

@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'domain.dart';
 import 'store.dart';
 import 'ui.dart';
+import 'experience.dart';
 import 'forms.dart';
 import 'reports.dart';
 
@@ -94,92 +95,184 @@ class EntryTile extends StatelessWidget {
         : state.contains('مسترجع')
         ? Colors.red.shade700
         : Colors.teal.shade700;
-    return Card(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: () => Navigator.push(
-          c,
-          MaterialPageRoute(builder: (_) => EntryDetail(s, e)),
-        ),
-        child: Padding(
-          padding: EdgeInsets.all(s.settings['compact'] == true ? 10 : 15),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              CircleAvatar(
-                backgroundColor: kindColor(kind).withValues(alpha: .12),
-                child: Icon(kindIcon(kind), color: kindColor(kind)),
+    return _EntrySwipeActions(
+      s: s,
+      entry: e,
+      child: Card(
+        shape:
+            activePack.ticketCutouts && (kind == 'ticket' || kind == 'change')
+            ? const TicketShape()
+            : null,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(height: 5, color: kindColor(kind)),
+            InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () => Navigator.push(
+                c,
+                MaterialPageRoute(builder: (_) => EntryDetail(s, e)),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
+              child: Padding(
+                padding: EdgeInsets.all(
+                  s.settings['compact'] == true ? 10 : 15,
+                ),
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '${e.label} • ${entryLabel(s, e)}',
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                    ArtIcon(artIndex(kind), size: 48),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${e.label} • ${entryLabel(s, e)}',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            '#${e.id} • ${displayDate(e.date)}',
+                            style: Theme.of(c).textTheme.bodySmall,
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 5,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 9,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: color.withValues(alpha: .1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  state,
+                                  style: TextStyle(
+                                    color: color,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              if ((e.data['attachments'] as List? ?? [])
+                                  .isNotEmpty)
+                                const Icon(Icons.attach_file, size: 17),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 5),
-                    Text(
-                      '#${e.id} • ${displayDate(e.date)}',
-                      style: Theme.of(c).textTheme.bodySmall,
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 5,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 9,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: color.withValues(alpha: .1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            state,
-                            style: TextStyle(
-                              color: color,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
+                    const SizedBox(width: 8),
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: MediaQuery.sizeOf(c).width * .3,
+                      ),
+                      child: Text(
+                        s.settings['hideAmounts'] == true
+                            ? '••••'
+                            : e.currency.format(
+                                e.data['amount'] as int? ?? e.sale,
+                              ),
+                        textDirection: TextDirection.ltr,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 17,
+                          color: Theme.of(c).colorScheme.primary,
                         ),
-                        if ((e.data['attachments'] as List? ?? []).isNotEmpty)
-                          const Icon(Icons.attach_file, size: 17),
-                      ],
+                      ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.sizeOf(c).width * .3,
-                ),
-                child: Text(
-                  s.settings['hideAmounts'] == true
-                      ? '••••'
-                      : e.currency.format(e.data['amount'] as int? ?? e.sale),
-                  textDirection: TextDirection.ltr,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 17,
-                    color: Theme.of(c).colorScheme.primary,
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
+
+class _EntrySwipeActions extends StatefulWidget {
+  final Store s;
+  final Entry entry;
+  final Widget child;
+  const _EntrySwipeActions({
+    required this.s,
+    required this.entry,
+    required this.child,
+  });
+  @override
+  State<_EntrySwipeActions> createState() => _EntrySwipeActionsState();
+}
+
+class _EntrySwipeActionsState extends State<_EntrySwipeActions> {
+  bool open = false;
+  double distance = 0;
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onHorizontalDragStart: widget.s.settings['swipeCards'] == false
+        ? null
+        : (_) => distance = 0,
+    onHorizontalDragUpdate: widget.s.settings['swipeCards'] == false
+        ? null
+        : (d) => distance += d.delta.dx,
+    onHorizontalDragEnd: widget.s.settings['swipeCards'] == false
+        ? null
+        : (d) {
+            if (distance.abs() > 42 || (d.primaryVelocity ?? 0).abs() > 180) {
+              Experience.fire('navigate');
+              setState(() => open = !open);
+            }
+          },
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Tactile(child: widget.child),
+        if (open && widget.s.settings['swipeCards'] != false)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: Wrap(
+              spacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => EntryDetail(widget.s, widget.entry),
+                    ),
+                  ),
+                  icon: const Icon(Icons.visibility_outlined),
+                  label: const Text('عرض العملية'),
+                ),
+                if (widget.entry.kind != 'refund')
+                  FilledButton.icon(
+                    onPressed: () => newEntry(
+                      context,
+                      widget.s,
+                      widget.entry.kind,
+                      draft: widget.entry,
+                    ),
+                    icon: const Icon(Icons.edit_rounded),
+                    label: const Text('تعديل العملية'),
+                  ),
+                IconButton(
+                  tooltip: 'إخفاء الاختصارات',
+                  onPressed: () => setState(() => open = false),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+          ),
+      ],
+    ),
+  );
 }
 
 class EntriesPage extends StatefulWidget {
@@ -223,7 +316,7 @@ class _EntriesPageState extends State<EntriesPage> {
           )
           .toList();
       return Scaffold(
-        appBar: AppBar(
+        appBar: ClayAppBar(
           title: Text(widget.kind == null ? 'العمليات' : types[widget.kind]!),
           actions: [
             if (query.isNotEmpty ||
@@ -324,7 +417,7 @@ class EntryDetail extends StatelessWidget {
   Widget build(BuildContext c) {
     final sale = ['ticket', 'hotel', 'visa', 'refund'].contains(e.kind);
     return Scaffold(
-      appBar: AppBar(
+      appBar: ClayAppBar(
         title: Text('${e.label} #${e.id}'),
         actions: [
           if (['ticket', 'visa', 'hotel'].contains(e.kind))
@@ -367,6 +460,12 @@ class EntryDetail extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(12),
         children: [
+          ServiceBanner(
+            kind: e.kind,
+            title: e.label,
+            subtitle: '#${e.id} • ${displayDate(e.date)}',
+            height: 100,
+          ),
           Section(e.posted ? 'عملية معتمدة' : 'مسودة', [
             Text('التاريخ: ${displayDate(e.date)} • ${e.currency.name}'),
             if (e.data['customer'] != null)
@@ -588,7 +687,7 @@ class _PartiesPageState extends State<PartiesPage> {
               return partyDisplayName(a).compareTo(partyDisplayName(b));
             });
       return Scaffold(
-        appBar: AppBar(
+        appBar: ClayAppBar(
           title: Text(
             {
               'customer': 'الزبائن',
@@ -796,7 +895,7 @@ class _AccountPageState extends State<AccountPage> {
       final financial = ['customer', 'supplier'].contains(p['kind']);
       final history = s.history(id);
       return Scaffold(
-        appBar: AppBar(
+        appBar: ClayAppBar(
           title: Text(partyDisplayName(p)),
           actions: [
             if (financial)
@@ -1204,7 +1303,7 @@ class _SearchPageState extends State<SearchPage> {
             );
           }).toList();
     return Scaffold(
-      appBar: AppBar(title: const Text('البحث الموحّد')),
+      appBar: ClayAppBar(title: const Text('البحث الموحّد')),
       body: Column(
         children: [
           Padding(
@@ -1308,7 +1407,7 @@ class _PassengerGroupsPageState extends State<PassengerGroupsPage> {
                 ));
       }).toList();
       return Scaffold(
-        appBar: AppBar(
+        appBar: ClayAppBar(
           title: const Text('المسافرون حسب الزبون'),
           actions: [
             IconButton(

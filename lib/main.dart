@@ -8,6 +8,7 @@ import 'pages.dart';
 import 'reports.dart';
 import 'settings.dart';
 import 'money_pages.dart';
+import 'experience.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -96,113 +97,34 @@ class OfficeApp extends StatelessWidget {
   Widget build(BuildContext c) => AnimatedBuilder(
     animation: s,
     builder: (c, _) {
-      final dark = s.settings['dark'] == true;
-      final color = Color(s.settings['color'] as int? ?? navy.toARGB32());
-      final radius = (s.settings['radius'] as num? ?? 14).toDouble();
+      final mode =
+          s.settings['appearanceMode'] ??
+          (s.settings['dark'] == true ? 'dark' : 'light');
       return MaterialApp(
         title: 'Eslam Money',
         debugShowCheckedModeBanner: false,
         locale: const Locale('ar'),
         supportedLocales: const [Locale('ar'), Locale('en')],
         localizationsDelegates: GlobalMaterialLocalizations.delegates,
-        theme: ThemeData(
-          useMaterial3: true,
-          fontFamily: 'Cairo',
-          brightness: dark ? Brightness.dark : Brightness.light,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: color,
-            brightness: dark ? Brightness.dark : Brightness.light,
-          ),
-          scaffoldBackgroundColor: dark
-              ? const Color(0xff111a24)
-              : const Color(0xfff4f6f9),
-          visualDensity: s.settings['compact'] == true
-              ? VisualDensity.compact
-              : VisualDensity.standard,
-          appBarTheme: AppBarTheme(
-            centerTitle: false,
-            backgroundColor: dark
-                ? const Color(0xff111a24)
-                : const Color(0xfff4f6f9),
-            elevation: 0,
-            titleTextStyle: TextStyle(
-              fontFamily: 'Cairo',
-              fontSize: 21,
-              fontWeight: FontWeight.w800,
-              color: dark ? Colors.white : navy,
-            ),
-          ),
-          cardTheme: CardThemeData(
-            color: dark ? const Color(0xff1c2937) : Colors.white,
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            margin: EdgeInsets.only(
-              bottom: s.settings['compactForms'] == true ? 8 : 12,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(radius),
-              side: BorderSide(
-                color: dark ? Colors.white10 : const Color(0xffe4e9ef),
-              ),
-            ),
-          ),
-          inputDecorationTheme: InputDecorationTheme(
-            floatingLabelBehavior: FloatingLabelBehavior.always,
-            labelStyle: TextStyle(
-              color: dark ? Colors.white70 : const Color(0xff465568),
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: color, width: 2),
-            ),
-            filled: true,
-            fillColor: dark ? const Color(0xff202d3a) : const Color(0xfff7f9fc),
-            contentPadding: EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: s.settings['compactForms'] == true ? 10 : 16,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xffdce3ec)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xffdce3ec)),
-            ),
-          ),
-          filledButtonTheme: FilledButtonThemeData(
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(0, 50),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(13),
-              ),
-            ),
-          ),
-          listTileTheme: ListTileThemeData(
-            titleTextStyle: TextStyle(
-              fontFamily: 'Cairo',
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: dark ? Colors.white : const Color(0xff1b2b3c),
-            ),
-            subtitleTextStyle: TextStyle(
-              fontFamily: 'Cairo',
-              fontSize: 13,
-              color: dark ? Colors.white70 : const Color(0xff526273),
-            ),
-          ),
-          iconTheme: const IconThemeData(size: 24),
-        ),
+        theme: packTheme(Brightness.light, s.settings),
+        darkTheme: packTheme(Brightness.dark, s.settings),
+        themeMode: mode == 'system'
+            ? ThemeMode.system
+            : mode == 'dark'
+            ? ThemeMode.dark
+            : ThemeMode.light,
+        navigatorObservers: [experienceObserver],
         builder: (c, child) => MediaQuery(
           data: MediaQuery.of(c).copyWith(
             textScaler: TextScaler.linear(
-              (s.settings['textScale'] as num? ?? 1).toDouble(),
+              MediaQuery.textScalerOf(c).scale(1) *
+                  (s.settings['textScale'] as num? ?? 1).toDouble(),
             ),
-            disableAnimations: s.settings['reduceMotion'] == true,
+            disableAnimations:
+                MediaQuery.disableAnimationsOf(c) ||
+                s.settings['reduceMotion'] == true,
           ),
-          child: child!,
+          child: ExperienceTapRegion(child: child!),
         ),
         home: Shell(s),
       );
@@ -240,24 +162,47 @@ class _ShellState extends State<Shell> {
     }
     final selected = visible.contains(current) ? current : visible.first;
     return Scaffold(
-      body: page(selected),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: visible.indexOf(selected),
-        onDestinationSelected: (i) => setState(() => current = visible[i]),
-        destinations: visible
-            .map(
-              (k) => NavigationDestination(
-                icon: Icon(switch (k) {
-                  'home' => Icons.dashboard_outlined,
-                  'statements' => Icons.receipt_long_outlined,
-                  'customers' => Icons.people_outline,
-                  'settings' => Icons.settings_outlined,
-                  _ => Icons.bar_chart_rounded,
-                }),
-                label: navLabels[k]!,
-              ),
-            )
-            .toList(),
+      body: AnimatedSwitcher(
+        duration: Duration(
+          milliseconds:
+              s.settings['reduceMotion'] == true ||
+                  MediaQuery.disableAnimationsOf(c)
+              ? 0
+              : s.settings['motionPace'] == 'quick'
+              ? 130
+              : 230,
+        ),
+        child: KeyedSubtree(key: ValueKey(selected), child: page(selected)),
+      ),
+      bottomNavigationBar: GestureDetector(
+        onHorizontalDragEnd: s.settings['swipeTabs'] == false
+            ? null
+            : (details) {
+                final speed = details.primaryVelocity ?? 0;
+                if (speed.abs() < 180) return;
+                final next = (visible.indexOf(selected) + (speed > 0 ? 1 : -1))
+                    .clamp(0, visible.length - 1);
+                if (visible[next] != selected) {
+                  Experience.fire('navigate');
+                  setState(() => current = visible[next]);
+                }
+              },
+        child: NavigationBar(
+          selectedIndex: visible.indexOf(selected),
+          onDestinationSelected: (i) {
+            if (current != visible[i]) Experience.fire('navigate');
+            setState(() => current = visible[i]);
+          },
+          destinations: visible
+              .map(
+                (k) => NavigationDestination(
+                  icon: ArtIcon(artIndex(k), size: 32),
+                  selectedIcon: ArtIcon(artIndex(k), size: 40),
+                  label: navLabels[k]!,
+                ),
+              )
+              .toList(),
+        ),
       ),
     );
   }
@@ -368,7 +313,7 @@ class HomePage extends StatelessWidget {
               ).contains(k),
         );
     return Scaffold(
-      appBar: AppBar(
+      appBar: ClayAppBar(
         title: const Text('الرئيسية'),
         actions: [
           IconButton(
@@ -383,11 +328,13 @@ class HomePage extends StatelessWidget {
           child: ListView(
             children: [
               const DrawerHeader(
-                decoration: BoxDecoration(color: navy),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [coral, Color(0xfffa986e)]),
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.flight_takeoff_rounded, color: gold, size: 46),
+                    ArtIcon(0, size: 56),
                     SizedBox(height: 12),
                     Text(
                       'Eslam Money',
@@ -424,7 +371,7 @@ class HomePage extends StatelessWidget {
                 onTap: () => showAboutDialog(
                   context: c,
                   applicationName: 'Eslam Money',
-                  applicationVersion: '1.3.0',
+                  applicationVersion: '2.0.0',
                   children: [
                     const Text(
                       'Eslam Holiday\nEslamholiday.com\n07713414312\nجميع الحقوق محفوظة 2026',
@@ -441,37 +388,11 @@ class HomePage extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [navy, Color(0xff1f557d)],
-                ),
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'أهلًا إسلام',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 23,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'E S L A M   M O N E Y',
-                    style: TextStyle(color: gold, letterSpacing: 2),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'حسابات مكتبك في مكان واحد',
-                    style: TextStyle(color: Colors.white70),
-                  ),
-                ],
-              ),
+            const ServiceBanner(
+              kind: 'expense',
+              title: 'أهلًا إسلام',
+              subtitle: 'Eslam Money • مكتبك بين إيديك',
+              height: 140,
             ),
             const SizedBox(height: 16),
             Wrap(
@@ -494,7 +415,7 @@ class HomePage extends StatelessWidget {
                     onPressed: () => showAboutDialog(
                       context: c,
                       applicationName: 'Eslam Money',
-                      applicationVersion: '1.3.0',
+                      applicationVersion: '2.0.0',
                       children: [const Text('Eslamholiday.com • 07713414312')],
                     ),
                   ),
@@ -587,6 +508,32 @@ class HomePage extends StatelessWidget {
                 ),
               ),
             ),
+            if (s.settings['homeServiceCards'] != false) ...[
+              Tactile(
+                child: ServiceBanner(
+                  kind: 'ticket',
+                  title: 'التذاكر',
+                  subtitle: 'طيران • إصدار • تغيير',
+                  onTap: () => open(EntryForm(s, 'ticket')),
+                ),
+              ),
+              Tactile(
+                child: ServiceBanner(
+                  kind: 'visa',
+                  title: 'الفيزا',
+                  subtitle: 'جوازات • طلبات • مواعيد',
+                  onTap: () => open(EntryForm(s, 'visa')),
+                ),
+              ),
+              Tactile(
+                child: ServiceBanner(
+                  kind: 'hotel',
+                  title: 'الفنادق',
+                  subtitle: 'حجوزات • غرف • ضيافة',
+                  onTap: () => open(EntryForm(s, 'hotel')),
+                ),
+              ),
+            ],
             if (s.settings['showHomeStats'] != false) ...[
               const SizedBox(height: 16),
               LayoutBuilder(
@@ -623,7 +570,15 @@ class HomePage extends StatelessWidget {
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(stat.$2, color: stat.$3, size: 22),
+                                    ArtIcon(switch (stat.$1) {
+                                      'تذاكر' => 0,
+                                      'فيز' => 1,
+                                      'فنادق' => 2,
+                                      'مسافرون' || 'زبائن' => 5,
+                                      'شركات الإصدار' => 6,
+                                      'التسوية' => 4,
+                                      _ => 3,
+                                    }, size: 42),
                                     Text(
                                       '${counts[stat.$1]}',
                                       style: TextStyle(

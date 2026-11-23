@@ -10,6 +10,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'domain.dart';
 import 'store.dart';
+import 'visual_system.dart';
+import 'experience.dart';
+export 'visual_system.dart';
 
 const navy = Color(0xFF123B5D), gold = Color(0xFFD4A84F);
 IconData kindIcon(String kind) => switch (kind) {
@@ -23,11 +26,11 @@ IconData kindIcon(String kind) => switch (kind) {
   _ => Icons.account_balance_wallet_rounded,
 };
 Color kindColor(String kind) => switch (kind) {
-  'ticket' || 'change' => const Color(0xff2878bb),
-  'expense' => const Color(0xffb65b80),
-  'hotel' => const Color(0xff9067be),
-  'visa' => const Color(0xff249786),
-  'settlement' => const Color(0xffbc8936),
+  'ticket' || 'change' => teal,
+  'expense' => coral,
+  'hotel' => const Color(0xffd38a4d),
+  'visa' => violet,
+  'settlement' => teal,
   'refund' => const Color(0xffba5959),
   _ => navy,
 };
@@ -41,6 +44,7 @@ Future<void> guarded(BuildContext c, Future<void> Function() fn) async {
   try {
     await fn();
   } catch (e) {
+    unawaited(Experience.fire('error'));
     if (c.mounted) message(c, e);
   }
 }
@@ -65,6 +69,7 @@ class Section extends StatelessWidget {
   Widget build(BuildContext c) => collapsible
       ? Card(
           child: ExpansionTile(
+            leading: ArtIcon(titleArt(title), size: 34),
             initiallyExpanded: initiallyExpanded,
             maintainState: true,
             subtitle: subtitle == null
@@ -90,6 +95,8 @@ class Section extends StatelessWidget {
               children: [
                 Row(
                   children: [
+                    ArtIcon(titleArt(title), size: 36),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         title,
@@ -126,11 +133,7 @@ class EmptyState extends StatelessWidget {
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(
-          icon,
-          size: 66,
-          color: Theme.of(c).colorScheme.primary.withValues(alpha: .45),
-        ),
+        const ArtIcon(15, size: 100),
         const SizedBox(height: 18),
         Text(
           title,
@@ -166,7 +169,19 @@ class AmountBox extends StatelessWidget {
   Widget build(BuildContext c) => Container(
     padding: const EdgeInsets.all(14),
     decoration: BoxDecoration(
-      color: (color ?? Theme.of(c).colorScheme.primary).withValues(alpha: .07),
+      gradient: LinearGradient(
+        begin: Alignment.topRight,
+        end: Alignment.bottomLeft,
+        colors: [
+          (color ?? Theme.of(c).colorScheme.secondary).withValues(alpha: .16),
+          (color ?? Theme.of(c).colorScheme.secondary).withValues(alpha: .04),
+        ],
+      ),
+      border: Border.all(
+        color: (color ?? Theme.of(c).colorScheme.secondary).withValues(
+          alpha: .2,
+        ),
+      ),
       borderRadius: BorderRadius.circular(16),
     ),
     child: Column(
@@ -240,6 +255,7 @@ Widget textField(
     controller: controller,
     decoration: InputDecoration(
       labelText: label,
+      prefixIcon: Icon(fieldIcon(label)),
       floatingLabelBehavior: FloatingLabelBehavior.always,
     ),
     keyboardType: number
@@ -282,6 +298,7 @@ class DateField extends StatelessWidget {
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: label,
+          prefixIcon: Icon(fieldIcon(label)),
           floatingLabelBehavior: FloatingLabelBehavior.always,
           suffixIcon: value != null && optional
               ? IconButton(
@@ -487,6 +504,7 @@ class PickField extends StatelessWidget {
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: label,
+          prefixIcon: Icon(fieldIcon(label)),
           floatingLabelBehavior: FloatingLabelBehavior.always,
           suffixIcon: Row(
             mainAxisSize: MainAxisSize.min,
@@ -777,7 +795,7 @@ Future<void> openAttachment(BuildContext c, String path) async {
       c,
       MaterialPageRoute(
         builder: (_) => Scaffold(
-          appBar: AppBar(title: const Text('معاينة الصورة')),
+          appBar: ClayAppBar(title: const Text('معاينة الصورة')),
           body: Center(
             child: InteractiveViewer(
               minScale: 1,

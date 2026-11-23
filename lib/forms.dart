@@ -8,6 +8,7 @@ import 'pages.dart';
 import 'domain.dart';
 import 'store.dart';
 import 'ui.dart';
+import 'experience.dart';
 
 Future<int?> editParty(
   BuildContext c,
@@ -145,7 +146,10 @@ class _PartyFormState extends State<PartyForm> {
           onClear: travelerType == null
               ? null
               : () => setState(() => travelerType = null),
-          decoration: InputDecoration(labelText: label),
+          decoration: InputDecoration(
+            labelText: label,
+            prefixIcon: Icon(fieldIcon(label)),
+          ),
           items:
               inputChoices(
                     widget.s.settings,
@@ -214,7 +218,7 @@ class _PartyFormState extends State<PartyForm> {
   Widget build(BuildContext c) => AnimatedBuilder(
     animation: widget.s,
     builder: (c, _) => Scaffold(
-      appBar: AppBar(
+      appBar: ClayAppBar(
         title: Text(
           '${widget.preview
               ? 'معاينة'
@@ -331,6 +335,7 @@ class _PartyFormState extends State<PartyForm> {
                               values,
                               id: widget.party?['id'],
                             );
+                            unawaited(Experience.fire('save'));
                             if (c.mounted) Navigator.pop(c, id);
                           } catch (e) {
                             if (c.mounted) message(c, e);
@@ -748,6 +753,7 @@ class _EntryFormState extends State<EntryForm> {
         }
       }
       final savedId = await widget.s.saveEntry(v, id: widget.draft?.id);
+      unawaited(Experience.fire('save'));
       recoveryTimer?.cancel();
       await widget.s.set(recoveryKey, null);
       if (mounted) {
@@ -785,6 +791,7 @@ class _EntryFormState extends State<EntryForm> {
         }
       }
     } catch (e) {
+      unawaited(Experience.fire('error'));
       if (mounted) {
         if (e.toString().contains('حساب الزبون')) {
           setState(() => revealed.add('customer'));
@@ -1338,7 +1345,10 @@ class _EntryFormState extends State<EntryForm> {
       padding: const EdgeInsets.only(bottom: 12),
       child: ChoiceField<String>(
         initialValue: d[f.key]?.toString(),
-        decoration: InputDecoration(labelText: label),
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(fieldIcon(label)),
+        ),
         items: choices.entries
             .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
             .toList(),
@@ -1487,7 +1497,7 @@ class _EntryFormState extends State<EntryForm> {
           if (!didPop && !busy) confirmLeave();
         },
         child: Scaffold(
-          appBar: AppBar(
+          appBar: ClayAppBar(
             title: Text(
               '${widget.preview
                   ? 'معاينة'
@@ -1520,6 +1530,14 @@ class _EntryFormState extends State<EntryForm> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                ServiceBanner(
+                  kind: widget.kind,
+                  title: types[widget.kind] ?? 'عملية',
+                  subtitle: widget.preview
+                      ? 'معاينة الإدخالات'
+                      : 'بياناتك • حساباتك • بطريقتك',
+                  height: 92,
+                ),
                 if (widget.preview)
                   const ListTile(
                     leading: Icon(Icons.preview_outlined),

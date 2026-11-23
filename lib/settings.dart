@@ -6,6 +6,8 @@ import 'store.dart';
 import 'ui.dart';
 import 'input_settings.dart';
 import 'input_schema.dart';
+import 'experience_settings.dart';
+import 'experience.dart';
 
 const themeNames = [
   'مكتب فاخر',
@@ -76,19 +78,48 @@ class SettingsPage extends StatelessWidget {
   Widget tile(
     BuildContext c,
     String title,
-    IconData icon,
+    int art,
     Widget page, [
     String? subtitle,
-  ]) => ListTile(
-    leading: Icon(icon),
-    title: Text(title),
-    subtitle: subtitle == null ? null : Text(subtitle),
-    trailing: const Icon(Icons.chevron_left),
-    onTap: () => Navigator.push(c, MaterialPageRoute(builder: (_) => page)),
+  ]) => Tactile(
+    child: Card(
+      child: InkWell(
+        onTap: () => Navigator.push(c, MaterialPageRoute(builder: (_) => page)),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  ArtIcon(art, size: 48),
+                  const Spacer(),
+                  const Icon(Icons.chevron_left_rounded, size: 18),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
+              ),
+              if (subtitle != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(subtitle, style: Theme.of(c).textTheme.bodySmall),
+                ),
+            ],
+          ),
+        ),
+      ),
+    ),
   );
   @override
   Widget build(BuildContext c) => Scaffold(
-    appBar: AppBar(
+    appBar: ClayAppBar(
       title: const Text('الإعدادات'),
       actions: [
         IconButton(
@@ -99,62 +130,75 @@ class SettingsPage extends StatelessWidget {
       ],
     ),
     body: ListView(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       children: [
-        Section('الإدخال والقوائم', [
-          tile(
-            c,
-            'تخصيص كل الإدخالات والقوائم',
-            Icons.tune,
-            InputCenterPage(s),
-            'التذاكر والخدمات والحسابات — الحقول والترتيب والافتراضيات',
+        const Padding(
+          padding: EdgeInsets.only(bottom: 14),
+          child: Row(
+            children: [
+              ArtIcon(8, size: 64),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'خلّي التطبيق على راحتك',
+                  style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
           ),
-          tile(
-            c,
-            'سلوك الإدخال',
-            Icons.touch_app_outlined,
-            InputBehaviorPage(s),
-            'الكثافة والبحث والحفظ التلقائي والاختيار',
+        ),
+        Section('الإدخال والقوائم', [
+          pair(
+            tile(
+              c,
+              'تخصيص كل الإدخالات والقوائم',
+              13,
+              InputCenterPage(s),
+              'إخفاء • ترتيب • افتراضيات',
+            ),
+            tile(
+              c,
+              'سلوك الإدخال',
+              12,
+              InputBehaviorPage(s),
+              'بحث • اختيار • حفظ',
+            ),
           ),
         ]),
         Section('المظهر والتنقل', [
-          tile(
-            c,
-            'الثيمات والألوان والخطوط',
-            Icons.palette_outlined,
-            AppearancePage(s),
+          pair(
+            tile(c, 'الثيمات والألوان والخطوط', 9, AppearancePage(s)),
+            tile(c, 'الرئيسية وشريط التنقل', 0, LayoutPage(s)),
+          ),
+          pair(
+            tile(c, 'الصوت', 10, ExperienceSettingsPage(s)),
+            tile(
+              c,
+              'الاهتزاز',
+              11,
+              ExperienceSettingsPage(s, initial: 'haptic'),
+            ),
           ),
           tile(
             c,
-            'الرئيسية وشريط التنقل',
-            Icons.dashboard_customize_outlined,
-            LayoutPage(s),
+            'الإيماءات والحركة',
+            12,
+            ExperienceSettingsPage(s, initial: 'gesture'),
           ),
         ]),
         Section('المكتب والكشوف والحساب', [
-          tile(
-            c,
-            'الأرقام والتواريخ والحفظ',
-            Icons.numbers,
-            PreferencesPage(s),
+          pair(
+            tile(c, 'الأرقام والتواريخ والحفظ', 14, PreferencesPage(s)),
+            tile(c, 'بيانات المكتب والشعار والكشوف', 6, OfficeSettings(s)),
           ),
-          tile(
-            c,
-            'بيانات المكتب والشعار والكشوف',
-            Icons.business_outlined,
-            OfficeSettings(s),
-          ),
-          tile(c, 'عمولات الطيران وجهات الإصدار', Icons.percent, RulesPage(s)),
+          tile(c, 'عمولات الطيران وجهات الإصدار', 7, RulesPage(s)),
         ]),
         Section('السجل والتطبيق', [
-          tile(
-            c,
-            'المحذوفات / الأرشيف',
-            Icons.archive_outlined,
-            ArchivePage(s),
+          pair(
+            tile(c, 'المحذوفات / الأرشيف', 15, ArchivePage(s)),
+            tile(c, 'سجل التعديلات', 13, AuditPage(s)),
           ),
-          tile(c, 'سجل التعديلات', Icons.history, AuditPage(s)),
-          tile(c, 'حول Eslam Money', Icons.info_outline, AboutPage(s)),
+          tile(c, 'حول Eslam Money', 0, AboutPage(s)),
         ]),
       ],
     ),
@@ -165,221 +209,7 @@ class AppearancePage extends StatelessWidget {
   final Store s;
   const AppearancePage(this.s, {super.key});
   @override
-  Widget build(BuildContext c) => AnimatedBuilder(
-    animation: s,
-    builder: (c, _) => Scaffold(
-      appBar: AppBar(title: const Text('المظهر')),
-      body: ListView(
-        padding: const EdgeInsets.all(12),
-        children: [
-          Section('الثيمات', [
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: List.generate(
-                themeNames.length,
-                (i) => ActionChip(
-                  avatar: CircleAvatar(
-                    backgroundColor: themeColors[i],
-                    radius: 10,
-                  ),
-                  label: SizedBox(
-                    width: 118,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(themeNames[i]),
-                        const SizedBox(height: 6),
-                        Container(
-                          height: 24,
-                          decoration: BoxDecoration(
-                            color: themeColors[i].withValues(alpha: .13),
-                            borderRadius: BorderRadius.circular(5),
-                          ),
-                          child: Row(
-                            children: [
-                              const SizedBox(width: 5),
-                              Icon(
-                                Icons.credit_card,
-                                size: 15,
-                                color: themeColors[i],
-                              ),
-                              const Spacer(),
-                              Container(
-                                width: 34,
-                                height: 10,
-                                color: themeColors[i],
-                              ),
-                              const SizedBox(width: 5),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                      ],
-                    ),
-                  ),
-                  onPressed: () async {
-                    final apply = await showDialog<bool>(
-                      context: c,
-                      builder: (ctx) => AlertDialog(
-                        title: Text(themeNames[i]),
-                        content: Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: themeColors[i].withValues(alpha: .08),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.flight_takeoff,
-                                size: 50,
-                                color: themeColors[i],
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                'Eslam Money',
-                                style: TextStyle(
-                                  color: themeColors[i],
-                                  fontSize: 24,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              const Text('معاينة اللون الأساسي والبطاقات'),
-                            ],
-                          ),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx, false),
-                            child: const Text('إلغاء'),
-                          ),
-                          FilledButton(
-                            onPressed: () => Navigator.pop(ctx, true),
-                            child: const Text('تطبيق'),
-                          ),
-                        ],
-                      ),
-                    );
-                    if (apply == true) {
-                      await s.set('theme', i);
-                      await s.set('color', themeColors[i].toARGB32());
-                      await s.set('dark', i == 2);
-                    }
-                  },
-                ),
-              ),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('الوضع الداكن'),
-              value: s.settings['dark'] == true,
-              onChanged: (v) => s.set('dark', v),
-            ),
-          ]),
-          Section('اللون الرئيسي', [
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children:
-                  [
-                        navy,
-                        gold,
-                        Colors.teal,
-                        Colors.indigo,
-                        Colors.blue,
-                        Colors.purple,
-                        Colors.deepOrange,
-                        Colors.green,
-                        Colors.pink,
-                        Colors.blueGrey,
-                      ]
-                      .map(
-                        (color) => InkWell(
-                          onTap: () => s.set('color', color.toARGB32()),
-                          child: CircleAvatar(
-                            radius: 22,
-                            backgroundColor: color,
-                            child: s.settings['color'] == color.toARGB32()
-                                ? const Icon(Icons.check, color: Colors.white)
-                                : null,
-                          ),
-                        ),
-                      )
-                      .toList(),
-            ),
-          ]),
-          Section('النصوص والبطاقات', [
-            AmountBox('معاينة مباشرة — المبلغ', Currency.USD.format(123456)),
-            const SizedBox(height: 12),
-            Text(
-              'حجم النص: ${((s.settings['textScale'] as num? ?? 1) * 100).round()}%',
-            ),
-            Slider(
-              value: (s.settings['textScale'] as num? ?? 1).toDouble(),
-              min: .85,
-              max: 1.35,
-              divisions: 10,
-              label: '${s.settings['textScale'] ?? 1}',
-              onChanged: (v) => s.set('textScale', v),
-            ),
-            const Text('استدارة البطاقات'),
-            Slider(
-              value: (s.settings['radius'] as num? ?? 18).toDouble(),
-              min: 4,
-              max: 30,
-              divisions: 13,
-              onChanged: (v) => s.set('radius', v),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('كثافة مدمجة'),
-              value: s.settings['compact'] == true,
-              onChanged: (v) => s.set('compact', v),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('نماذج إدخال مختصرة'),
-              value: s.settings['compactForms'] == true,
-              onChanged: (v) => s.set('compactForms', v),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('تقليل الحركة'),
-              value: s.settings['reduceMotion'] == true,
-              onChanged: (v) => s.set('reduceMotion', v),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('إظهار العناوين الإنجليزية الثانوية'),
-              value: s.settings['showEnglishLabels'] != false,
-              onChanged: (v) => s.set('showEnglishLabels', v),
-            ),
-          ]),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: OutlinedButton(
-              onPressed: () async {
-                for (final p in {
-                  'theme': 0,
-                  'color': navy.toARGB32(),
-                  'dark': false,
-                  'textScale': 1.0,
-                  'radius': 18.0,
-                  'compact': false,
-                  'reduceMotion': false,
-                }.entries) {
-                  await s.set(p.key, p.value);
-                }
-              },
-              child: const Text('استعادة المظهر الافتراضي'),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
+  Widget build(BuildContext c) => PackAppearancePage(s);
 }
 
 class LayoutPage extends StatelessWidget {
@@ -403,10 +233,18 @@ class LayoutPage extends StatelessWidget {
         s.settings['homeShortcutHidden'] ?? const <String>[],
       );
       return Scaffold(
-        appBar: AppBar(title: const Text('الرئيسية والتنقل')),
+        appBar: ClayAppBar(title: const Text('الرئيسية والتنقل')),
         body: ListView(
           padding: const EdgeInsets.all(12),
           children: [
+            Section('بطاقات الخدمات المصوّرة', [
+              SwitchListTile(
+                title: const Text('إظهار بطاقات التذاكر والفيزا والفنادق'),
+                secondary: const ArtIcon(0, size: 36),
+                value: s.settings['homeServiceCards'] != false,
+                onChanged: (v) => s.set('homeServiceCards', v),
+              ),
+            ]),
             Section('شاشة البداية', [
               ChoiceField<String>(
                 isExpanded: true,
@@ -595,7 +433,7 @@ class _OfficeSettingsState extends State<OfficeSettings> {
 
   @override
   Widget build(BuildContext c) => Scaffold(
-    appBar: AppBar(title: const Text('هوية المكتب والكشوف')),
+    appBar: ClayAppBar(title: const Text('هوية المكتب والكشوف')),
     body: ListView(
       padding: const EdgeInsets.all(12),
       children: [
@@ -840,7 +678,7 @@ class _ReferencePageState extends State<ReferencePage> {
         rows.sort((a, b) => '${a['name']}'.compareTo('${b['name']}'));
       }
       return Scaffold(
-        appBar: AppBar(
+        appBar: ClayAppBar(
           title: Text(title),
           actions: [
             IconButton(
@@ -910,7 +748,7 @@ class _RulesPageState extends State<RulesPage> {
 
   @override
   Widget build(BuildContext c) => Scaffold(
-    appBar: AppBar(title: const Text('قواعد العمولات')),
+    appBar: ClayAppBar(title: const Text('قواعد العمولات')),
     body: ListView(
       padding: const EdgeInsets.all(12),
       children: [
@@ -1022,7 +860,7 @@ class ArchivePage extends StatelessWidget {
   Widget build(BuildContext c) => AnimatedBuilder(
     animation: s,
     builder: (c, _) => Scaffold(
-      appBar: AppBar(title: const Text('الحسابات المؤرشفة')),
+      appBar: ClayAppBar(title: const Text('الحسابات المؤرشفة')),
       body: !s.parties.any((p) => p['archived'] == 1)
           ? const Center(
               child: EmptyState(
@@ -1086,7 +924,7 @@ class AuditPage extends StatelessWidget {
   Widget build(BuildContext c) => AnimatedBuilder(
     animation: s,
     builder: (c, _) => Scaffold(
-      appBar: AppBar(title: const Text('سجل التعديلات')),
+      appBar: ClayAppBar(title: const Text('سجل التعديلات')),
       body: s.logs.isEmpty
           ? const Center(
               child: EmptyState(
@@ -1179,18 +1017,18 @@ class AboutPage extends StatelessWidget {
   const AboutPage(this.s, {super.key});
   @override
   Widget build(BuildContext c) => Scaffold(
-    appBar: AppBar(title: const Text('حول التطبيق')),
+    appBar: ClayAppBar(title: const Text('حول التطبيق')),
     body: ListView(
       padding: const EdgeInsets.all(24),
       children: [
-        const Icon(Icons.flight_takeoff_rounded, size: 80, color: gold),
+        const ArtIcon(0, size: 100),
         const SizedBox(height: 24),
         const Text(
           'Eslam Money',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
         ),
-        const Text('1.5.0 • فكرة وإشراف إسلام', textAlign: TextAlign.center),
+        const Text('2.0.0 • فكرة وإشراف إسلام', textAlign: TextAlign.center),
         const SizedBox(height: 24),
         const Text(
           'إدارة مكتب السفر والحسابات\nحفظ محلي • دولار ودينار • بحث موحّد',
@@ -1245,7 +1083,7 @@ class PreferencesPage extends StatelessWidget {
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: s,
     builder: (context, _) => Scaffold(
-      appBar: AppBar(title: const Text('الأرقام والتواريخ والحفظ')),
+      appBar: ClayAppBar(title: const Text('الأرقام والتواريخ والحفظ')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -1321,7 +1159,13 @@ class SettingsSearch extends SearchDelegate<void> {
   final Store s;
   SettingsSearch(this.s) : super(searchFieldLabel: 'ابحث في الإعدادات');
   Map<String, Widget> get destinations => {
-    'الثيمات الألوان الخطوط المظهر': AppearancePage(s),
+    'الثيمات الألوان الخطوط المظهر حزم الأشكال': AppearancePage(s),
+    'الصوت المؤثرات مستوى الصوت': ExperienceSettingsPage(s),
+    'الاهتزاز القوة اللمس': ExperienceSettingsPage(s, initial: 'haptic'),
+    'الإيماءات السحب الحركة السرعة': ExperienceSettingsPage(
+      s,
+      initial: 'gesture',
+    ),
     'الأرقام التاريخ حفظ الصور المعرض': PreferencesPage(s),
     'الرئيسية ترتيب شريط التنقل': LayoutPage(s),
     'الإدخالات القوائم تخصيص كل الحقول': InputCenterPage(s),
