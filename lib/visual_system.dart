@@ -149,23 +149,30 @@ IconData fieldIcon(String label) {
   if (label.contains('اسم') ||
       label.contains('مسافر') ||
       label.contains('زبون') ||
-      label.contains('العدد'))
+      label.contains('العدد')) {
     return Icons.person_outline_rounded;
-  if (label.contains('هاتف') || label.contains('واتساب'))
+  }
+  if (label.contains('هاتف') || label.contains('واتساب')) {
     return Icons.phone_rounded;
-  if (label.contains('تاريخ') || label.contains('يوم'))
+  }
+  if (label.contains('تاريخ') || label.contains('يوم')) {
     return Icons.calendar_month_rounded;
-  if (label.contains('مغادرة') || label.contains('ذهاب'))
+  }
+  if (label.contains('مغادرة') || label.contains('ذهاب')) {
     return Icons.flight_takeoff_rounded;
-  if (label.contains('وصول') || label.contains('عودة'))
+  }
+  if (label.contains('وصول') || label.contains('عودة')) {
     return Icons.flight_land_rounded;
+  }
   if (label.contains('سعر') ||
       label.contains('مبلغ') ||
       label.contains('عملة') ||
-      label.contains('عمولة'))
+      label.contains('عمولة')) {
     return Icons.payments_outlined;
-  if (label.contains('دولة') || label.contains('مدينة'))
+  }
+  if (label.contains('دولة') || label.contains('مدينة')) {
     return Icons.location_on_outlined;
+  }
   return Icons.edit_note_rounded;
 }
 
@@ -310,8 +317,9 @@ class ClayTransitions extends PageTransitionsBuilder {
     Widget child,
   ) {
     if (displayPreferences['reduceMotion'] == true ||
-        MediaQuery.disableAnimationsOf(context))
+        MediaQuery.disableAnimationsOf(context)) {
       return child;
+    }
     final curved = CurvedAnimation(
       parent: animation,
       curve: Interval(
@@ -552,41 +560,59 @@ class ClayAppBar extends StatelessWidget implements PreferredSizeWidget {
         : index == 8
         ? violet
         : artColor(index);
-    return AppBar(
-      title: title,
-      leading: leading,
-      automaticallyImplyLeading: automaticallyImplyLeading,
-      centerTitle: centerTitle,
-      toolbarHeight: kToolbarHeight + 8,
-      actions: actions,
-      foregroundColor: Colors.white,
-      bottom: bottom,
-      backgroundColor: color,
-      iconTheme: const IconThemeData(color: Colors.white),
-      actionsIconTheme: const IconThemeData(color: Colors.white),
-      flexibleSpace: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topRight,
-            end: Alignment.bottomLeft,
-            colors: [
-              Color.lerp(color, Colors.white, .14)!,
-              color,
-              Color.lerp(color, coral, .35)!,
-            ],
-          ),
-          border: const Border(
-            bottom: BorderSide(color: Colors.white38, width: 2),
+    return Theme(
+      data: Theme.of(context).copyWith(
+        iconButtonTheme: IconButtonThemeData(
+          style: IconButton.styleFrom(
+            foregroundColor: Colors.white,
+            backgroundColor: Colors.white.withValues(alpha: .15),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
           ),
         ),
-        child: Stack(
-          children: [
-            Positioned(
-              left: 24,
-              bottom: -26,
-              child: Opacity(opacity: .13, child: ArtIcon(index, size: 125)),
+        tabBarTheme: const TabBarThemeData(
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          indicatorColor: Colors.white,
+        ),
+      ),
+      child: AppBar(
+        title: title,
+        leading: leading,
+        automaticallyImplyLeading: automaticallyImplyLeading,
+        centerTitle: centerTitle,
+        toolbarHeight: kToolbarHeight + 8,
+        actions: actions,
+        foregroundColor: Colors.white,
+        bottom: bottom,
+        backgroundColor: color,
+        iconTheme: const IconThemeData(color: Colors.white),
+        actionsIconTheme: const IconThemeData(color: Colors.white),
+        flexibleSpace: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topRight,
+              end: Alignment.bottomLeft,
+              colors: [
+                Color.lerp(color, Colors.white, .14)!,
+                color,
+                Color.lerp(color, coral, .35)!,
+              ],
             ),
-          ],
+            border: const Border(
+              bottom: BorderSide(color: Colors.white38, width: 2),
+            ),
+          ),
+          child: Stack(
+            children: [
+              Positioned(
+                left: 24,
+                bottom: -26,
+                child: Opacity(opacity: .13, child: ArtIcon(index, size: 125)),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -613,7 +639,7 @@ class ServiceBanner extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 14),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(activePack.heroRadius),
           boxShadow: [
             BoxShadow(
               color: color.withValues(alpha: dark ? .12 : .23),
@@ -626,12 +652,14 @@ class ServiceBanner extends StatelessWidget {
           color: dark
               ? Color.lerp(color, const Color(0xff302b39), .65)
               : Color.lerp(color, Colors.white, .8),
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(activePack.heroRadius),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onTap,
             child: SizedBox(
-              height: height,
+              height:
+                  height *
+                  MediaQuery.textScalerOf(context).scale(1).clamp(1, 1.6),
               child: Stack(
                 children: [
                   if (illustrationsEnabled)
@@ -639,7 +667,7 @@ class ServiceBanner extends StatelessWidget {
                       left: 0,
                       top: 0,
                       bottom: 0,
-                      width: 210,
+                      width: MediaQuery.sizeOf(context).width < 380 ? 160 : 210,
                       child: ShaderMask(
                         shaderCallback: (rect) => const LinearGradient(
                           colors: [
@@ -718,7 +746,13 @@ class ServiceBanner extends StatelessWidget {
                             ],
                           ),
                         ),
-                        SizedBox(width: illustrationsEnabled ? 100 : 20),
+                        SizedBox(
+                          width: illustrationsEnabled
+                              ? (MediaQuery.sizeOf(context).width < 380
+                                    ? 64
+                                    : 90)
+                              : 12,
+                        ),
                         if (!illustrationsEnabled) ArtIcon(index, size: 56),
                       ],
                     ),

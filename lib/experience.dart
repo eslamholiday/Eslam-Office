@@ -93,8 +93,9 @@ class _ExperienceTapRegionState extends State<ExperienceTapRegion> {
       if (start != null &&
           start.pointer == event.pointer &&
           (start.position - event.position).distance < 9 &&
-          (event.timeStamp - start.timeStamp).inMilliseconds < 450)
+          (event.timeStamp - start.timeStamp).inMilliseconds < 450) {
         unawaited(Experience.fire('select'));
+      }
     },
     child: widget.child,
   );

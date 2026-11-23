@@ -140,6 +140,7 @@ class Shell extends StatefulWidget {
 }
 
 class _ShellState extends State<Shell> {
+  Store get s => widget.s;
   late String current = widget.s.settings['start'] ?? 'home';
   Widget page(String id) => switch (id) {
     'customers' => PartiesPage(widget.s, 'customer'),
