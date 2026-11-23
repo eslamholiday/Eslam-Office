@@ -15,6 +15,7 @@ class VisualPack {
       elevation,
       routeOffset;
   final Curve motionCurve;
+  final List<Color> categoryColors;
   final bool ticketCutouts;
   const VisualPack({
     required this.id,
@@ -33,6 +34,12 @@ class VisualPack {
     this.routeOffset = .08,
     this.motionCurve = Curves.easeOutCubic,
     this.ticketCutouts = true,
+    this.categoryColors = const [
+      Color(0xff089b9e),
+      Color(0xff9b68cf),
+      Color(0xffdf945a),
+      Color(0xffef635a),
+    ],
   });
 }
 
@@ -140,11 +147,13 @@ int titleArt(String text) {
   return 8;
 }
 
-Color artColor(int index) => switch (index) {
-  0 || 3 || 4 || 6 || 14 => teal,
-  1 || 7 || 8 || 9 || 11 || 12 => violet,
-  _ => coral,
-};
+Color artColor(int index) =>
+    activePack.categoryColors[switch (index) {
+      0 || 3 || 4 || 6 || 14 => 0,
+      1 || 7 || 8 || 9 || 11 || 12 => 1,
+      2 => 2,
+      _ => 3,
+    }];
 IconData fieldIcon(String label) {
   if (label.contains('اسم') ||
       label.contains('مسافر') ||
@@ -556,9 +565,7 @@ class ClayAppBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final index = titleArt(title is Text ? ((title as Text).data ?? '') : '');
     final color = title is Text && (title as Text).data == 'الرئيسية'
-        ? coral
-        : index == 8
-        ? violet
+        ? activePack.primary
         : artColor(index);
     return Theme(
       data: Theme.of(context).copyWith(
@@ -679,7 +686,11 @@ class ServiceBanner extends StatelessWidget {
                         ).createShader(rect),
                         blendMode: BlendMode.dstIn,
                         child: Opacity(
-                          opacity: dark ? .65 : 1,
+                          opacity:
+                              (dark ? .65 : 1) *
+                              (displayPreferences['artStrength'] as num? ?? 1)
+                                  .toDouble()
+                                  .clamp(0, 1),
                           child: AtlasArt(
                             asset: activePack.scenes,
                             index: switch (kind) {

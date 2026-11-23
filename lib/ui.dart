@@ -25,15 +25,8 @@ IconData kindIcon(String kind) => switch (kind) {
   'refund' => Icons.undo_rounded,
   _ => Icons.account_balance_wallet_rounded,
 };
-Color kindColor(String kind) => switch (kind) {
-  'ticket' || 'change' => teal,
-  'expense' => coral,
-  'hotel' => const Color(0xffd38a4d),
-  'visa' => violet,
-  'settlement' => teal,
-  'refund' => const Color(0xffba5959),
-  _ => navy,
-};
+Color kindColor(String kind) =>
+    kind == 'refund' ? const Color(0xffba5959) : artColor(artIndex(kind));
 void message(BuildContext c, Object e) {
   ScaffoldMessenger.of(c).showSnackBar(
     SnackBar(content: Text(e.toString().replaceFirst('FormatException: ', ''))),

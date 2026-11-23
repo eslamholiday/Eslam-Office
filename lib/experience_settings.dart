@@ -28,7 +28,9 @@ class PackAppearancePage extends StatelessWidget {
                 subtitle: const Text(
                   'الرسومات • القوائم • الأزرار • النماذج • الحركة',
                 ),
-                trailing: const Icon(Icons.check_circle_rounded, color: teal),
+                trailing: (s.settings['visualPack'] ?? 'clay') == pack.id
+                    ? const Icon(Icons.check_circle_rounded, color: teal)
+                    : const Icon(Icons.radio_button_unchecked),
                 onTap: () => s.set('visualPack', pack.id),
               ),
             const Padding(
@@ -65,6 +67,12 @@ class PackAppearancePage extends StatelessWidget {
                   teal,
                   violet,
                   const Color(0xffd38d31),
+                  Colors.indigo,
+                  Colors.blue,
+                  Colors.deepOrange,
+                  Colors.green,
+                  Colors.pink,
+                  Colors.blueGrey,
                 ])
                   Semantics(
                     label: 'اللون ${color.toARGB32()}',
@@ -125,6 +133,22 @@ class PackAppearancePage extends StatelessWidget {
               onChanged: (value) => s.set('liteGraphics', value),
             ),
           ]),
+          Section('الرسومات والعناوين', [
+            const Text('وضوح خلفيات الخدمات'),
+            Slider(
+              value: (s.settings['artStrength'] as num? ?? 1).toDouble().clamp(
+                0,
+                1,
+              ),
+              onChanged: (value) => s.set('artStrength', value),
+            ),
+            SwitchListTile(
+              secondary: const Icon(Icons.translate_rounded),
+              title: const Text('إظهار العناوين الإنجليزية الثانوية'),
+              value: s.settings['showEnglishLabels'] != false,
+              onChanged: (value) => s.set('showEnglishLabels', value),
+            ),
+          ]),
           TextButton.icon(
             onPressed: () async {
               await s.set('packAccent', null);
@@ -132,6 +156,7 @@ class PackAppearancePage extends StatelessWidget {
               await s.set('textScale', 1);
               await s.set('appearanceMode', 'light');
               await s.set('liteGraphics', false);
+              await s.set('artStrength', 1);
             },
             icon: const Icon(Icons.restart_alt),
             label: const Text('استعادة مظهر الحزمة'),

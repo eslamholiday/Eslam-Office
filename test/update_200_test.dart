@@ -185,10 +185,9 @@ void main() {
           'currency': 'USD',
           'date': '2026-11-23',
           'customer': customer,
-          'q0': 1,
-          'base0': 10000,
-          'gross0': 11000,
-          'sell0': 15000,
+          'lines': [
+            {'qty': 1, 'base': 10000, 'gross': 11000, 'sell': 15000},
+          ],
           'posted': true,
         });
       });
