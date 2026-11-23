@@ -255,12 +255,7 @@ class ExperienceSettingsPage extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      for (final event in [
-                        'select',
-                        'navigate',
-                        'save',
-                        'error',
-                      ])
+                      for (final event in Experience.events)
                         OutlinedButton.icon(
                           onPressed: () =>
                               Experience.fire(event, preview: 'sound'),

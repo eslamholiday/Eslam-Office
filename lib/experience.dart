@@ -64,7 +64,9 @@ class Experience {
 class ExperienceObserver extends NavigatorObserver {
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    if (previousRoute != null) unawaited(Experience.fire('navigate'));
+    if (previousRoute != null) {
+      unawaited(Experience.fire(route is DialogRoute ? 'alert' : 'navigate'));
+    }
   }
 
   @override
