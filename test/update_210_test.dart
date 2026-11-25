@@ -545,8 +545,6 @@ void main() {
   testWidgets(
     'native choice target stays inside its field rather than merging the enclosing card',
     (t) async {
-      final semantics = t.ensureSemantics();
-      addTearDown(semantics.dispose);
       await t.pumpWidget(
         host(
           Scaffold(
@@ -592,5 +590,6 @@ void main() {
       await t.pumpWidget(const SizedBox());
       expect(t.takeException(), isNull);
     },
+    semanticsEnabled: true,
   );
 }
