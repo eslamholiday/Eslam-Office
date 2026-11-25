@@ -720,10 +720,12 @@ class PdfPage extends StatelessWidget {
     final latin = pw.Font.ttf(await rootBundle.load('assets/fonts/Cairo.ttf'));
     final fontSize = (config['statementFontSize'] as num? ?? 12)
         .toDouble()
-        .clamp(9, 16);
+        .clamp(9, 16)
+        .toDouble();
     final lineSpacing = (config['statementLineSpacing'] as num? ?? 1.25)
         .toDouble()
-        .clamp(0, 3);
+        .clamp(0, 3)
+        .toDouble();
     format = config['statementPaper'] == 'a5'
         ? PdfPageFormat.a5
         : config['statementPaper'] == 'letter'
@@ -976,7 +978,7 @@ class PdfPage extends StatelessWidget {
         dpi: statementImageDpi(config['imageDpi']).toDouble(),
       )) {
         final png = await whiteStatementPng(await page.toPng());
-        final name = '$filename_p${count + 1}.png';
+        final name = '${filename}_p${count + 1}.png';
         await File('${dir.path}/$name').writeAsBytes(png, flush: true);
         if (gallery &&
             !await Gallery.save(

@@ -474,7 +474,7 @@ void main() {
       for (final pack in visualPacks.keys) {
         displayPreferences['visualPack'] = pack;
         expect(activePack.id, pack);
-        final bytes = await rootBundle.load(activePack.extraIcons);
+        final bytes = await rootBundle.load(activePack.extraIcons!);
         expect(bytes.lengthInBytes, greaterThan(1000));
         expect(artIndex('customer'), isNot(artIndex('passenger')));
         expect(titleArt('بالغ / Adult'), isNot(titleArt('طفل / Child')));
