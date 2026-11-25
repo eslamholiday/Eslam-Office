@@ -6,7 +6,7 @@ adb install -r "$apk_path"
 test_apk="$(find apk -name 'app-debug-androidTest.apk' -print -quit)"
 adb install -r "$test_apk"
 adb shell cmd notification allow_dnd com.eslamholiday.eslam_office.preview
-adb shell am instrument -w com.eslamholiday.eslam_office.preview.test/com.eslamholiday.eslam_office.FeedbackSoundInstrumentation | tee smoke-output/native-audio.txt
+adb shell am instrument -w -r com.eslamholiday.eslam_office.preview.test/com.eslamholiday.eslam_office.FeedbackSoundInstrumentation | tee smoke-output/native-audio.txt
 python3 - <<'PY'
 from pathlib import Path
 result = Path('smoke-output/native-audio.txt').read_text()
