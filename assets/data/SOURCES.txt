@@ -1,0 +1,3 @@
+Country flag artwork: hampusborgos/country-flags, public-domain flags from Wikimedia and contributors. https://github.com/hampusborgos/country-flags
+Arabic territory names: Unicode CLDR, Unicode License V3. https://github.com/unicode-org/cldr-json
+Arabic document fonts: Noto Fonts, SIL Open Font License 1.1. https://github.com/notofonts/noto-fonts

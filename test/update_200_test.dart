@@ -131,7 +131,7 @@ void main() {
       expect(calls.single.arguments['sound'], true);
       expect(calls.single.arguments['haptic'], false);
       expect(calls.single.arguments['volume'], 1);
-      expect(calls.single.arguments['style'], 'soft');
+      expect(calls.single.arguments['style'], 'silk');
       calls.clear();
       await Experience.fire('save', preview: 'haptic');
       expect(calls.single.arguments['sound'], false);

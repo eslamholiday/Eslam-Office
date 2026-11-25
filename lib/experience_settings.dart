@@ -1,3 +1,4 @@
+import 'labels.dart';
 import 'package:flutter/material.dart';
 import 'store.dart';
 import 'ui.dart';
@@ -10,13 +11,13 @@ class PackAppearancePage extends StatelessWidget {
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: s,
     builder: (context, _) => Scaffold(
-      appBar: const ClayAppBar(title: Text('حزم الأشكال والمظهر')),
+      appBar: const ClayAppBar(title: UiText('حزم الأشكال والمظهر')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const ServiceBanner(
+          ServiceBanner(
             kind: 'ticket',
-            title: 'المجسّمات الملونة',
+            title: activePack.name,
             subtitle: 'هوية متكاملة لكل التطبيق',
             height: 150,
           ),
@@ -24,8 +25,8 @@ class PackAppearancePage extends StatelessWidget {
             for (final pack in visualPacks.values)
               ListTile(
                 leading: const ArtIcon(9),
-                title: Text(pack.name),
-                subtitle: const Text(
+                title: UiText(pack.name),
+                subtitle: const UiText(
                   'الرسومات • القوائم • الأزرار • النماذج • الحركة',
                 ),
                 trailing: (s.settings['visualPack'] ?? 'clay') == pack.id
@@ -35,7 +36,7 @@ class PackAppearancePage extends StatelessWidget {
               ),
             const Padding(
               padding: EdgeInsets.all(8),
-              child: Text(
+              child: UiText(
                 'تظهر حزم الأشكال الجديدة هنا عند إضافتها في تحديث قادم، وتستخدم بياناتك وتخصيصاتك نفسها.',
               ),
             ),
@@ -50,12 +51,50 @@ class PackAppearancePage extends StatelessWidget {
                 prefixIcon: Icon(Icons.brightness_6_rounded),
               ),
               items: const [
-                DropdownMenuItem(value: 'light', child: Text('نهاري')),
-                DropdownMenuItem(value: 'dark', child: Text('ليلي')),
-                DropdownMenuItem(value: 'system', child: Text('حسب الجهاز')),
+                DropdownMenuItem(value: 'light', child: UiText('نهاري')),
+                DropdownMenuItem(value: 'dark', child: UiText('ليلي')),
+                DropdownMenuItem(value: 'system', child: UiText('حسب الجهاز')),
               ],
               onChanged: (value) => s.set('appearanceMode', value),
             ),
+          ]),
+          Section('مساحة الواجهة', [
+            ChoiceField<String>(
+              initialValue: s.settings['uiDensity'] ?? 'normal',
+              decoration: const InputDecoration(labelText: 'كثافة الواجهة'),
+              items: const [
+                DropdownMenuItem(value: 'compact', child: UiText('مدمجة')),
+                DropdownMenuItem(value: 'normal', child: UiText('متوسطة')),
+                DropdownMenuItem(value: 'spacious', child: UiText('واسعة')),
+              ],
+              onChanged: (v) async {
+                await s.set('uiDensity', v);
+                await s.set('compact', v == 'compact');
+              },
+            ),
+            const UiText('حجم الرسومات والبطاقات الرئيسية'),
+            Slider(
+              min: .7,
+              max: 1.2,
+              divisions: 10,
+              value: (s.settings['heroScale'] as num? ?? 1).toDouble().clamp(
+                .7,
+                1.2,
+              ),
+              onChanged: (v) => s.set('heroScale', v),
+            ),
+            if (activePack.id == 'glass') ...[
+              const UiText('وضوح البطاقات الزجاجية'),
+              Slider(
+                min: .75,
+                max: 1,
+                divisions: 5,
+                value: (s.settings['glassOpacity'] as num? ?? .92)
+                    .toDouble()
+                    .clamp(.75, 1),
+                onChanged: (v) => s.set('glassOpacity', v),
+              ),
+            ],
           ]),
           Section('اللون والخط والحواف', [
             Wrap(
@@ -76,15 +115,21 @@ class PackAppearancePage extends StatelessWidget {
                 ])
                   Semantics(
                     label: 'اللون ${color.toARGB32()}',
-                    selected: s.settings['packAccent'] == color.toARGB32(),
+                    selected:
+                        s.settings['packAccent_${activePack.id}'] ==
+                        color.toARGB32(),
                     child: IconButton.filled(
                       style: IconButton.styleFrom(
                         backgroundColor: color,
                         foregroundColor: Colors.white,
                       ),
-                      onPressed: () => s.set('packAccent', color.toARGB32()),
+                      onPressed: () => s.set(
+                        'packAccent_${activePack.id}',
+                        color.toARGB32(),
+                      ),
                       icon: Icon(
-                        s.settings['packAccent'] == color.toARGB32()
+                        s.settings['packAccent_${activePack.id}'] ==
+                                color.toARGB32()
                             ? Icons.check
                             : Icons.palette_outlined,
                       ),
@@ -93,7 +138,7 @@ class PackAppearancePage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 14),
-            const Text('حجم الخط'),
+            const UiText('حجم الخط'),
             Slider(
               value: (s.settings['textScale'] as num? ?? 1).toDouble().clamp(
                 .85,
@@ -106,7 +151,7 @@ class PackAppearancePage extends StatelessWidget {
                   '${((s.settings['textScale'] as num? ?? 1) * 100).round()}٪',
               onChanged: (value) => s.set('textScale', value),
             ),
-            const Text('استدارة البطاقات'),
+            const UiText('استدارة البطاقات'),
             Slider(
               value: (s.settings['packRadius'] as num? ?? 26).toDouble().clamp(
                 16,
@@ -119,14 +164,14 @@ class PackAppearancePage extends StatelessWidget {
             ),
             SwitchListTile(
               secondary: const Icon(Icons.view_compact_alt_outlined),
-              title: const Text('قوائم مدمجة'),
+              title: const UiText('قوائم مدمجة'),
               value: s.settings['compact'] == true,
               onChanged: (value) => s.set('compact', value),
             ),
             SwitchListTile(
               secondary: const Icon(Icons.speed_rounded),
-              title: const Text('رسومات خفيفة'),
-              subtitle: const Text(
+              title: const UiText('رسومات خفيفة'),
+              subtitle: const UiText(
                 'أيقونات واضحة بدل الرسومات المجسّمة والخلفيات',
               ),
               value: s.settings['liteGraphics'] == true,
@@ -134,7 +179,7 @@ class PackAppearancePage extends StatelessWidget {
             ),
           ]),
           Section('الرسومات والعناوين', [
-            const Text('وضوح خلفيات الخدمات'),
+            const UiText('وضوح خلفيات الخدمات'),
             Slider(
               value: (s.settings['artStrength'] as num? ?? 1).toDouble().clamp(
                 0,
@@ -144,22 +189,22 @@ class PackAppearancePage extends StatelessWidget {
             ),
             SwitchListTile(
               secondary: const Icon(Icons.translate_rounded),
-              title: const Text('إظهار العناوين الإنجليزية الثانوية'),
+              title: const UiText('إظهار العناوين الإنجليزية الثانوية'),
               value: s.settings['showEnglishLabels'] != false,
               onChanged: (value) => s.set('showEnglishLabels', value),
             ),
           ]),
           TextButton.icon(
             onPressed: () async {
-              await s.set('packAccent', null);
-              await s.set('packRadius', 26);
+              await s.set('packAccent_${activePack.id}', null);
+              await s.set('packRadius', activePack.radius);
               await s.set('textScale', 1);
               await s.set('appearanceMode', 'light');
               await s.set('liteGraphics', false);
               await s.set('artStrength', 1);
             },
             icon: const Icon(Icons.restart_alt),
-            label: const Text('استعادة مظهر الحزمة'),
+            label: const UiText('استعادة مظهر الحزمة'),
           ),
         ],
       ),
@@ -178,8 +223,8 @@ class ExperienceSettingsPage extends StatelessWidget {
     String? subtitle,
     bool fallback = true,
   }) => SwitchListTile(
-    title: Text(title),
-    subtitle: subtitle == null ? null : Text(subtitle),
+    title: UiText(title),
+    subtitle: subtitle == null ? null : UiText(subtitle),
     secondary: Icon(icon),
     value: s.settings[key] as bool? ?? fallback,
     onChanged: (value) => s.set(key, value),
@@ -190,7 +235,7 @@ class ExperienceSettingsPage extends StatelessWidget {
     children: [
       for (final event in Experience.events)
         FilterChip(
-          label: Text(Experience.eventLabels[event]!),
+          label: UiText(Experience.eventLabels[event]!),
           selected: s.settings['${kind}_$event'] != false,
           onSelected: (value) => s.set('${kind}_$event', value),
         ),
@@ -204,7 +249,7 @@ class ExperienceSettingsPage extends StatelessWidget {
       initialIndex: ['sound', 'haptic', 'gesture'].indexOf(initial).clamp(0, 2),
       child: Scaffold(
         appBar: const ClayAppBar(
-          title: Text('الصوت والاهتزاز والإيماءات'),
+          title: UiText('الصوت والاهتزاز والإيماءات'),
           bottom: TabBar(
             labelColor: Colors.white,
             unselectedLabelColor: Colors.white70,
@@ -228,7 +273,7 @@ class ExperienceSettingsPage extends StatelessWidget {
                     Icons.volume_up_rounded,
                     subtitle: 'أصوات محلية قصيرة تحترم الوضع الصامت للجهاز',
                   ),
-                  const Text('مستوى الصوت'),
+                  const UiText('مستوى الصوت'),
                   Slider(
                     value: (s.settings['soundVolume'] as num? ?? .25)
                         .toDouble()
@@ -236,15 +281,34 @@ class ExperienceSettingsPage extends StatelessWidget {
                     onChanged: (value) => s.set('soundVolume', value),
                   ),
                   ChoiceField<String>(
-                    initialValue: s.settings['soundStyle'] ?? 'soft',
+                    initialValue: s.settings['soundStyle'] ?? 'silk',
                     decoration: const InputDecoration(
                       labelText: 'طابع الصوت',
                       prefixIcon: Icon(Icons.music_note_rounded),
                     ),
                     items: const [
-                      DropdownMenuItem(value: 'soft', child: Text('ناعم')),
-                      DropdownMenuItem(value: 'pop', child: Text('مرح')),
-                      DropdownMenuItem(value: 'bell', child: Text('رنين خفيف')),
+                      DropdownMenuItem(
+                        value: 'silk',
+                        child: UiText('نسيم هادئ'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'wood',
+                        child: UiText('نقرات خشبية'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'crystal',
+                        child: UiText('زجاج كريستالي'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'water',
+                        child: UiText('قطرات ناعمة'),
+                      ),
+                      DropdownMenuItem(value: 'soft', child: UiText('ناعم')),
+                      DropdownMenuItem(value: 'pop', child: UiText('مرح')),
+                      DropdownMenuItem(
+                        value: 'bell',
+                        child: UiText('رنين خفيف'),
+                      ),
                     ],
                     onChanged: (value) => s.set('soundStyle', value),
                   ),
@@ -260,7 +324,7 @@ class ExperienceSettingsPage extends StatelessWidget {
                           onPressed: () =>
                               Experience.fire(event, preview: 'sound'),
                           icon: const Icon(Icons.play_arrow_rounded),
-                          label: Text(Experience.eventLabels[event]!),
+                          label: UiText(Experience.eventLabels[event]!),
                         ),
                     ],
                   ),
@@ -277,7 +341,7 @@ class ExperienceSettingsPage extends StatelessWidget {
                     'hapticEnabled',
                     Icons.vibration_rounded,
                   ),
-                  const Text('قوة الاهتزاز'),
+                  const UiText('قوة الاهتزاز'),
                   Slider(
                     value: (s.settings['hapticIntensity'] as num? ?? .45)
                         .toDouble()
@@ -289,7 +353,7 @@ class ExperienceSettingsPage extends StatelessWidget {
                   FilledButton.icon(
                     onPressed: () => Experience.fire('save', preview: 'haptic'),
                     icon: const Icon(Icons.vibration_rounded),
-                    label: const Text('تجربة الاهتزاز'),
+                    label: const UiText('تجربة الاهتزاز'),
                   ),
                 ]),
               ],
@@ -298,6 +362,43 @@ class ExperienceSettingsPage extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               children: [
                 const Center(child: ArtIcon(12, size: 100)),
+                Section('حيوية الواجهة', [
+                  ChoiceField<int>(
+                    initialValue: (s.settings['ambientLevel'] as num? ?? 2)
+                        .toInt(),
+                    decoration: const InputDecoration(
+                      labelText: 'مستوى الحيوية',
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 0, child: UiText('متوقفة')),
+                      DropdownMenuItem(value: 1, child: UiText('هادئة')),
+                      DropdownMenuItem(value: 2, child: UiText('متوسطة')),
+                      DropdownMenuItem(value: 3, child: UiText('واضحة')),
+                    ],
+                    onChanged: (v) => s.set('ambientLevel', v),
+                  ),
+                  toggle('حركة الأيقونات', 'ambientIcons', Icons.animation),
+                  toggle(
+                    'حركة الرسومات والخلفيات',
+                    'ambientBackgrounds',
+                    Icons.landscape_outlined,
+                  ),
+                  toggle(
+                    'انتقال الأرقام عند تغيّرها',
+                    'animateNumbers',
+                    Icons.numbers,
+                  ),
+                  const UiText('سرعة الحركة'),
+                  Slider(
+                    min: .5,
+                    max: 2,
+                    divisions: 6,
+                    value: (s.settings['ambientSpeed'] as num? ?? 1)
+                        .toDouble()
+                        .clamp(.5, 2),
+                    onChanged: (v) => s.set('ambientSpeed', v),
+                  ),
+                ]),
                 Section('التنقل والحركة', [
                   toggle(
                     'السحب بين الصفحات الرئيسية',
@@ -325,13 +426,16 @@ class ExperienceSettingsPage extends StatelessWidget {
                     fallback: false,
                     subtitle: 'تُحترم أيضًا إعدادات تقليل الحركة في الجهاز',
                   ),
-                  const Text('إيقاع التنقل'),
+                  const UiText('إيقاع التنقل'),
                   ChoiceField<String>(
                     initialValue: s.settings['motionPace'] ?? 'smooth',
                     decoration: const InputDecoration(labelText: 'سرعة الحركة'),
                     items: const [
-                      DropdownMenuItem(value: 'smooth', child: Text('انسيابي')),
-                      DropdownMenuItem(value: 'quick', child: Text('سريع')),
+                      DropdownMenuItem(
+                        value: 'smooth',
+                        child: UiText('انسيابي'),
+                      ),
+                      DropdownMenuItem(value: 'quick', child: UiText('سريع')),
                     ],
                     onChanged: (value) => s.set('motionPace', value),
                   ),

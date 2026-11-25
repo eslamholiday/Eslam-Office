@@ -4,6 +4,8 @@ import 'package:file_picker/file_picker.dart';
 
 class Gallery {
   static const channel = MethodChannel('eslam_money/gallery');
+  static Future<void> shareImages(List<String> paths) =>
+      channel.invokeMethod<void>('shareImages', {'paths': paths});
   static String safeName(String value) =>
       value.replaceAll(RegExp(r'[\\/:*?"<>|\n\r]'), '_').trim();
   static Future<bool> save(

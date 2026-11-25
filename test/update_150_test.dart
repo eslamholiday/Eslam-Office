@@ -227,7 +227,7 @@ void main() {
       await t.pumpWidget(host(EntryForm(s, 'visa', preview: true)));
       await t.pumpAndSettle();
       expect(find.widgetWithText(TextField, 'نوع الفيزا'), findsNothing);
-      await t.tap(find.text('ابحث عن حقل، حتى المخفي'));
+      await t.tap(find.byTooltip('بحث الحقول الظاهرة والمخفية'));
       await t.pumpAndSettle();
       await t.enterText(
         find.widgetWithText(TextField, 'اسم الحقل'),

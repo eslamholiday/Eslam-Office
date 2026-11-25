@@ -1,5 +1,7 @@
 package com.eslamholiday.eslam_office
 
+import androidx.core.content.FileProvider
+import android.content.ClipData
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioManager
@@ -111,8 +113,8 @@ class MainActivity : FlutterActivity() {
             if (call.method != "feedback") result.notImplemented()
             else {
                 val event = call.argument<String>("event") ?: "select"
-                val style = call.argument<String>("style") ?: "soft"
-                if (event !in listOf("select", "navigate", "save", "alert", "error") || style !in listOf("soft", "pop", "bell")) {
+                val style = call.argument<String>("style") ?: "silk"
+                if (event !in listOf("select", "navigate", "save", "alert", "error") || style !in listOf("soft", "pop", "bell", "silk", "wood", "crystal", "water")) {
                     result.error("INVALID_FEEDBACK", "Unknown feedback", null)
                 } else {
                     feedback(event, style, call.argument<Boolean>("sound") == true, call.argument<Boolean>("haptic") == true,
@@ -139,7 +141,27 @@ class MainActivity : FlutterActivity() {
             }
         }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "eslam_money/gallery").setMethodCallHandler { call, result ->
-            if (call.method != "saveImage") {
+            if (call.method == "shareImages") {
+                try {
+                    val paths = call.argument<List<String>>("paths") ?: emptyList()
+                    require(paths.isNotEmpty() && paths.size <= 100) { "No images to share" }
+                    val allowed = java.io.File(cacheDir, "statement_share").canonicalFile
+                    val uris = ArrayList<android.net.Uri>()
+                    paths.forEach { path ->
+                        val file = java.io.File(path).canonicalFile
+                        require(file.parentFile == allowed && file.exists() && file.extension == "png") { "Invalid image path" }
+                        uris.add(FileProvider.getUriForFile(this, "$packageName.statement_images", file))
+                    }
+                    val share = Intent(if (uris.size == 1) Intent.ACTION_SEND else Intent.ACTION_SEND_MULTIPLE).apply {
+                        type = "image/png"
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        if (uris.size == 1) putExtra(Intent.EXTRA_STREAM, uris[0]) else putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                        clipData = ClipData.newUri(contentResolver, "Eslam Money", uris[0]).apply { uris.drop(1).forEach { addItem(ClipData.Item(it)) } }
+                    }
+                    startActivity(Intent.createChooser(share, "مشاركة صور الكشف"))
+                    result.success(null)
+                } catch (e: Exception) { result.error("SHARE_FAILED", e.message, null) }
+            } else if (call.method != "saveImage") {
                 result.notImplemented()
             } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
                 result.error("LEGACY", "Choose a folder to save the image", null)

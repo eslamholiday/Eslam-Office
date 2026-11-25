@@ -1,3 +1,4 @@
+import 'labels.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'input_schema.dart';
@@ -9,6 +10,8 @@ import 'domain.dart';
 import 'store.dart';
 import 'ui.dart';
 import 'experience.dart';
+import 'date_range_field.dart';
+import 'entry_matching.dart';
 
 Future<int?> editParty(
   BuildContext c,
@@ -158,7 +161,8 @@ class _PartyFormState extends State<PartyForm> {
                     current: travelerType,
                   ).entries
                   .map(
-                    (e) => DropdownMenuItem(value: e.key, child: Text(e.value)),
+                    (e) =>
+                        DropdownMenuItem(value: e.key, child: UiText(e.value)),
                   )
                   .toList(),
           onChanged: (v) => setState(() => travelerType = v),
@@ -179,7 +183,7 @@ class _PartyFormState extends State<PartyForm> {
       'profile' => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(label),
+          UiText(label),
           ProfilePicker(
             imagePath: profileImage,
             avatar: avatar,
@@ -193,7 +197,7 @@ class _PartyFormState extends State<PartyForm> {
       'attachments' => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(label),
+          UiText(label),
           Attachments(attachments, (v) => setState(() => attachments = v)),
         ],
       ),
@@ -219,7 +223,7 @@ class _PartyFormState extends State<PartyForm> {
     animation: widget.s,
     builder: (c, _) => Scaffold(
       appBar: ClayAppBar(
-        title: Text(
+        title: UiText(
           '${widget.preview
               ? 'معاينة'
               : widget.party?['id'] == null
@@ -227,6 +231,8 @@ class _PartyFormState extends State<PartyForm> {
               : 'تعديل'} ${inputScopes[widget.kind]}',
         ),
         actions: [
+          if (widget.s.settings['showInputSearch'] != false)
+            InputSearch(layout: layout, onSelect: revealField),
           if (!widget.preview)
             IconButton(
               tooltip: 'تخصيص الإدخالات',
@@ -249,16 +255,15 @@ class _PartyFormState extends State<PartyForm> {
             if (widget.preview)
               const ListTile(
                 leading: Icon(Icons.preview_outlined),
-                title: Text('معاينة فقط — لن تُحفظ بيانات'),
+                title: UiText('معاينة فقط — لن تُحفظ بيانات'),
               ),
             if (widget.kind == 'customer')
               OutlinedButton.icon(
                 onPressed: pickContact,
                 icon: const Icon(Icons.contacts_outlined),
-                label: const Text('من جهات الاتصال'),
+                label: const UiText('من جهات الاتصال'),
               ),
-            if (widget.s.settings['showInputSearch'] != false)
-              InputSearch(layout: layout, onSelect: revealField),
+
             for (final group in layout.groups)
               if (layout.fields.any(
                 (f) =>
@@ -284,7 +289,7 @@ class _PartyFormState extends State<PartyForm> {
                           !revealed.contains(f.key),
                     ))
                       ExpansionTile(
-                        title: const Text('تفاصيل إضافية'),
+                        title: const UiText('تفاصيل إضافية'),
                         children: layout.fields
                             .where(
                               (f) =>
@@ -345,7 +350,7 @@ class _PartyFormState extends State<PartyForm> {
                             }
                           }
                         },
-                  child: Text(busy ? 'جارٍ الحفظ…' : 'حفظ'),
+                  child: UiText(busy ? 'جارٍ الحفظ…' : 'حفظ'),
                 ),
               ),
             ),
@@ -360,6 +365,7 @@ class EntryForm extends StatefulWidget {
   final int? party;
   final bool supplier;
   final bool preview;
+  final bool resume;
   const EntryForm(
     this.s,
     this.kind, {
@@ -368,6 +374,7 @@ class EntryForm extends StatefulWidget {
     this.party,
     this.supplier = false,
     this.preview = false,
+    this.resume = false,
   });
   @override
   State<EntryForm> createState() => _EntryFormState();
@@ -384,12 +391,23 @@ class _EntryFormState extends State<EntryForm> {
   final Set<String> revealed = {};
   final Map<String, GlobalKey> anchors = {};
   void revealField(String key) {
-    setState(() => revealed.add(key));
+    setState(() {
+      revealed.add(key);
+      if (key == 'return') revealed.add('depart');
+      if (key == 'checkOut') revealed.add('checkIn');
+    });
     Future<void>.delayed(const Duration(milliseconds: 350), () {
       if (!mounted) {
         return;
       }
-      final target = anchors[key]?.currentContext;
+      final target =
+          anchors[key]?.currentContext ??
+          anchors[key == 'return'
+                  ? 'depart'
+                  : key == 'checkOut'
+                  ? 'checkIn'
+                  : key]
+              ?.currentContext;
       if (target != null && target.mounted) {
         Scrollable.ensureVisible(
           target,
@@ -416,8 +434,8 @@ class _EntryFormState extends State<EntryForm> {
     final action = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('تعديلات غير محفوظة'),
-        content: Text(
+        title: const UiText('تعديلات غير محفوظة'),
+        content: UiText(
           widget.draft?.posted == true
               ? 'حفظ التعديلات أو تجاهلها؟'
               : 'حفظ كمسودة أو تجاهل التعديلات؟',
@@ -425,15 +443,15 @@ class _EntryFormState extends State<EntryForm> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, 'continue'),
-            child: const Text('متابعة التعديل'),
+            child: const UiText('متابعة التعديل'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, 'discard'),
-            child: const Text('تجاهل'),
+            child: const UiText('تجاهل'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, 'save'),
-            child: const Text('حفظ'),
+            child: const UiText('حفظ'),
           ),
         ],
       ),
@@ -479,7 +497,7 @@ class _EntryFormState extends State<EntryForm> {
       'settlementMode': 'cash',
       'paymentMethod': 'cash',
       'ticketType': 'ticket',
-      'tripType': 'roundTrip',
+      'tripType': 'oneWay',
       'personal': widget.kind == 'expense',
       'attachments': <String>[],
       ...Map<String, dynamic>.from(
@@ -538,7 +556,8 @@ class _EntryFormState extends State<EntryForm> {
     }
     baseline = jsonEncode(collect());
     if (!widget.preview) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => offerRecovery());
+      if (!widget.resume)
+        WidgetsBinding.instance.addPostFrameCallback((_) => offerRecovery());
       recoveryTimer = Timer.periodic(const Duration(seconds: 3), (_) {
         if (mounted &&
             !busy &&
@@ -581,18 +600,18 @@ class _EntryFormState extends State<EntryForm> {
     final restore = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('إدخال غير مكتمل'),
-        content: const Text(
+        title: const UiText('إدخال غير مكتمل'),
+        content: const UiText(
           'توجد بيانات محفوظة تلقائيًا لهذا النموذج. تريد استعادتها؟ لم تُسجَّل كحركة مالية.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('تجاهل المحفوظ'),
+            child: const UiText('تجاهل المحفوظ'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('استعادة'),
+            child: const UiText('استعادة'),
           ),
         ],
       ),
@@ -650,6 +669,8 @@ class _EntryFormState extends State<EntryForm> {
 
   Map<String, dynamic> collect() {
     final v = Map<String, dynamic>.from(d);
+    if (widget.kind == 'ticket')
+      v['tripType'] = v['return'] == null ? 'oneWay' : 'roundTrip';
     for (final key in [
       'notes',
       'hotelName',
@@ -704,46 +725,57 @@ class _EntryFormState extends State<EntryForm> {
           );
         }
       }
-      if (post && widget.s.settings['confirmPost'] != false) {
+      final duplicate = post && widget.s.settings['duplicateWarn'] != false
+          ? possibleDuplicate(widget.s.entries, v, excludeId: widget.draft?.id)
+          : null;
+      if (post &&
+          (widget.s.settings['confirmPost'] != false || duplicate != null)) {
         final totals = ['ticket', 'hotel', 'visa'].contains(widget.kind)
             ? calculate(v)
             : null;
         final confirmed = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('مراجعة قبل الاعتماد'),
+            title: UiText(
+              duplicate == null ? 'مراجعة قبل الاعتماد' : 'عملية مشابهة مسجلة',
+            ),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('${Entry(v).label} • ${displayDate(v['date'])}'),
-                  Text('الزبون: ${widget.s.name(v['customer'])}'),
-                  Text('جهة الإصدار: ${widget.s.name(v['supplier'])}'),
+                  if (duplicate != null)
+                    UiText(
+                      'توجد عملية مشابهة #${duplicate.id}. يمكنك الرجوع أو الاعتماد إذا كان التكرار مقصودًا.',
+                      style: const TextStyle(color: Colors.deepOrange),
+                    ),
+                  UiText('${Entry(v).label} • ${displayDate(v['date'])}'),
+                  UiText('الزبون: ${widget.s.name(v['customer'])}'),
+                  UiText('جهة الإصدار: ${widget.s.name(v['supplier'])}'),
                   if (totals != null) ...[
-                    Text('العدد: ${Entry(v).quantity}'),
-                    Text('البيع: ${currency.format(totals.sale)}'),
-                    Text('التسديد: ${currency.format(totals.cost)}'),
-                    Text('الربح: ${currency.format(totals.profit)}'),
+                    UiText('العدد: ${Entry(v).quantity}'),
+                    UiText('البيع: ${currency.format(totals.sale)}'),
+                    UiText('التسديد: ${currency.format(totals.cost)}'),
+                    UiText('الربح: ${currency.format(totals.profit)}'),
                     if (totals.profit < 0)
-                      const Text(
+                      const UiText(
                         'تنبيه: العملية بخسارة',
                         style: TextStyle(color: Colors.red),
                       ),
                   ] else
-                    Text('المبلغ: ${currency.format(v['amount'] ?? 0)}'),
-                  Text('التسديد: ${paymentLabel(v['paymentMethod'])}'),
+                    UiText('المبلغ: ${currency.format(v['amount'] ?? 0)}'),
+                  UiText('التسديد: ${paymentLabel(v['paymentMethod'])}'),
                 ],
               ),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('رجوع للتعديل'),
+                child: const UiText('رجوع للتعديل'),
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('اعتماد'),
+                child: const UiText('اعتماد'),
               ),
             ],
           ),
@@ -839,10 +871,10 @@ class _EntryFormState extends State<EntryForm> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('تم تحديد ${ids.length} من $quantity مسافر'),
+        UiText('تم تحديد ${ids.length} من $quantity مسافر'),
         const SizedBox(height: 8),
         if (ids.isEmpty)
-          const Text('لم تحدد أسماء بعد؛ العدد المالي من خانات الخدمة.'),
+          const UiText('لم تحدد أسماء بعد؛ العدد المالي من خانات الخدمة.'),
         Wrap(
           spacing: 8,
           runSpacing: 4,
@@ -853,7 +885,7 @@ class _EntryFormState extends State<EntryForm> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Flexible(
-                        child: Text(
+                        child: UiText(
                           widget.s.name(id),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -864,7 +896,7 @@ class _EntryFormState extends State<EntryForm> {
                             .where((r) => r['id'] == id)
                             .firstOrNull?['travelerType'],
                       ))
-                        Text(
+                        UiText(
                           ' · ${typeLabels[widget.s.parties.where((r) => r['id'] == id).firstOrNull?['travelerType']]}',
                         ),
                     ],
@@ -901,7 +933,7 @@ class _EntryFormState extends State<EntryForm> {
           children: [
             OutlinedButton.icon(
               icon: const Icon(Icons.people_outline),
-              label: const Text('اختيار المسافرين'),
+              label: const UiText('اختيار المسافرين'),
               onPressed: widget.preview || d['customer'] == null
                   ? null
                   : () async {
@@ -933,7 +965,7 @@ class _EntryFormState extends State<EntryForm> {
                                   height: MediaQuery.sizeOf(ctx).height * .65,
                                   child: Column(
                                     children: [
-                                      Text(
+                                      UiText(
                                         'مسافرو ${widget.s.name(d['customer'])}',
                                       ),
                                       Padding(
@@ -947,11 +979,11 @@ class _EntryFormState extends State<EntryForm> {
                                               set(() => query = normalize(v)),
                                         ),
                                       ),
-                                      Text('المحدد: ${selected.length}'),
+                                      UiText('المحدد: ${selected.length}'),
                                       Expanded(
                                         child: rows.isEmpty
                                             ? const Center(
-                                                child: Text(
+                                                child: UiText(
                                                   'لا توجد أسماء مطابقة',
                                                 ),
                                               )
@@ -960,8 +992,10 @@ class _EntryFormState extends State<EntryForm> {
                                                 itemBuilder: (ctx, i) {
                                                   final r = rows[i];
                                                   return CheckboxListTile(
-                                                    title: Text('${r['name']}'),
-                                                    subtitle: Text(
+                                                    title: UiText(
+                                                      '${r['name']}',
+                                                    ),
+                                                    subtitle: UiText(
                                                       r['customer'] == null
                                                           ? 'غير مرتبط — سيُربط بهذا الزبون عند الحفظ'
                                                           : 'تابع إلى: ${widget.s.name(r['customer'])}',
@@ -989,7 +1023,7 @@ class _EntryFormState extends State<EntryForm> {
                                             ctx,
                                             selected.toList(),
                                           ),
-                                          child: const Text('تم الاختيار'),
+                                          child: const UiText('تم الاختيار'),
                                         ),
                                       ),
                                     ],
@@ -1010,7 +1044,7 @@ class _EntryFormState extends State<EntryForm> {
             ),
             TextButton.icon(
               icon: const Icon(Icons.person_add_alt),
-              label: const Text('إضافة مسافر للزبون'),
+              label: const UiText('إضافة مسافر للزبون'),
               onPressed: d['customer'] == null
                   ? null
                   : () async {
@@ -1031,7 +1065,7 @@ class _EntryFormState extends State<EntryForm> {
           ],
         ),
         if (d['customer'] == null)
-          const Text('اختر حساب الزبون أولًا لإضافة أسمائه.'),
+          const UiText('اختر حساب الزبون أولًا لإضافة أسمائه.'),
       ],
     );
   }
@@ -1235,7 +1269,7 @@ class _EntryFormState extends State<EntryForm> {
               alignment: AlignmentDirectional.centerEnd,
               child: TextButton.icon(
                 icon: const Icon(Icons.list_alt, size: 18),
-                label: const Text('من قائمة محفوظة'),
+                label: const UiText('من قائمة محفوظة'),
                 onPressed: () async {
                   final id = await chooseListItem(
                     context,
@@ -1279,6 +1313,28 @@ class _EntryFormState extends State<EntryForm> {
         party: true,
       );
     }
+    if (f.key == 'tripType') {
+      return ListTile(
+        leading: const Icon(Icons.route_rounded),
+        title: UiText(label),
+        subtitle: UiText(d['return'] == null ? 'ذهاب فقط' : 'ذهاب وعودة'),
+      );
+    }
+    if ((widget.kind == 'ticket' && ['depart', 'return'].contains(f.key)) ||
+        (widget.kind == 'hotel' && ['checkIn', 'checkOut'].contains(f.key))) {
+      final hotel = widget.kind == 'hotel';
+      return TravelRangeField(
+        start: d[hotel ? 'checkIn' : 'depart'],
+        end: d[hotel ? 'checkOut' : 'return'],
+        hotel: hotel,
+        label: label,
+        onChanged: (range) => setState(() {
+          d[hotel ? 'checkIn' : 'depart'] = range.start;
+          d[hotel ? 'checkOut' : 'return'] = range.end;
+          if (!hotel) d['tripType'] = range.tripType;
+        }),
+      );
+    }
     if (f.type == 'date') {
       return DateField(
         label,
@@ -1290,14 +1346,14 @@ class _EntryFormState extends State<EntryForm> {
     if (f.type == 'passengers') {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [Text(label), passengerPicker()],
+        children: [UiText(label), passengerPicker()],
       );
     }
     if (f.type == 'attachments') {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(label),
+          UiText(label),
           Attachments(
             List<String>.from(d['attachments'] ?? []),
             (v) => setState(() => d['attachments'] = v),
@@ -1308,9 +1364,9 @@ class _EntryFormState extends State<EntryForm> {
     if (f.type == 'bool') {
       return SwitchListTile(
         contentPadding: EdgeInsets.zero,
-        title: Text(label),
+        title: UiText(label),
         subtitle: f.key == 'personal'
-            ? const Text('الشخصي لا يخصم من صافي ربح المكتب')
+            ? const UiText('الشخصي لا يخصم من صافي ربح المكتب')
             : null,
         value: d[f.key] == true,
         onChanged: (v) => setState(() => d[f.key] = v),
@@ -1328,11 +1384,13 @@ class _EntryFormState extends State<EntryForm> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(label, style: Theme.of(context).textTheme.labelLarge),
+            UiText(label, style: Theme.of(context).textTheme.labelLarge),
             const SizedBox(height: 8),
             SegmentedButton<String>(
               segments: choices.entries
-                  .map((e) => ButtonSegment(value: e.key, label: Text(e.value)))
+                  .map(
+                    (e) => ButtonSegment(value: e.key, label: UiText(e.value)),
+                  )
                   .toList(),
               selected: {d[f.key]?.toString() ?? choices.keys.first},
               onSelectionChanged: (v) => setState(() => d[f.key] = v.first),
@@ -1350,7 +1408,7 @@ class _EntryFormState extends State<EntryForm> {
           prefixIcon: Icon(fieldIcon(label)),
         ),
         items: choices.entries
-            .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+            .map((e) => DropdownMenuItem(value: e.key, child: UiText(e.value)))
             .toList(),
         onChanged: (v) => setState(() {
           if (f.type == 'direction') {
@@ -1374,8 +1432,22 @@ class _EntryFormState extends State<EntryForm> {
       revealed.contains(f.key) ||
       (layout.mode(f) != 'hidden' && layout.applicable(f, d));
   Widget formGroup(String group) {
+    final dateKeys = widget.kind == 'ticket'
+        ? ['depart', 'return']
+        : widget.kind == 'hotel'
+        ? ['checkIn', 'checkOut']
+        : <String>[];
+    final rangeFields = layout.fields
+        .where((f) => dateKeys.contains(f.key) && showField(f))
+        .toList();
+    final primaryRange = rangeFields.firstOrNull?.key;
     final fields = layout.fields
-        .where((f) => f.group == group && showField(f))
+        .where(
+          (f) =>
+              f.group == group &&
+              showField(f) &&
+              (!dateKeys.contains(f.key) || f.key == primaryRange),
+        )
         .toList();
     if (fields.isEmpty) {
       return const SizedBox.shrink();
@@ -1398,13 +1470,13 @@ class _EntryFormState extends State<EntryForm> {
         ...regular.map(input),
         if (details.isNotEmpty)
           ExpansionTile(
-            title: const Text('تفاصيل إضافية'),
+            title: const UiText('تفاصيل إضافية'),
             children: details.map(input).toList(),
           ),
         if (group == 'travel' && widget.kind == 'ticket')
           TextButton.icon(
             icon: const Icon(Icons.swap_horiz),
-            label: const Text('تبديل المغادرة والوصول'),
+            label: const UiText('تبديل المغادرة والوصول'),
             onPressed: () => setState(() {
               final from = d['from'];
               d['from'] = d['to'];
@@ -1412,11 +1484,11 @@ class _EntryFormState extends State<EntryForm> {
             }),
           ),
         if (group == 'booking' && d['checkIn'] != null && d['checkOut'] != null)
-          Text(
+          UiText(
             'عدد الليالي: ${DateTime.parse(d['checkOut']).difference(DateTime.parse(d['checkIn'])).inDays}',
           ),
         if (group == 'payment')
-          const Text(
+          const UiText(
             'طريقة الدفع وصف للعملية؛ تسجيل القبض أو الدفع من التسويات.',
           ),
       ],
@@ -1432,16 +1504,16 @@ class _EntryFormState extends State<EntryForm> {
     if (totals == null) {
       return calcError == null
           ? const SizedBox.shrink()
-          : Text(calcError!, style: const TextStyle(color: Colors.red));
+          : UiText(calcError!, style: const TextStyle(color: Colors.red));
     }
     if (compact) {
       return Wrap(
         spacing: 16,
         runSpacing: 4,
         children: [
-          Text('البيع ${currency.format(totals.sale)}'),
-          Text('الكلفة ${currency.format(totals.cost)}'),
-          Text(
+          UiText('البيع ${currency.format(totals.sale)}'),
+          UiText('الكلفة ${currency.format(totals.cost)}'),
+          UiText(
             'الربح ${currency.format(totals.profit)}',
             style: TextStyle(
               fontWeight: FontWeight.bold,
@@ -1464,7 +1536,7 @@ class _EntryFormState extends State<EntryForm> {
           color: totals.profit < 0 ? Colors.red : const Color(0xff23836c),
         ),
       ),
-      const Text(
+      const UiText(
         'كلفة الشراء هي مستحق المورد؛ الدفعات النقدية تُسجَّل كتسويات.',
       ),
     ]);
@@ -1498,7 +1570,7 @@ class _EntryFormState extends State<EntryForm> {
         },
         child: Scaffold(
           appBar: ClayAppBar(
-            title: Text(
+            title: UiText(
               '${widget.preview
                   ? 'معاينة'
                   : widget.draft == null
@@ -1510,6 +1582,8 @@ class _EntryFormState extends State<EntryForm> {
               Theme.of(c).colorScheme.surface,
             ),
             actions: [
+              if (widget.s.settings['showInputSearch'] != false)
+                InputSearch(layout: layout, onSelect: revealField),
               if (!widget.preview)
                 IconButton(
                   tooltip: 'تخصيص الإدخالات',
@@ -1541,17 +1615,16 @@ class _EntryFormState extends State<EntryForm> {
                 if (widget.preview)
                   const ListTile(
                     leading: Icon(Icons.preview_outlined),
-                    title: Text('معاينة فقط — لن تُحفظ عملية أو حركة مالية'),
+                    title: UiText('معاينة فقط — لن تُحفظ عملية أو حركة مالية'),
                   ),
-                if (widget.s.settings['showInputSearch'] != false)
-                  InputSearch(layout: layout, onSelect: revealField),
+
                 if (hiddenValues.isNotEmpty)
                   ListTile(
                     leading: const Icon(Icons.visibility_off_outlined),
-                    title: Text(
+                    title: UiText(
                       'حقول مخفية بها قيم: ${hiddenValues.map(layout.label).join('، ')}',
                     ),
-                    subtitle: const Text(
+                    subtitle: const UiText(
                       'قيمها محفوظة وتدخل في الحساب. اضغط لإظهارها في هذه العملية.',
                     ),
                     onTap: () => setState(
@@ -1564,7 +1637,7 @@ class _EntryFormState extends State<EntryForm> {
                   TextButton.icon(
                     onPressed: busy ? null : () => save(true, another: true),
                     icon: const Icon(Icons.add_task),
-                    label: const Text('حفظ وإضافة أخرى'),
+                    label: const UiText('حفظ وإضافة أخرى'),
                   ),
                 const SizedBox(height: 24),
               ],
@@ -1597,7 +1670,7 @@ class _EntryFormState extends State<EntryForm> {
                                 child: FilledButton.icon(
                                   onPressed: busy ? null : () => save(true),
                                   icon: const Icon(Icons.check),
-                                  label: Text(
+                                  label: UiText(
                                     busy
                                         ? 'جارٍ الحفظ…'
                                         : widget.draft?.posted == true
@@ -1610,7 +1683,7 @@ class _EntryFormState extends State<EntryForm> {
                                 const SizedBox(width: 10),
                                 OutlinedButton(
                                   onPressed: busy ? null : () => save(false),
-                                  child: const Text('مسودة'),
+                                  child: const UiText('مسودة'),
                                 ),
                               ],
                             ],
@@ -1658,12 +1731,12 @@ Future<void> refundDialog(BuildContext c, Store s, Entry e) async {
     context: c,
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, set) => AlertDialog(
-        title: Text('استرجاع العملية #${e.id}'),
+        title: UiText('استرجاع العملية #${e.id}'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
+              const UiText(
                 'يُخفض حساب الزبون والمورد والربح. إعادة النقد تُسجل بتسوية منفصلة.',
               ),
               const SizedBox(height: 16),
@@ -1692,7 +1765,7 @@ Future<void> refundDialog(BuildContext c, Store s, Entry e) async {
         actions: [
           TextButton(
             onPressed: busy ? null : () => Navigator.pop(ctx),
-            child: const Text('إلغاء'),
+            child: const UiText('إلغاء'),
           ),
           FilledButton(
             onPressed: busy
@@ -1719,7 +1792,7 @@ Future<void> refundDialog(BuildContext c, Store s, Entry e) async {
                       if (ctx.mounted) set(() => busy = false);
                     }
                   },
-            child: const Text('اعتماد الاسترجاع'),
+            child: const UiText('اعتماد الاسترجاع'),
           ),
         ],
       ),

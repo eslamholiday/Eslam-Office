@@ -2,11 +2,14 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'domain.dart';
+import 'ambient_motion.dart';
+import 'labels.dart';
 
 // A pack owns artwork, colors, geometry and motion together. Future packs plug
 // into this registry without rewriting forms, routes or the accounting model.
 class VisualPack {
   final String id, name, icons, scenes;
+  final String? extraIcons;
   final Color primary, secondary, canvas, surface;
   final double radius,
       fieldRadius,
@@ -21,6 +24,7 @@ class VisualPack {
     required this.id,
     required this.name,
     required this.icons,
+    this.extraIcons,
     required this.scenes,
     required this.primary,
     required this.secondary,
@@ -44,10 +48,34 @@ class VisualPack {
 }
 
 const visualPacks = <String, VisualPack>{
+  'glass': VisualPack(
+    id: 'glass',
+    name: 'الفضاء الهادئ',
+    icons: 'assets/visuals/glass/icons.webp',
+    extraIcons: 'assets/visuals/glass/icons_extra.webp',
+    scenes: 'assets/visuals/glass/scenes.webp',
+    primary: Color(0xff2867d8),
+    secondary: Color(0xff159c9b),
+    canvas: Color(0xffe7efff),
+    surface: Color(0xfff4f8ff),
+    radius: 24,
+    fieldRadius: 17,
+    buttonRadius: 22,
+    heroRadius: 28,
+    elevation: 3,
+    routeOffset: .06,
+    categoryColors: [
+      Color(0xff316fdc),
+      Color(0xff8270d4),
+      Color(0xff2c9ba6),
+      Color(0xff3a76c8),
+    ],
+  ),
   'clay': VisualPack(
     id: 'clay',
     name: 'المجسّمات الملونة',
     icons: 'assets/visuals/clay/icons.webp',
+    extraIcons: 'assets/visuals/clay/icons_extra.webp',
     scenes: 'assets/visuals/clay/scenes.webp',
     primary: Color(0xffef635a),
     secondary: Color(0xff089b9e),
@@ -63,12 +91,18 @@ const coral = Color(0xffef635a),
     violet = Color(0xff9b68cf);
 bool get illustrationsEnabled => displayPreferences['liteGraphics'] != true;
 int artIndex(String kind) => switch (kind) {
-  'ticket' || 'change' || 'home' => 0,
+  'home' => 26,
+  'ticket' || 'change' => 0,
   'visa' => 1,
   'hotel' => 2,
   'expense' || 'owed' => 3,
   'settlement' || 'refund' => 4,
-  'customer' || 'customers' || 'passenger' => 5,
+  'customer' || 'customers' => 20,
+  'passenger' => 19,
+  'adult' => 16,
+  'child' => 17,
+  'infant' => 18,
+  'opening' || 'funding' => 14,
   'supplier' || 'payable' => 6,
   'profit' || 'reports' => 7,
   'settings' => 8,
@@ -81,9 +115,27 @@ int artIndex(String kind) => switch (kind) {
   _ => 15,
 };
 int titleArt(String text) {
-  if (text.contains('الرئيسية')) {
-    return 0;
-  }
+  if (text.contains('بالغ')) return 16;
+  if (text.contains('طفل')) return 17;
+  if (text.contains('رضيع')) return 18;
+  if (text.contains('مسافر')) return 19;
+  if (text.contains('زبون') ||
+      text.contains('زبائن') ||
+      text.contains('ملف الحساب'))
+    return 20;
+  if (text.contains('تفاصيل السفر') || text.contains('الوجهة')) return 21;
+  if (text.contains('معلومات العملية') || text.contains('البيانات الأساسية'))
+    return 13;
+  if (text.contains('عمولة') || text.contains('النتيجة')) return 22;
+  if (text.contains('ملاحظ') || text.contains('مرفقات')) return 23;
+  if (text.contains('تاريخ') ||
+      text.contains('الفترة') ||
+      text.contains('الإضاءة'))
+    return 24;
+  if (text.contains('أعلام') || text.contains('دول') || text.contains('مدن'))
+    return 25;
+  if (text.contains('قوالب')) return 31;
+  if (text.contains('الرئيسية')) return 26;
   if (text.contains('تذكر') ||
       text.contains('تذاكر') ||
       text.contains('طيران')) {
@@ -155,6 +207,8 @@ Color artColor(int index) =>
       _ => 3,
     }];
 IconData fieldIcon(String label) {
+  if (label.contains('العدد') || label.contains('عدد'))
+    return Icons.numbers_rounded;
   if (label.contains('اسم') ||
       label.contains('مسافر') ||
       label.contains('زبون') ||
@@ -286,33 +340,61 @@ class ArtIcon extends StatelessWidget {
   final double size;
   const ArtIcon(this.index, {super.key, this.size = 48});
   @override
-  Widget build(BuildContext context) => SizedBox.square(
-    dimension: size,
-    child: illustrationsEnabled
-        ? AtlasArt(asset: activePack.icons, index: index, columns: 4)
-        : Icon(
-            switch (index) {
-              0 => Icons.flight,
-              1 => Icons.badge,
-              2 => Icons.hotel,
-              3 => Icons.wallet,
-              4 => Icons.swap_horiz,
-              5 => Icons.people,
-              6 => Icons.business,
-              7 => Icons.bar_chart,
-              9 => Icons.palette,
-              10 => Icons.volume_up,
-              11 => Icons.vibration,
-              12 => Icons.swipe,
-              13 => Icons.receipt_long,
-              14 => Icons.paid,
-              15 => Icons.archive,
-              _ => Icons.settings,
-            },
-            size: size * .7,
-            color: artColor(index),
-          ),
-  );
+  Widget build(BuildContext context) {
+    LabelScope.watch(context);
+    return SizedBox.square(
+      dimension: size,
+      child: illustrationsEnabled
+          ? AmbientMotion(
+              seed: index,
+              child: AtlasArt(
+                asset: index >= 16
+                    ? activePack.extraIcons ?? activePack.icons
+                    : activePack.icons,
+                index: index % 16,
+                columns: 4,
+              ),
+            )
+          : Icon(
+              switch (index) {
+                16 => Icons.person,
+                17 => Icons.child_care,
+                18 => Icons.baby_changing_station,
+                19 => Icons.luggage,
+                20 => Icons.badge_outlined,
+                21 => Icons.route,
+                22 => Icons.calculate_outlined,
+                23 => Icons.notes,
+                24 => Icons.calendar_month,
+                25 => Icons.public,
+                26 => Icons.home_rounded,
+                27 => Icons.save,
+                28 => Icons.search,
+                29 => Icons.filter_alt,
+                30 => Icons.fact_check,
+                31 => Icons.edit_document,
+                0 => Icons.flight,
+                1 => Icons.badge,
+                2 => Icons.hotel,
+                3 => Icons.wallet,
+                4 => Icons.swap_horiz,
+                5 => Icons.people,
+                6 => Icons.business,
+                7 => Icons.bar_chart,
+                9 => Icons.palette,
+                10 => Icons.volume_up,
+                11 => Icons.vibration,
+                12 => Icons.swipe,
+                13 => Icons.receipt_long,
+                14 => Icons.paid,
+                15 => Icons.archive,
+                _ => Icons.settings,
+              },
+              size: size * .7,
+              color: artColor(index),
+            ),
+    );
+  }
 }
 
 class ClayTransitions extends PageTransitionsBuilder {
@@ -354,29 +436,56 @@ class ClayTransitions extends PageTransitionsBuilder {
 ThemeData packTheme(Brightness brightness, Map<String, dynamic> preferences) {
   final pack = visualPacks[preferences['visualPack']] ?? visualPacks['clay']!;
   final dark = brightness == Brightness.dark;
-  final primary = preferences['packAccent'] is int
-      ? Color(preferences['packAccent'])
-      : pack.primary;
+  final glass = pack.id == 'glass';
+  final accent =
+      preferences['packAccent_${pack.id}'] ??
+      (pack.id == 'clay' ? preferences['packAccent'] : null);
+  final primary = accent is int ? Color(accent) : pack.primary;
   final radius = (preferences['packRadius'] as num? ?? pack.radius).toDouble();
-  final surface = dark ? const Color(0xff302b39) : pack.surface;
-  final ink = dark ? const Color(0xfffff0e4) : const Color(0xff49394b);
-  final border = dark ? const Color(0xff514455) : const Color(0xffefd4bf);
+  final surface = dark
+      ? (glass ? const Color(0xff172846) : const Color(0xff302b39))
+      : pack.surface.withValues(
+          alpha: glass
+              ? (preferences['glassOpacity'] as num? ?? .92).toDouble().clamp(
+                  .75,
+                  1,
+                )
+              : 1,
+        );
+  final ink = dark
+      ? (glass ? const Color(0xffeef5ff) : const Color(0xfffff0e4))
+      : glass
+      ? const Color(0xff1c3155)
+      : const Color(0xff49394b);
+  final border = dark
+      ? (glass ? const Color(0xff3b5783) : const Color(0xff514455))
+      : glass
+      ? const Color(0xffc6d8f4)
+      : const Color(0xffefd4bf);
   final scheme =
       ColorScheme.fromSeed(seedColor: primary, brightness: brightness).copyWith(
-        primary: dark ? const Color(0xffff9d8e) : primary,
+        primary: dark
+            ? (glass ? const Color(0xff8abaff) : const Color(0xffff9d8e))
+            : primary,
         secondary: dark ? const Color(0xff65d8d4) : pack.secondary,
         surface: surface,
         onSurface: ink,
         surfaceTint: Colors.transparent,
-        onPrimary: dark ? const Color(0xff422c30) : Colors.white,
+        onPrimary: dark
+            ? (glass ? const Color(0xff102547) : const Color(0xff422c30))
+            : Colors.white,
       );
   return ThemeData(
     useMaterial3: true,
     fontFamily: 'Cairo',
     brightness: brightness,
     colorScheme: scheme,
-    scaffoldBackgroundColor: dark ? const Color(0xff211e29) : pack.canvas,
-    visualDensity: preferences['compact'] == true
+    scaffoldBackgroundColor: dark
+        ? (glass ? const Color(0xff0d192d) : const Color(0xff211e29))
+        : pack.canvas,
+    visualDensity: preferences['uiDensity'] == 'spacious'
+        ? VisualDensity.comfortable
+        : preferences['compact'] == true
         ? VisualDensity.compact
         : VisualDensity.standard,
     pageTransitionsTheme: const PageTransitionsTheme(
@@ -388,16 +497,16 @@ ThemeData packTheme(Brightness brightness, Map<String, dynamic> preferences) {
         TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
       },
     ),
-    appBarTheme: const AppBarTheme(
+    appBarTheme: AppBarTheme(
       elevation: 0,
       centerTitle: false,
-      foregroundColor: Colors.white,
-      backgroundColor: coral,
+      foregroundColor: glass ? ink : Colors.white,
+      backgroundColor: glass ? pack.canvas : pack.primary,
       titleTextStyle: TextStyle(
         fontFamily: 'Cairo',
         fontWeight: FontWeight.w800,
         fontSize: 21,
-        color: Colors.white,
+        color: glass ? ink : Colors.white,
       ),
     ),
     cardTheme: CardThemeData(
@@ -405,7 +514,13 @@ ThemeData packTheme(Brightness brightness, Map<String, dynamic> preferences) {
       surfaceTintColor: Colors.transparent,
       elevation: dark ? 1 : pack.elevation,
       shadowColor: dark ? Colors.black38 : const Color(0x337b493b),
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: EdgeInsets.only(
+        bottom: preferences['uiDensity'] == 'compact'
+            ? 8
+            : preferences['uiDensity'] == 'spacious'
+            ? 18
+            : 14,
+      ),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(radius),
         side: BorderSide(color: dark ? border : Colors.white, width: 1.5),
@@ -414,7 +529,11 @@ ThemeData packTheme(Brightness brightness, Map<String, dynamic> preferences) {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: dark ? const Color(0xff26232e) : const Color(0xfffff2e7),
+      fillColor: dark
+          ? (glass ? const Color(0xff13233e) : const Color(0xff26232e))
+          : glass
+          ? const Color(0xffedf4ff)
+          : const Color(0xfffff2e7),
       floatingLabelBehavior: FloatingLabelBehavior.always,
       labelStyle: TextStyle(
         color: ink.withValues(alpha: .8),
@@ -563,25 +682,30 @@ class ClayAppBar extends StatelessWidget implements PreferredSizeWidget {
       Size.fromHeight(kToolbarHeight + (bottom?.preferredSize.height ?? 0) + 8);
   @override
   Widget build(BuildContext context) {
-    final index = titleArt(title is Text ? ((title as Text).data ?? '') : '');
-    final color = title is Text && (title as Text).data == 'الرئيسية'
+    final index = titleArt(widgetCaption(title));
+    final glass = activePack.id == 'glass';
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final foreground = glass
+        ? (dark ? const Color(0xffeef5ff) : const Color(0xff193764))
+        : Colors.white;
+    final color = widgetCaption(title) == 'الرئيسية'
         ? activePack.primary
         : artColor(index);
     return Theme(
       data: Theme.of(context).copyWith(
         iconButtonTheme: IconButtonThemeData(
           style: IconButton.styleFrom(
-            foregroundColor: Colors.white,
-            backgroundColor: Colors.white.withValues(alpha: .15),
+            foregroundColor: foreground,
+            backgroundColor: foreground.withValues(alpha: .07),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
             ),
           ),
         ),
-        tabBarTheme: const TabBarThemeData(
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          indicatorColor: Colors.white,
+        tabBarTheme: TabBarThemeData(
+          labelColor: foreground,
+          unselectedLabelColor: foreground.withValues(alpha: .6),
+          indicatorColor: glass ? activePack.primary : Colors.white,
         ),
       ),
       child: AppBar(
@@ -591,21 +715,30 @@ class ClayAppBar extends StatelessWidget implements PreferredSizeWidget {
         centerTitle: centerTitle,
         toolbarHeight: kToolbarHeight + 8,
         actions: actions,
-        foregroundColor: Colors.white,
+        foregroundColor: foreground,
         bottom: bottom,
-        backgroundColor: color,
-        iconTheme: const IconThemeData(color: Colors.white),
-        actionsIconTheme: const IconThemeData(color: Colors.white),
+        backgroundColor: glass
+            ? Theme.of(context).scaffoldBackgroundColor
+            : color,
+        iconTheme: IconThemeData(color: foreground),
+        actionsIconTheme: IconThemeData(color: foreground),
         flexibleSpace: DecoratedBox(
           decoration: BoxDecoration(
+            borderRadius: glass
+                ? const BorderRadius.vertical(bottom: Radius.circular(28))
+                : null,
             gradient: LinearGradient(
               begin: Alignment.topRight,
               end: Alignment.bottomLeft,
-              colors: [
-                Color.lerp(color, Colors.white, .14)!,
-                color,
-                Color.lerp(color, coral, .35)!,
-              ],
+              colors: glass
+                  ? (dark
+                        ? [const Color(0xff203d67), const Color(0xff162941)]
+                        : [const Color(0xfff8fbff), const Color(0xffcddfff)])
+                  : [
+                      Color.lerp(color, Colors.white, .14)!,
+                      color,
+                      Color.lerp(color, coral, .35)!,
+                    ],
             ),
             border: const Border(
               bottom: BorderSide(color: Colors.white38, width: 2),
@@ -615,8 +748,11 @@ class ClayAppBar extends StatelessWidget implements PreferredSizeWidget {
             children: [
               Positioned(
                 left: 24,
-                bottom: -26,
-                child: Opacity(opacity: .13, child: ArtIcon(index, size: 125)),
+                bottom: -10,
+                child: Opacity(
+                  opacity: glass ? .09 : .13,
+                  child: ArtIcon(index, size: 125),
+                ),
               ),
             ],
           ),
@@ -640,6 +776,7 @@ class ServiceBanner extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) {
+    LabelScope.watch(context);
     final index = artIndex(kind), color = artColor(index);
     final dark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
@@ -691,20 +828,30 @@ class ServiceBanner extends StatelessWidget {
                               (displayPreferences['artStrength'] as num? ?? 1)
                                   .toDouble()
                                   .clamp(0, 1),
-                          child: AtlasArt(
-                            asset: activePack.scenes,
-                            index: switch (kind) {
-                              'ticket' || 'change' => 0,
-                              'visa' => 1,
-                              'hotel' => 2,
-                              _ => 3,
-                            },
-                            columns: 2,
-                            mirror: true,
-                            fit: BoxFit.cover,
+                          child: AmbientMotion(
+                            seed: artIndex(kind) + 40,
+                            background: true,
+                            child: AtlasArt(
+                              asset: activePack.scenes,
+                              index: switch (kind) {
+                                'ticket' || 'change' => 0,
+                                'visa' => 1,
+                                'hotel' => 2,
+                                _ => 3,
+                              },
+                              columns: 2,
+                              mirror: true,
+                              fit: BoxFit.cover,
+                            ),
                           ),
                         ),
                       ),
+                    ),
+                  if (kind == 'expense' && illustrationsEnabled)
+                    Positioned(
+                      left: 22,
+                      bottom: 10,
+                      child: ArtIcon(14, size: 40),
                     ),
                   Padding(
                     padding: const EdgeInsets.symmetric(
@@ -718,14 +865,14 @@ class ServiceBanner extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Text(
+                              UiText(
                                 title,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   color: dark
                                       ? Colors.white
-                                      : const Color(0xff49394b),
+                                      : Theme.of(context).colorScheme.onSurface,
                                   fontSize: 22,
                                   fontWeight: FontWeight.w900,
                                   shadows: [
@@ -741,7 +888,7 @@ class ServiceBanner extends StatelessWidget {
                               if (subtitle.isNotEmpty)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 5),
-                                  child: Text(
+                                  child: UiText(
                                     subtitle,
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
@@ -750,7 +897,9 @@ class ServiceBanner extends StatelessWidget {
                                       fontWeight: FontWeight.w700,
                                       color: dark
                                           ? Colors.white
-                                          : const Color(0xff49394b),
+                                          : Theme.of(
+                                              context,
+                                            ).colorScheme.onSurface,
                                     ),
                                   ),
                                 ),

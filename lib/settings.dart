@@ -1,3 +1,4 @@
+import 'labels.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -8,6 +9,11 @@ import 'input_settings.dart';
 import 'input_schema.dart';
 import 'experience_settings.dart';
 import 'experience.dart';
+import 'geography_settings.dart';
+import 'geography.dart';
+import 'clearance.dart';
+import 'label_settings.dart';
+import 'config_transfer.dart';
 
 const themeNames = [
   'مكتب فاخر',
@@ -99,7 +105,7 @@ class SettingsPage extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
-              Text(
+              UiText(
                 title,
                 style: const TextStyle(
                   fontWeight: FontWeight.w800,
@@ -109,7 +115,10 @@ class SettingsPage extends StatelessWidget {
               if (subtitle != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
-                  child: Text(subtitle, style: Theme.of(c).textTheme.bodySmall),
+                  child: UiText(
+                    subtitle,
+                    style: Theme.of(c).textTheme.bodySmall,
+                  ),
                 ),
             ],
           ),
@@ -120,7 +129,7 @@ class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext c) => Scaffold(
     appBar: ClayAppBar(
-      title: const Text('الإعدادات'),
+      title: const UiText('الإعدادات'),
       actions: [
         IconButton(
           tooltip: 'بحث بالإعدادات',
@@ -139,7 +148,7 @@ class SettingsPage extends StatelessWidget {
               ArtIcon(8, size: 64),
               SizedBox(width: 12),
               Expanded(
-                child: Text(
+                child: UiText(
                   'خلّي التطبيق على راحتك',
                   style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
                 ),
@@ -164,6 +173,13 @@ class SettingsPage extends StatelessWidget {
               'بحث • اختيار • حفظ',
             ),
           ),
+        ]),
+        Section('العناوين والأعلام والتخصيصات', [
+          pair(
+            tile(c, 'العناوين ومحتويات القوائم', 23, UiLabelsPage(s)),
+            tile(c, 'الدول والمدن والأعلام', 25, GeographySettingsPage(s)),
+          ),
+          tile(c, 'نقل تخصيصات التطبيق', 31, ConfigTransferPage(s)),
         ]),
         Section('المظهر والتنقل', [
           pair(
@@ -233,13 +249,13 @@ class LayoutPage extends StatelessWidget {
         s.settings['homeShortcutHidden'] ?? const <String>[],
       );
       return Scaffold(
-        appBar: ClayAppBar(title: const Text('الرئيسية والتنقل')),
+        appBar: ClayAppBar(title: const UiText('الرئيسية والتنقل')),
         body: ListView(
           padding: const EdgeInsets.all(12),
           children: [
             Section('بطاقات الخدمات المصوّرة', [
               SwitchListTile(
-                title: const Text('إظهار بطاقات التذاكر والفيزا والفنادق'),
+                title: const UiText('إظهار بطاقات التذاكر والفيزا والفنادق'),
                 secondary: const ArtIcon(0, size: 36),
                 value: s.settings['homeServiceCards'] != false,
                 onChanged: (v) => s.set('homeServiceCards', v),
@@ -251,8 +267,10 @@ class LayoutPage extends StatelessWidget {
                 initialValue: s.settings['start'] ?? 'home',
                 items: navLabels.entries
                     .map(
-                      (p) =>
-                          DropdownMenuItem(value: p.key, child: Text(p.value)),
+                      (p) => DropdownMenuItem(
+                        value: p.key,
+                        child: UiText(p.value),
+                      ),
                     )
                     .toList(),
                 onChanged: (v) => s.set('start', v),
@@ -272,7 +290,7 @@ class LayoutPage extends StatelessWidget {
                     .map(
                       (key) => CheckboxListTile(
                         key: ValueKey(key),
-                        title: Text(navLabels[key]!),
+                        title: UiText(navLabels[key]!),
                         secondary: ReorderableDragStartListener(
                           index: nav.indexOf(key),
                           child: const Icon(Icons.drag_handle),
@@ -310,7 +328,7 @@ class LayoutPage extends StatelessWidget {
                       (key) => CheckboxListTile(
                         key: ValueKey(key),
                         secondary: const Icon(Icons.drag_handle),
-                        title: Text(
+                        title: UiText(
                           {
                             'owed': 'المطلوب من الزبائن',
                             'payable': 'مستحقات الإصدار',
@@ -331,7 +349,7 @@ class LayoutPage extends StatelessWidget {
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('إظهار الإحصاءات المختصرة'),
+                title: const UiText('إظهار الإحصاءات المختصرة'),
                 value: s.settings['showHomeStats'] != false,
                 onChanged: (v) => s.set('showHomeStats', v),
               ),
@@ -347,7 +365,7 @@ class LayoutPage extends StatelessWidget {
               ])
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: Text(
+                  title: UiText(
                     {
                       'passengers': 'المسافرون',
                       'suppliers': 'جهات الإصدار',
@@ -381,7 +399,7 @@ class LayoutPage extends StatelessWidget {
                 await s.set('navHidden', []);
                 await s.set('start', 'home');
               },
-              child: const Text('استعادة ترتيب الواجهات'),
+              child: const UiText('استعادة ترتيب الواجهات'),
             ),
           ],
         ),
@@ -433,7 +451,7 @@ class _OfficeSettingsState extends State<OfficeSettings> {
 
   @override
   Widget build(BuildContext c) => Scaffold(
-    appBar: ClayAppBar(title: const Text('هوية المكتب والكشوف')),
+    appBar: ClayAppBar(title: const UiText('هوية المكتب والكشوف')),
     body: ListView(
       padding: const EdgeInsets.all(12),
       children: [
@@ -455,7 +473,7 @@ class _OfficeSettingsState extends State<OfficeSettings> {
             },
           ),
           SwitchListTile(
-            title: const Text('إظهار الشعار'),
+            title: const UiText('إظهار الشعار'),
             value: widget.s.settings['showLogo'] != false,
             onChanged: (v) async {
               await widget.s.set('showLogo', v);
@@ -468,9 +486,9 @@ class _OfficeSettingsState extends State<OfficeSettings> {
               initialValue: logoAlign,
               decoration: const InputDecoration(labelText: 'محاذاة الشعار'),
               items: const [
-                DropdownMenuItem(value: 'right', child: Text('يمين')),
-                DropdownMenuItem(value: 'center', child: Text('وسط')),
-                DropdownMenuItem(value: 'left', child: Text('يسار')),
+                DropdownMenuItem(value: 'right', child: UiText('يمين')),
+                DropdownMenuItem(value: 'center', child: UiText('وسط')),
+                DropdownMenuItem(value: 'left', child: UiText('يسار')),
               ],
               onChanged: (v) => setState(() => logoAlign = v ?? 'right'),
             ),
@@ -479,9 +497,9 @@ class _OfficeSettingsState extends State<OfficeSettings> {
               initialValue: logoSize,
               decoration: const InputDecoration(labelText: 'حجم الشعار'),
               items: const [
-                DropdownMenuItem(value: 'small', child: Text('صغير')),
-                DropdownMenuItem(value: 'medium', child: Text('متوسط')),
-                DropdownMenuItem(value: 'large', child: Text('كبير')),
+                DropdownMenuItem(value: 'small', child: UiText('صغير')),
+                DropdownMenuItem(value: 'medium', child: UiText('متوسط')),
+                DropdownMenuItem(value: 'large', child: UiText('كبير')),
               ],
               onChanged: (v) => setState(() => logoSize = v ?? 'medium'),
             ),
@@ -492,7 +510,7 @@ class _OfficeSettingsState extends State<OfficeSettings> {
           statementOptions.entries
               .map(
                 (e) => SwitchListTile(
-                  title: Text(e.value),
+                  title: UiText(e.value),
                   value: e.key == 'statementShowNotes'
                       ? widget.s.settings[e.key] == true
                       : widget.s.settings[e.key] != false,
@@ -519,7 +537,7 @@ class _OfficeSettingsState extends State<OfficeSettings> {
             }
             if (c.mounted) Navigator.pop(c);
           },
-          child: const Text('حفظ'),
+          child: const UiText('حفظ'),
         ),
       ],
     ),
@@ -541,6 +559,10 @@ class _ReferencePageState extends State<ReferencePage> {
   String query = '';
   bool alphabetic = true;
   Future<void> edit(BuildContext c, [Map<String, dynamic>? r]) async {
+    if (kind == 'city' || kind == 'country') {
+      await editGeographicReference(c, s, kind, r);
+      return;
+    }
     final name = TextEditingController(text: r?['name'] ?? ''),
         code = TextEditingController(text: r?['code'] ?? ''),
         subcategories = TextEditingController(
@@ -562,7 +584,7 @@ class _ReferencePageState extends State<ReferencePage> {
       context: c,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, set) => AlertDialog(
-          title: Text(r == null ? 'إضافة' : 'تعديل'),
+          title: UiText(r == null ? 'إضافة' : 'تعديل'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -583,7 +605,7 @@ class _ReferencePageState extends State<ReferencePage> {
                         .map(
                           (v) => DropdownMenuItem(
                             value: v.name,
-                            child: Text(v.name),
+                            child: UiText(v.name),
                           ),
                         )
                         .toList(),
@@ -596,11 +618,11 @@ class _ReferencePageState extends State<ReferencePage> {
                     items: const [
                       DropdownMenuItem(
                         value: 'percent',
-                        child: Text('نسبة خصم من الأساسي'),
+                        child: UiText('نسبة خصم من الأساسي'),
                       ),
                       DropdownMenuItem(
                         value: 'fee',
-                        child: Text('رسم إصدار إضافي'),
+                        child: UiText('رسم إصدار إضافي'),
                       ),
                     ],
                     onChanged: (v) => set(() => mode = v!),
@@ -622,7 +644,7 @@ class _ReferencePageState extends State<ReferencePage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('إلغاء'),
+              child: const UiText('إلغاء'),
             ),
             FilledButton(
               onPressed: () => guarded(ctx, () async {
@@ -650,7 +672,7 @@ class _ReferencePageState extends State<ReferencePage> {
                 }, id: r?['id']);
                 if (ctx.mounted) Navigator.pop(ctx);
               }),
-              child: const Text('حفظ'),
+              child: const UiText('حفظ'),
             ),
           ],
         ),
@@ -679,7 +701,7 @@ class _ReferencePageState extends State<ReferencePage> {
       }
       return Scaffold(
         appBar: ClayAppBar(
-          title: Text(title),
+          title: UiText(title),
           actions: [
             IconButton(
               tooltip: 'تبديل الترتيب',
@@ -706,8 +728,8 @@ class _ReferencePageState extends State<ReferencePage> {
                 children: rows
                     .map(
                       (r) => ListTile(
-                        title: Text(r['name']),
-                        subtitle: Text(r['code'] ?? ''),
+                        title: UiText(r['name']),
+                        subtitle: UiText(r['code'] ?? ''),
                         onTap: () => edit(c, r),
                         trailing: Switch(
                           value: r['archived'] == 0,
@@ -748,7 +770,7 @@ class _RulesPageState extends State<RulesPage> {
 
   @override
   Widget build(BuildContext c) => Scaffold(
-    appBar: ClayAppBar(title: const Text('قواعد العمولات')),
+    appBar: ClayAppBar(title: const UiText('قواعد العمولات')),
     body: ListView(
       padding: const EdgeInsets.all(12),
       children: [
@@ -771,9 +793,9 @@ class _RulesPageState extends State<RulesPage> {
             items: const [
               DropdownMenuItem(
                 value: 'percent',
-                child: Text('خصم عمولة من الأساسي'),
+                child: UiText('خصم عمولة من الأساسي'),
               ),
-              DropdownMenuItem(value: 'fee', child: Text('إضافة رسم إصدار')),
+              DropdownMenuItem(value: 'fee', child: UiText('إضافة رسم إصدار')),
             ],
             onChanged: (v) => setState(() => mode = v!),
           ),
@@ -786,7 +808,8 @@ class _RulesPageState extends State<RulesPage> {
               initialValue: currency,
               items: Currency.values
                   .map(
-                    (v) => DropdownMenuItem(value: v.name, child: Text(v.name)),
+                    (v) =>
+                        DropdownMenuItem(value: v.name, child: UiText(v.name)),
                   )
                   .toList(),
               onChanged: (v) => setState(() => currency = v!),
@@ -821,16 +844,16 @@ class _RulesPageState extends State<RulesPage> {
                 message(c, 'حُفظت القاعدة. العمليات السابقة لا تتغيّر.');
               }
             }),
-            child: const Text('حفظ القاعدة'),
+            child: const UiText('حفظ القاعدة'),
           ),
         ]),
         ...widget.s.rules.map(
           (r) => Card(
             child: ListTile(
-              title: Text(
+              title: UiText(
                 '${widget.s.reference(r['airline'])} × ${widget.s.name(r['supplier'])}',
               ),
-              subtitle: Text(
+              subtitle: UiText(
                 r['commissionMode'] == 'fee'
                     ? 'رسم إصدار ${Currency.values.byName(r['currency'] ?? 'USD').format(r['fee'] ?? 0)}'
                     : 'خصم ${(r['rate'] ?? 0) / 100}%',
@@ -860,29 +883,53 @@ class ArchivePage extends StatelessWidget {
   Widget build(BuildContext c) => AnimatedBuilder(
     animation: s,
     builder: (c, _) => Scaffold(
-      appBar: ClayAppBar(title: const Text('الحسابات المؤرشفة')),
-      body: !s.parties.any((p) => p['archived'] == 1)
-          ? const Center(
-              child: EmptyState(
-                'لا توجد حسابات مؤرشفة',
-                'الحسابات التي تؤرشفها تظهر هنا مع خيار استعادتها',
-                icon: Icons.archive_outlined,
+      appBar: const ClayAppBar(title: UiText('الأرشيف والتصفية')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Section('أرشيف الماضي', [
+            ListTile(
+              leading: const ArtIcon(15),
+              title: const UiText('أرشيف التصفيات'),
+              subtitle: UiText(
+                '${s.clearances.length} تصفية — للقراءة والتصدير فقط',
               ),
-            )
-          : ListView(
-              children: s.parties
-                  .where((p) => p['archived'] == 1)
+              trailing: const Icon(Icons.chevron_left),
+              onTap: () => Navigator.push(
+                c,
+                MaterialPageRoute(builder: (_) => ClearanceArchivePage(s)),
+              ),
+            ),
+            OutlinedButton.icon(
+              onPressed: s.entries.any((e) => e.posted)
+                  ? () => confirmClearance(c, s, all: true)
+                  : null,
+              icon: const Icon(Icons.inventory_2_outlined),
+              label: const UiText('تصفية جميع العمليات المعتمدة'),
+            ),
+          ]),
+          if (s.parties.any(
+            (p) => p['archived'] == 1 && !s.retiredParties.contains(p['id']),
+          ))
+            Section('حسابات مخفية سابقًا', [
+              ...s.parties
+                  .where(
+                    (p) =>
+                        p['archived'] == 1 &&
+                        !s.retiredParties.contains(p['id']),
+                  )
                   .map(
                     (p) => ListTile(
-                      title: Text(p['name']),
+                      title: UiText(p['name']),
                       trailing: TextButton(
                         onPressed: () => s.archiveParty(p['id'], false),
-                        child: const Text('استعادة'),
+                        child: const UiText('استعادة'),
                       ),
                     ),
-                  )
-                  .toList(),
-            ),
+                  ),
+            ]),
+        ],
+      ),
     ),
   );
 }
@@ -924,7 +971,7 @@ class AuditPage extends StatelessWidget {
   Widget build(BuildContext c) => AnimatedBuilder(
     animation: s,
     builder: (c, _) => Scaffold(
-      appBar: ClayAppBar(title: const Text('سجل التعديلات')),
+      appBar: ClayAppBar(title: const UiText('سجل التعديلات')),
       body: s.logs.isEmpty
           ? const Center(
               child: EmptyState(
@@ -945,7 +992,7 @@ class AuditPage extends StatelessWidget {
                             '${r['date']}'.substring(0, 10))
                       Padding(
                         padding: const EdgeInsets.all(16),
-                        child: Text(
+                        child: UiText(
                           displayDate('${r['date']}'.substring(0, 10)),
                           style: const TextStyle(fontWeight: FontWeight.w800),
                         ),
@@ -956,8 +1003,8 @@ class AuditPage extends StatelessWidget {
                             ? Icons.delete_outline
                             : Icons.edit_outlined,
                       ),
-                      title: Text('${r['action']} • ${auditTarget(r)}'),
-                      subtitle: Text(
+                      title: UiText('${r['action']} • ${auditTarget(r)}'),
+                      subtitle: UiText(
                         r['date']
                             .toString()
                             .substring(0, 16)
@@ -975,7 +1022,7 @@ class AuditPage extends StatelessWidget {
                           showDialog<void>(
                             context: c,
                             builder: (ctx) => AlertDialog(
-                              title: const Text('تفاصيل التعديل'),
+                              title: const UiText('تفاصيل التعديل'),
                               content: SingleChildScrollView(
                                 child: SelectableText(
                                   'قبل:\n${payload['before'] ?? '—'}\n\nبعد:\n${payload['after'] ?? '—'}',
@@ -984,7 +1031,7 @@ class AuditPage extends StatelessWidget {
                               actions: [
                                 TextButton(
                                   onPressed: () => Navigator.pop(ctx),
-                                  child: const Text('إغلاق'),
+                                  child: const UiText('إغلاق'),
                                 ),
                               ],
                             ),
@@ -1000,7 +1047,7 @@ class AuditPage extends StatelessWidget {
                                 }
                               }),
                               icon: const Icon(Icons.undo),
-                              label: const Text('تراجع'),
+                              label: const UiText('تراجع'),
                             )
                           : null,
                     ),
@@ -1017,20 +1064,20 @@ class AboutPage extends StatelessWidget {
   const AboutPage(this.s, {super.key});
   @override
   Widget build(BuildContext c) => Scaffold(
-    appBar: ClayAppBar(title: const Text('حول التطبيق')),
+    appBar: ClayAppBar(title: const UiText('حول التطبيق')),
     body: ListView(
       padding: const EdgeInsets.all(24),
       children: [
         const ArtIcon(0, size: 100),
         const SizedBox(height: 24),
-        const Text(
+        const UiText(
           'Eslam Money',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
         ),
-        const Text('2.0.0 • فكرة وإشراف إسلام', textAlign: TextAlign.center),
+        const UiText('2.0.0 • فكرة وإشراف إسلام', textAlign: TextAlign.center),
         const SizedBox(height: 24),
-        const Text(
+        const UiText(
           'إدارة مكتب السفر والحسابات\nحفظ محلي • دولار ودينار • بحث موحّد',
           textAlign: TextAlign.center,
         ),
@@ -1039,14 +1086,14 @@ class AboutPage extends StatelessWidget {
             Uri.parse('https://eslamholiday.com'),
             mode: LaunchMode.externalApplication,
           ),
-          child: const Text('Eslamholiday.com'),
+          child: const UiText('Eslamholiday.com'),
         ),
         TextButton(
           onPressed: () => launchUrl(
             Uri.parse('https://wa.me/9647713414312'),
             mode: LaunchMode.externalApplication,
           ),
-          child: const Text('WhatsApp • 07713414312'),
+          child: const UiText('WhatsApp • 07713414312'),
         ),
       ],
     ),
@@ -1071,7 +1118,7 @@ class PreferencesPage extends StatelessWidget {
           ? '${s.settings[key] == 400 ? 400 : 300}'
           : '${s.settings[key] ?? fallback}',
       items: values.entries
-          .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+          .map((e) => DropdownMenuItem(value: e.key, child: UiText(e.value)))
           .toList(),
       onChanged: (v) => s.set(
         key,
@@ -1083,18 +1130,18 @@ class PreferencesPage extends StatelessWidget {
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: s,
     builder: (context, _) => Scaffold(
-      appBar: ClayAppBar(title: const Text('الأرقام والتواريخ والحفظ')),
+      appBar: ClayAppBar(title: const UiText('الأرقام والتواريخ والحفظ')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           Section('عرض الأرقام', [
             SwitchListTile(
-              title: const Text('أرقام عربية ١٢٣'),
+              title: const UiText('أرقام عربية ١٢٣'),
               value: s.settings['arabicDigits'] == true,
               onChanged: (v) => s.set('arabicDigits', v),
             ),
             SwitchListTile(
-              title: const Text('فاصل الآلاف'),
+              title: const UiText('فاصل الآلاف'),
               value: s.settings['groupNumbers'] != false,
               onChanged: (v) => s.set('groupNumbers', v),
             ),
@@ -1102,7 +1149,7 @@ class PreferencesPage extends StatelessWidget {
               '0': 'بدون كسور',
               '2': 'منزلتان عشريتان',
             }, '0'),
-            Text('الدينار: أعداد صحيحة • ${Currency.USD.format(123456)}'),
+            UiText('الدينار: أعداد صحيحة • ${Currency.USD.format(123456)}'),
           ]),
           Section('عرض التاريخ', [
             option('نسق التاريخ', 'dateFormat', {
@@ -1110,28 +1157,28 @@ class PreferencesPage extends StatelessWidget {
               'iso': 'سنة-شهر-يوم',
             }, 'day'),
             SwitchListTile(
-              title: const Text('إظهار اسم اليوم'),
+              title: const UiText('إظهار اسم اليوم'),
               value: s.settings['showWeekday'] != false,
               onChanged: (v) => s.set('showWeekday', v),
             ),
-            Text(displayDate(day(DateTime.now()))),
+            UiText(displayDate(day(DateTime.now()))),
           ]),
           Section('صور الكشوف', [
             option('جودة الصور', 'imageDpi', {
               '300': 'عالية — 300 DPI',
               '400': 'فائقة — 400 DPI',
             }, '300'),
-            const Text('PNG بدون فقدان جودة • خلفية بيضاء ثابتة'),
+            const UiText('PNG بدون فقدان جودة • خلفية بيضاء ثابتة'),
             option('ألبوم الحفظ في المعرض', 'galleryAlbum', {
               'Eslam Money': 'Eslam Money',
               'Passengers Statements': 'Passengers Statements',
             }, 'Eslam Money'),
             SwitchListTile(
-              title: const Text('نسخ للمعرض عند الحفظ داخل التطبيق'),
+              title: const UiText('نسخ للمعرض عند الحفظ داخل التطبيق'),
               value: s.settings['autoGallery'] == true,
               onChanged: (v) => s.set('autoGallery', v),
             ),
-            const Text(
+            const UiText(
               'الاسم تلقائي: صاحب الكشف + العملة + التاريخ + رقم الصفحة. الكشوف الطويلة تُحفظ على عدة صور.',
             ),
           ]),
@@ -1144,7 +1191,7 @@ class PreferencesPage extends StatelessWidget {
           ]),
           Section('قوائم الحسابات', [
             SwitchListTile(
-              title: const Text('عرض الرصيد المختصر'),
+              title: const UiText('عرض الرصيد المختصر'),
               value: s.settings['showListBalances'] == true,
               onChanged: (v) => s.set('showListBalances', v),
             ),
@@ -1159,6 +1206,9 @@ class SettingsSearch extends SearchDelegate<void> {
   final Store s;
   SettingsSearch(this.s) : super(searchFieldLabel: 'ابحث في الإعدادات');
   Map<String, Widget> get destinations => {
+    'العناوين التسميات الخيارات الأيقونات': UiLabelsPage(s),
+    'الدول المدن الأعلام': GeographySettingsPage(s),
+    'تصدير استيراد نقل التخصيصات': ConfigTransferPage(s),
     'الثيمات الألوان الخطوط المظهر حزم الأشكال': AppearancePage(s),
     'الصوت المؤثرات مستوى الصوت': ExperienceSettingsPage(s),
     'الاهتزاز القوة اللمس': ExperienceSettingsPage(s, initial: 'haptic'),
@@ -1197,7 +1247,7 @@ class SettingsSearch extends SearchDelegate<void> {
         .where((e) => normalize(e.key).contains(normalize(query)))
         .map(
           (e) => ListTile(
-            title: Text(e.key),
+            title: UiText(e.key),
             trailing: const Icon(Icons.chevron_left),
             onTap: () => Navigator.push(
               context,

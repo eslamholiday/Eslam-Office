@@ -408,7 +408,8 @@ class InputLayout {
 
   Map<String, dynamic> fieldConfig(String key) =>
       Map<String, dynamic>.from((config['fields'] as Map?)?[key] ?? {});
-  String label(InputSpec f) => fieldConfig(f.key)['label'] ?? f.label;
+  String label(InputSpec f) =>
+      displayLabel(fieldConfig(f.key)['label'] ?? f.label);
   String mode(InputSpec f) =>
       fieldConfig(f.key)['mode'] ??
       (List<String>.from(settings['hidden_$scope'] ?? []).contains(f.key)

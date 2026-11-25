@@ -1,3 +1,4 @@
+import 'labels.dart';
 import 'package:flutter/material.dart';
 import 'domain.dart';
 import 'forms.dart';
@@ -5,6 +6,8 @@ import 'input_schema.dart';
 import 'settings.dart' show ReferencePage;
 import 'store.dart';
 import 'ui.dart';
+import 'geography_settings.dart';
+import 'label_settings.dart';
 
 const editableLists = {
   'airline': 'شركات الطيران',
@@ -17,17 +20,19 @@ const editableLists = {
 };
 
 Future<int?> addReference(BuildContext context, Store s, String kind) async {
+  if (kind == 'city' || kind == 'country')
+    return editGeographicReference(context, s, kind);
   final controller = TextEditingController();
   int? result;
   await showDialog<void>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: Text('إضافة إلى ${editableLists[kind] ?? kind}'),
+      title: UiText('إضافة إلى ${editableLists[kind] ?? kind}'),
       content: textField(controller, 'الاسم'),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(ctx),
-          child: const Text('إلغاء'),
+          child: const UiText('إلغاء'),
         ),
         FilledButton(
           onPressed: () => guarded(ctx, () async {
@@ -42,7 +47,7 @@ Future<int?> addReference(BuildContext context, Store s, String kind) async {
                     as int?;
             if (ctx.mounted) Navigator.pop(ctx);
           }),
-          child: const Text('حفظ'),
+          child: const UiText('حفظ'),
         ),
       ],
     ),
@@ -57,67 +62,64 @@ class InputSearch extends StatelessWidget {
   final ValueChanged<String> onSelect;
   const InputSearch({super.key, required this.layout, required this.onSelect});
   @override
-  Widget build(BuildContext c) => Padding(
-    padding: const EdgeInsets.only(bottom: 12),
-    child: OutlinedButton.icon(
-      icon: const Icon(Icons.search),
-      label: const Text('ابحث عن حقل، حتى المخفي'),
-      onPressed: () async {
-        var query = '';
-        final result = await showModalBottomSheet<String>(
-          context: c,
-          isScrollControlled: true,
-          showDragHandle: true,
-          builder: (ctx) => StatefulBuilder(
-            builder: (ctx, set) => SafeArea(
-              child: Padding(
-                padding: EdgeInsets.only(
-                  bottom: MediaQuery.viewInsetsOf(ctx).bottom,
-                ),
-                child: SizedBox(
-                  height: MediaQuery.sizeOf(ctx).height * .6,
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: TextField(
-                          decoration: const InputDecoration(
-                            labelText: 'اسم الحقل',
-                            prefixIcon: Icon(Icons.search),
-                          ),
-                          onChanged: (v) => set(() => query = normalize(v)),
+  Widget build(BuildContext c) => IconButton(
+    tooltip: 'بحث الحقول الظاهرة والمخفية',
+    icon: const Icon(Icons.manage_search_rounded),
+    onPressed: () async {
+      var query = '';
+      final result = await showModalBottomSheet<String>(
+        context: c,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, set) => SafeArea(
+            child: Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.viewInsetsOf(ctx).bottom,
+              ),
+              child: SizedBox(
+                height: MediaQuery.sizeOf(ctx).height * .6,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: TextField(
+                        decoration: const InputDecoration(
+                          labelText: 'اسم الحقل',
+                          prefixIcon: Icon(Icons.search),
                         ),
+                        onChanged: (v) => set(() => query = normalize(v)),
                       ),
-                      Expanded(
-                        child: ListView(
-                          children: layout.fields
-                              .where(
-                                (f) => normalize(
-                                  '${f.label} ${layout.label(f)} ${inputGroupLabels[f.group]}',
-                                ).contains(query),
-                              )
-                              .map(
-                                (f) => ListTile(
-                                  title: Text(layout.label(f)),
-                                  subtitle: Text(
-                                    '${inputGroupLabels[f.group]} • ${inputModes[layout.mode(f)]}',
-                                  ),
-                                  onTap: () => Navigator.pop(ctx, f.key),
+                    ),
+                    Expanded(
+                      child: ListView(
+                        children: layout.fields
+                            .where(
+                              (f) => normalize(
+                                '${f.label} ${layout.label(f)} ${inputGroupLabels[f.group]}',
+                              ).contains(query),
+                            )
+                            .map(
+                              (f) => ListTile(
+                                title: UiText(layout.label(f)),
+                                subtitle: UiText(
+                                  '${inputGroupLabels[f.group]} • ${inputModes[layout.mode(f)]}',
                                 ),
-                              )
-                              .toList(),
-                        ),
+                                onTap: () => Navigator.pop(ctx, f.key),
+                              ),
+                            )
+                            .toList(),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
-        );
-        if (result != null) onSelect(result);
-      },
-    ),
+        ),
+      );
+      if (result != null) onSelect(result);
+    },
   );
 }
 
@@ -126,13 +128,13 @@ class InputCenterPage extends StatelessWidget {
   const InputCenterPage(this.s, {super.key});
   @override
   Widget build(BuildContext c) => Scaffold(
-    appBar: ClayAppBar(title: const Text('الإدخالات والقوائم')),
+    appBar: ClayAppBar(title: const UiText('الإدخالات والقوائم')),
     body: ListView(
       padding: const EdgeInsets.all(12),
       children: [
         const Padding(
           padding: EdgeInsets.all(8),
-          child: Text(
+          child: UiText(
             'كل إعدادات الإدخال في مكان واحد. التخصيص لا يمسح بياناتك ولا يغيّر ظهورها في الكشوف.',
           ),
         ),
@@ -143,8 +145,8 @@ class InputCenterPage extends StatelessWidget {
               .map(
                 (e) => ListTile(
                   leading: ArtIcon(artIndex(e.key), size: 40),
-                  title: Text(e.value),
-                  subtitle: const Text(
+                  title: UiText(e.value),
+                  subtitle: const UiText(
                     'الحقول • ترتيب الأقسام • الافتراضيات • المعاينة',
                   ),
                   trailing: const Icon(Icons.chevron_left),
@@ -165,8 +167,8 @@ class InputCenterPage extends StatelessWidget {
               .map(
                 (e) => ListTile(
                   leading: const Icon(Icons.list_alt),
-                  title: Text(e.value),
-                  subtitle: const Text('إضافة وتعديل وإيقاف العناصر'),
+                  title: UiText(e.value),
+                  subtitle: const UiText('إضافة وتعديل وإيقاف العناصر'),
                   trailing: const Icon(Icons.chevron_left),
                   onTap: () => Navigator.push(
                     c,
@@ -181,7 +183,7 @@ class InputCenterPage extends StatelessWidget {
         _section(c, 'سلوك الإدخال', [
           ListTile(
             leading: const Icon(Icons.tune),
-            title: const Text('خيارات عامة لكل النماذج'),
+            title: const UiText('خيارات عامة لكل النماذج'),
             trailing: const Icon(Icons.chevron_left),
             onTap: () => Navigator.push(
               c,
@@ -207,16 +209,16 @@ class ChoiceOptionsPage extends StatelessWidget {
     final yes = await showDialog<bool>(
       context: c,
       builder: (ctx) => AlertDialog(
-        title: const Text('اسم الخيار'),
+        title: const UiText('اسم الخيار'),
         content: textField(controller, 'الاسم'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('إلغاء'),
+            child: const UiText('إلغاء'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('حفظ'),
+            child: const UiText('حفظ'),
           ),
         ],
       ),
@@ -246,7 +248,7 @@ class ChoiceOptionsPage extends StatelessWidget {
       final hidden = List<String>.from(config['hidden'] ?? []);
       return Scaffold(
         appBar: ClayAppBar(
-          title: Text('خيارات ${field.label}'),
+          title: UiText('خيارات ${field.label}'),
           actions: [
             if (field.key == 'paymentMethod')
               IconButton(
@@ -264,8 +266,8 @@ class ChoiceOptionsPage extends StatelessWidget {
           children: [
             const Padding(
               padding: EdgeInsets.all(16),
-              child: Text(
-                'اسحب للترتيب، اضغط الاسم لتغييره، أو أوقف ظهوره. الخيار المستخدم في عملية محفوظة يبقى ظاهرًا عند تعديلها.',
+              child: UiText(
+                'اسحب للترتيب، اضغط الاسم لتغييره، واضغط مطولًا لاختيار أيقونة، أو أوقف ظهوره. الخيار المستخدم في عملية محفوظة يبقى ظاهرًا عند تعديلها.',
               ),
             ),
             Expanded(
@@ -282,10 +284,22 @@ class ChoiceOptionsPage extends StatelessWidget {
                     key: ValueKey(k),
                     leading: ReorderableDragStartListener(
                       index: i,
-                      child: const Icon(Icons.drag_handle),
+                      child: ArtIcon(
+                        (s.settings['uiIcons'] as Map?)?[all[k]] as int? ??
+                            titleArt(all[k]!),
+                        size: 32,
+                      ),
                     ),
-                    title: Text(all[k]!),
+                    title: UiText(all[k]!),
                     onTap: () => rename(c, k, all[k]!),
+                    onLongPress: () async {
+                      final icon = await chooseUiIcon(c, titleArt(all[k]!));
+                      if (icon != null)
+                        await s.set('uiIcons', {
+                          ...?s.settings['uiIcons'] as Map?,
+                          all[k]!: icon,
+                        });
+                    },
                     trailing: Switch(
                       value: !hidden.contains(k),
                       onChanged: (v) {
@@ -312,8 +326,8 @@ class InputBehaviorPage extends StatelessWidget {
   const InputBehaviorPage(this.s, {super.key});
   Widget toggle(String key, String title, String subtitle, bool fallback) =>
       SwitchListTile(
-        title: Text(title),
-        subtitle: Text(subtitle),
+        title: UiText(title),
+        subtitle: UiText(subtitle),
         value: s.settings[key] as bool? ?? fallback,
         onChanged: (v) => s.set(key, v),
       );
@@ -321,10 +335,22 @@ class InputBehaviorPage extends StatelessWidget {
   Widget build(BuildContext c) => AnimatedBuilder(
     animation: s,
     builder: (c, _) => Scaffold(
-      appBar: ClayAppBar(title: const Text('سلوك الإدخال')),
+      appBar: ClayAppBar(title: const UiText('سلوك الإدخال')),
       body: ListView(
         padding: const EdgeInsets.all(12),
         children: [
+          toggle(
+            'duplicateWarn',
+            'تنبيه العمليات المتشابهة',
+            'قابل للتجاوز إذا كان التكرار مقصودًا',
+            true,
+          ),
+          toggle(
+            'showRecoveryHome',
+            'متابعة المسودات من الرئيسية',
+            'بطاقة للعمليات غير المكتملة',
+            true,
+          ),
           Section('العرض', [
             toggle(
               'compactForms',
@@ -358,12 +384,12 @@ class InputBehaviorPage extends StatelessWidget {
               items: const [
                 DropdownMenuItem(
                   value: 'recent',
-                  child: Text('المفضلة ثم آخر المستخدم'),
+                  child: UiText('المفضلة ثم آخر المستخدم'),
                 ),
-                DropdownMenuItem(value: 'name', child: Text('أبجدي')),
+                DropdownMenuItem(value: 'name', child: UiText('أبجدي')),
                 DropdownMenuItem(
                   value: 'original',
-                  child: Text('ترتيب الإضافة'),
+                  child: UiText('ترتيب الإضافة'),
                 ),
               ],
               onChanged: (v) => s.set('pickerSort', v),
@@ -433,7 +459,7 @@ class _FormCustomizationPageState extends State<FormCustomizationPage> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, set) => AlertDialog(
-          title: Text('تخصيص ${f.label}'),
+          title: UiText('تخصيص ${f.label}'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -446,7 +472,7 @@ class _FormCustomizationPageState extends State<FormCustomizationPage> {
                       .map(
                         (e) => DropdownMenuItem(
                           value: e.key,
-                          child: Text(e.value),
+                          child: UiText(e.value),
                         ),
                       )
                       .toList(),
@@ -454,14 +480,14 @@ class _FormCustomizationPageState extends State<FormCustomizationPage> {
                 ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('مطلوب عند الاعتماد'),
+                  title: const UiText('مطلوب عند الاعتماد'),
                   value: required,
                   onChanged: (v) => set(() => required = v),
                 ),
                 if (f.choices.isNotEmpty)
                   OutlinedButton.icon(
                     icon: const Icon(Icons.list_alt),
-                    label: const Text('تعديل خيارات هذه القائمة'),
+                    label: const UiText('تعديل خيارات هذه القائمة'),
                     onPressed: () => Navigator.push(
                       ctx,
                       MaterialPageRoute(
@@ -469,7 +495,7 @@ class _FormCustomizationPageState extends State<FormCustomizationPage> {
                       ),
                     ),
                   ),
-                const Text(
+                const UiText(
                   'يمكن إخفاء أي حقل. إذا احتاج الاعتماد قيمة لازمة للحساب، نُظهر الحقل لتكمله. إخفاء الحقل لا يمسح قيمته.',
                 ),
               ],
@@ -478,11 +504,11 @@ class _FormCustomizationPageState extends State<FormCustomizationPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('إلغاء'),
+              child: const UiText('إلغاء'),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('حفظ'),
+              child: const UiText('حفظ'),
             ),
           ],
         ),
@@ -519,7 +545,7 @@ class _FormCustomizationPageState extends State<FormCustomizationPage> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, set) => AlertDialog(
-          title: Text('افتراضي: ${layout.label(f)}'),
+          title: UiText('افتراضي: ${layout.label(f)}'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -553,7 +579,7 @@ class _FormCustomizationPageState extends State<FormCustomizationPage> {
                             .map(
                               (e) => DropdownMenuItem(
                                 value: e.key,
-                                child: Text(e.value),
+                                child: UiText(e.value),
                               ),
                             )
                             .toList(),
@@ -561,14 +587,14 @@ class _FormCustomizationPageState extends State<FormCustomizationPage> {
                   )
                 else if (f.type == 'bool')
                   SwitchListTile(
-                    title: Text(layout.label(f)),
+                    title: UiText(layout.label(f)),
                     value: value == true,
                     onChanged: (v) => set(() => value = v),
                   )
                 else
                   textField(controller, layout.label(f), number: numeric),
                 const SizedBox(height: 12),
-                const Text(
+                const UiText(
                   'القيمة تبدأ بها العمليات الجديدة فقط. «بدون افتراضي» لا يغيّر العمليات المحفوظة. العملة والتاريخ يستخدمان الإعداد العام وتاريخ اليوم عند تركهما فارغين.',
                 ),
               ],
@@ -577,11 +603,11 @@ class _FormCustomizationPageState extends State<FormCustomizationPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, 'clear'),
-              child: const Text('بدون افتراضي'),
+              child: const UiText('بدون افتراضي'),
             ),
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('إلغاء'),
+              child: const UiText('إلغاء'),
             ),
             FilledButton(
               onPressed: () {
@@ -614,7 +640,7 @@ class _FormCustomizationPageState extends State<FormCustomizationPage> {
                   message(ctx, e);
                 }
               },
-              child: const Text('حفظ'),
+              child: const UiText('حفظ'),
             ),
           ],
         ),
@@ -675,18 +701,18 @@ class _FormCustomizationPageState extends State<FormCustomizationPage> {
     final yes = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('استعادة تخصيص هذا القسم؟'),
-        content: const Text(
+        title: const UiText('استعادة تخصيص هذا القسم؟'),
+        content: const UiText(
           'تعود عناوين الحقول وترتيبها وافتراضياتها للوضع الأصلي. تبقى بياناتك وعملياتك محفوظة.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('إلغاء'),
+            child: const UiText('إلغاء'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('استعادة'),
+            child: const UiText('استعادة'),
           ),
         ],
       ),
@@ -717,7 +743,7 @@ class _FormCustomizationPageState extends State<FormCustomizationPage> {
         length: 3,
         child: Scaffold(
           appBar: ClayAppBar(
-            title: Text('إدخالات ${inputScopes[widget.scope]}'),
+            title: UiText('إدخالات ${inputScopes[widget.scope]}'),
             actions: [
               IconButton(
                 tooltip: 'معاينة النموذج',
@@ -742,7 +768,7 @@ class _FormCustomizationPageState extends State<FormCustomizationPage> {
                 itemBuilder: (_) => [
                   const PopupMenuItem(
                     value: 'reset',
-                    child: Text('استعادة تخصيص هذا القسم'),
+                    child: UiText('استعادة تخصيص هذا القسم'),
                   ),
                 ],
               ),
@@ -770,7 +796,7 @@ class _FormCustomizationPageState extends State<FormCustomizationPage> {
                               .map(
                                 (g) => DropdownMenuItem(
                                   value: g,
-                                  child: Text(inputGroupLabels[g] ?? g),
+                                  child: UiText(inputGroupLabels[g] ?? g),
                                 ),
                               )
                               .toList(),
@@ -801,8 +827,8 @@ class _FormCustomizationPageState extends State<FormCustomizationPage> {
                             )
                             .map(
                               (f) => ListTile(
-                                title: Text(layout.label(f)),
-                                subtitle: Text(
+                                title: UiText(layout.label(f)),
+                                subtitle: UiText(
                                   '${inputGroupLabels[f.group]} • ${inputModes[layout.mode(f)]}',
                                 ),
                                 trailing: const Icon(Icons.tune),
@@ -840,8 +866,8 @@ class _FormCustomizationPageState extends State<FormCustomizationPage> {
                                 index: i,
                                 child: const Icon(Icons.drag_handle),
                               ),
-                              title: Text(layout.label(f)),
-                              subtitle: Text(
+                              title: UiText(layout.label(f)),
+                              subtitle: UiText(
                                 '${inputModes[layout.mode(f)]}${layout.requiredField(f) ? ' • مطلوب عند الاعتماد' : ''}',
                               ),
                               trailing: const Icon(Icons.tune),
@@ -857,7 +883,7 @@ class _FormCustomizationPageState extends State<FormCustomizationPage> {
                 children: [
                   const Padding(
                     padding: EdgeInsets.all(16),
-                    child: Text(
+                    child: UiText(
                       'اسحب لترتيب الأقسام. المفتاح يحدد فتح القسم تلقائيًا عند الإضافة. الحقول المخفية لا تظهر في القسم.',
                     ),
                   ),
@@ -880,8 +906,8 @@ class _FormCustomizationPageState extends State<FormCustomizationPage> {
                               index: i,
                               child: const Icon(Icons.drag_handle),
                             ),
-                            title: Text(inputGroupLabels[g] ?? g),
-                            subtitle: Text(
+                            title: UiText(inputGroupLabels[g] ?? g),
+                            subtitle: UiText(
                               layout.expanded(g)
                                   ? 'مفتوح تلقائيًا'
                                   : 'مطوي تلقائيًا',
@@ -906,7 +932,7 @@ class _FormCustomizationPageState extends State<FormCustomizationPage> {
                 children: [
                   const Padding(
                     padding: EdgeInsets.all(8),
-                    child: Text(
+                    child: UiText(
                       'اضغط أي حقل لتحديد قيمته الابتدائية أو إزالتها. القيم تخص العمليات الجديدة فقط.',
                     ),
                   ),
@@ -926,8 +952,8 @@ class _FormCustomizationPageState extends State<FormCustomizationPage> {
                           )
                           .map(
                             (f) => ListTile(
-                              title: Text(layout.label(f)),
-                              subtitle: Text(defaultLabel(f)),
+                              title: UiText(layout.label(f)),
+                              subtitle: UiText(defaultLabel(f)),
                               trailing: const Icon(Icons.edit_outlined),
                               onTap: () => editDefault(f),
                             ),

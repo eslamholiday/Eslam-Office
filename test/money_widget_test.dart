@@ -67,10 +67,19 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 150));
       });
       await tester.pumpAndSettle();
-      await tester.runAsync(() async { await Future<void>.delayed(const Duration(milliseconds: 300)); });
-    await tester.pumpAndSettle();
-    expect(s.entries, hasLength(1), reason: tester.widgetList<Text>(find.byType(Text)).map((e) => e.data).join(' | '));
-    expect(s.entries.single.label, 'تغيير');
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      });
+      await tester.pumpAndSettle();
+      expect(
+        s.entries,
+        hasLength(1),
+        reason: tester
+            .widgetList<Text>(find.byType(Text))
+            .map((e) => e.data)
+            .join(' | '),
+      );
+      expect(s.entries.single.label, 'تغيير');
       expect(s.entries.single.data['original'], isNull);
       expect(
         await tester.runAsync(() => s.balance(customer, Currency.USD)),

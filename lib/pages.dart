@@ -1,3 +1,4 @@
+import 'labels.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -5,6 +6,7 @@ import 'domain.dart';
 import 'store.dart';
 import 'ui.dart';
 import 'experience.dart';
+import 'clearance.dart';
 import 'forms.dart';
 import 'reports.dart';
 
@@ -49,7 +51,7 @@ Future<void> phoneActions(BuildContext c, String raw) async {
         children: [
           ListTile(
             leading: const Icon(Icons.phone_outlined),
-            title: const Text('اتصال'),
+            title: const UiText('اتصال'),
             onTap: () async {
               Navigator.pop(ctx);
               await launchUrl(Uri(scheme: 'tel', path: raw));
@@ -57,7 +59,7 @@ Future<void> phoneActions(BuildContext c, String raw) async {
           ),
           ListTile(
             leading: const Icon(Icons.chat_outlined),
-            title: const Text('واتساب'),
+            title: const UiText('واتساب'),
             onTap: () async {
               Navigator.pop(ctx);
               var phone = normalize(raw).replaceAll(RegExp(r'\D'), '');
@@ -70,7 +72,7 @@ Future<void> phoneActions(BuildContext c, String raw) async {
           ),
           ListTile(
             leading: const Icon(Icons.copy_outlined),
-            title: const Text('نسخ الرقم'),
+            title: const UiText('نسخ الرقم'),
             onTap: () async {
               await Clipboard.setData(ClipboardData(text: raw));
               if (ctx.mounted) Navigator.pop(ctx);
@@ -126,14 +128,14 @@ class EntryTile extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
+                          UiText(
                             '${e.label} • ${entryLabel(s, e)}',
                             style: const TextStyle(fontWeight: FontWeight.w700),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 5),
-                          Text(
+                          UiText(
                             '#${e.id} • ${displayDate(e.date)}',
                             style: Theme.of(c).textTheme.bodySmall,
                           ),
@@ -152,7 +154,7 @@ class EntryTile extends StatelessWidget {
                                   color: color.withValues(alpha: .1),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: Text(
+                                child: UiText(
                                   state,
                                   style: TextStyle(
                                     color: color,
@@ -174,7 +176,7 @@ class EntryTile extends StatelessWidget {
                       constraints: BoxConstraints(
                         maxWidth: MediaQuery.sizeOf(c).width * .3,
                       ),
-                      child: Text(
+                      child: UiText(
                         s.settings['hideAmounts'] == true
                             ? '••••'
                             : e.currency.format(
@@ -249,7 +251,7 @@ class _EntrySwipeActionsState extends State<_EntrySwipeActions> {
                     ),
                   ),
                   icon: const Icon(Icons.visibility_outlined),
-                  label: const Text('عرض العملية'),
+                  label: const UiText('عرض العملية'),
                 ),
                 if (widget.entry.kind != 'refund')
                   FilledButton.icon(
@@ -260,7 +262,7 @@ class _EntrySwipeActionsState extends State<_EntrySwipeActions> {
                       draft: widget.entry,
                     ),
                     icon: const Icon(Icons.edit_rounded),
-                    label: const Text('تعديل العملية'),
+                    label: const UiText('تعديل العملية'),
                   ),
                 IconButton(
                   tooltip: 'إخفاء الاختصارات',
@@ -317,7 +319,7 @@ class _EntriesPageState extends State<EntriesPage> {
           .toList();
       return Scaffold(
         appBar: ClayAppBar(
-          title: Text(widget.kind == null ? 'العمليات' : types[widget.kind]!),
+          title: UiText(widget.kind == null ? 'العمليات' : types[widget.kind]!),
           actions: [
             if (query.isNotEmpty ||
                 currency != null ||
@@ -356,7 +358,7 @@ class _EntriesPageState extends State<EntriesPage> {
                 child: Row(
                   children: [
                     FilterChip(
-                      label: const Text('المسودات'),
+                      label: const UiText('المسودات'),
                       selected: drafts,
                       onSelected: (v) => setState(() => drafts = v),
                     ),
@@ -365,7 +367,7 @@ class _EntriesPageState extends State<EntriesPage> {
                       (v) => Padding(
                         padding: const EdgeInsets.only(left: 8),
                         child: FilterChip(
-                          label: Text(v.name),
+                          label: UiText(v.name),
                           selected: currency == v.name,
                           onSelected: (b) =>
                               setState(() => currency = b ? v.name : null),
@@ -377,7 +379,7 @@ class _EntriesPageState extends State<EntriesPage> {
                         (e) => Padding(
                           padding: const EdgeInsets.only(left: 8),
                           child: FilterChip(
-                            label: Text(e.value),
+                            label: UiText(e.value),
                             selected: kind == e.key,
                             onSelected: (b) =>
                                 setState(() => kind = b ? e.key : null),
@@ -418,7 +420,7 @@ class EntryDetail extends StatelessWidget {
     final sale = ['ticket', 'hotel', 'visa', 'refund'].contains(e.kind);
     return Scaffold(
       appBar: ClayAppBar(
-        title: Text('${e.label} #${e.id}'),
+        title: UiText('${e.label} #${e.id}'),
         actions: [
           if (['ticket', 'visa', 'hotel'].contains(e.kind))
             IconButton(
@@ -467,11 +469,11 @@ class EntryDetail extends StatelessWidget {
             height: 100,
           ),
           Section(e.posted ? 'عملية معتمدة' : 'مسودة', [
-            Text('التاريخ: ${displayDate(e.date)} • ${e.currency.name}'),
+            UiText('التاريخ: ${displayDate(e.date)} • ${e.currency.name}'),
             if (e.data['customer'] != null)
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text('الزبون: ${s.name(e.data['customer'])}'),
+                title: UiText('الزبون: ${s.name(e.data['customer'])}'),
                 trailing: const Icon(Icons.chevron_left),
                 onTap: () => Navigator.push(
                   c,
@@ -481,14 +483,14 @@ class EntryDetail extends StatelessWidget {
                 ),
               ),
             if (e.data['supplier'] != null)
-              Text('جهة الإصدار: ${s.name(e.data['supplier'])}'),
+              UiText('جهة الإصدار: ${s.name(e.data['supplier'])}'),
             if (e.data['airline'] != null)
-              Text('الطيران: ${s.reference(e.data['airline'])}'),
+              UiText('الطيران: ${s.reference(e.data['airline'])}'),
 
             if (e.passengers.isNotEmpty)
-              Text('المسافرون: ${e.passengers.map(s.name).join('، ')}'),
+              UiText('المسافرون: ${e.passengers.map(s.name).join('، ')}'),
             if (e.data['paymentMethod'] != null)
-              Text('طريقة التسديد: ${paymentLabel(e.data['paymentMethod'])}'),
+              UiText('طريقة التسديد: ${paymentLabel(e.data['paymentMethod'])}'),
             if (sale) ...[
               const SizedBox(height: 16),
               pair(
@@ -497,7 +499,7 @@ class EntryDetail extends StatelessWidget {
               ),
               AmountBox('الربح', e.currency.format(e.profit)),
               if (e.kind == 'ticket')
-                Text(
+                UiText(
                   'العمولة المثبتة: ${((e.data['rate'] ?? 0) / 100)}% • ${e.currency.format(e.data['commission'] ?? 0)}',
                 ),
             ] else
@@ -510,21 +512,21 @@ class EntryDetail extends StatelessWidget {
                   .map(
                     (r) => Padding(
                       padding: const EdgeInsets.only(top: 12),
-                      child: Text(
+                      child: UiText(
                         '${['بالغ', 'طفل', 'رضيع'][r.key]} × ${r.value['qty']} • بيع الوحدة ${e.currency.format(r.value['sell'])}',
                       ),
                     ),
                   )),
             if (e.kind == 'visa')
-              Text('العدد: ${e.data['qty']} • ${e.data['visaType'] ?? ''}'),
+              UiText('العدد: ${e.data['qty']} • ${e.data['visaType'] ?? ''}'),
             if (e.kind == 'hotel')
-              Text(
+              UiText(
                 '${e.data['hotelName'] ?? ''}\n${e.data['checkIn'] ?? ''} — ${e.data['checkOut'] ?? ''}',
               ),
             if (e.data['notes'] != null && e.data['notes'] != '')
               Padding(
                 padding: const EdgeInsets.only(top: 16),
-                child: Text(e.data['notes']),
+                child: UiText(e.data['notes']),
               ),
           ]),
           if ((e.data['attachments'] as List? ?? []).isNotEmpty)
@@ -534,7 +536,7 @@ class EntryDetail extends StatelessWidget {
                   .map(
                     (path) => ListTile(
                       leading: const Icon(Icons.attach_file),
-                      title: const Text('فتح المرفق'),
+                      title: const UiText('فتح المرفق'),
                       onTap: () => openAttachment(c, path),
                     ),
                   )
@@ -550,11 +552,12 @@ class EntryDetail extends StatelessWidget {
                   OutlinedButton.icon(
                     onPressed: () => refundDialog(c, s, e),
                     icon: const Icon(Icons.undo),
-                    label: const Text('استرجاع / عكس العملية'),
+                    label: const UiText('استرجاع / عكس العملية'),
                   ),
                   OutlinedButton.icon(
                     onPressed: () {
                       final copy = Map<String, dynamic>.from(e.data)
+                        ..remove('id')
                         ..['posted'] = false
                         ..['date'] = day(DateTime.now())
                         ..remove('corrects')
@@ -562,48 +565,19 @@ class EntryDetail extends StatelessWidget {
                       newEntry(c, s, e.kind, draft: Entry(copy));
                     },
                     icon: const Icon(Icons.copy_all_outlined),
-                    label: const Text('نسخ كعملية جديدة'),
+                    label: const UiText('نسخ كعملية جديدة'),
                   ),
                 ],
               ),
             ),
           if (e.posted)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
-                onPressed: () async {
-                  final yes = await showDialog<bool>(
-                    context: c,
-                    builder: (ctx) => AlertDialog(
-                      title: const Text('حذف إجباري؟'),
-                      content: const Text(
-                        'سيتم حذف العملية وكل آثارها وارتباطاتها المالية. '
-                        'سيُحفظ سجل يسمح بالتراجع من سجل التعديلات.',
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx, false),
-                          child: const Text('إلغاء'),
-                        ),
-                        FilledButton(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: Colors.red,
-                          ),
-                          onPressed: () => Navigator.pop(ctx, true),
-                          child: const Text('حذف إجباري'),
-                        ),
-                      ],
-                    ),
-                  );
-                  if (yes == true) {
-                    await s.forceDeleteEntry(e);
-                    if (c.mounted) Navigator.pop(c);
-                  }
-                },
-                icon: const Icon(Icons.delete_forever_outlined),
-                label: const Text('حذف إجباري'),
-              ),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final done = await confirmClearance(c, s, entry: e);
+                if (done && c.mounted) Navigator.pop(c);
+              },
+              icon: const Icon(Icons.inventory_2_outlined),
+              label: const UiText('تصفية وأرشفة نهائية'),
             ),
           if (!e.posted)
             TextButton(
@@ -611,15 +585,15 @@ class EntryDetail extends StatelessWidget {
                 final yes = await showDialog<bool>(
                   context: c,
                   builder: (ctx) => AlertDialog(
-                    title: const Text('حذف المسودة؟'),
+                    title: const UiText('حذف المسودة؟'),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('إلغاء'),
+                        child: const UiText('إلغاء'),
                       ),
                       FilledButton(
                         onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('حذف'),
+                        child: const UiText('حذف'),
                       ),
                     ],
                   ),
@@ -629,7 +603,7 @@ class EntryDetail extends StatelessWidget {
                   if (c.mounted) Navigator.pop(c);
                 }
               },
-              child: const Text('حذف المسودة'),
+              child: const UiText('حذف المسودة'),
             ),
         ],
       ),
@@ -688,7 +662,7 @@ class _PartiesPageState extends State<PartiesPage> {
             });
       return Scaffold(
         appBar: ClayAppBar(
-          title: Text(
+          title: UiText(
             {
               'customer': 'الزبائن',
               'supplier': 'جهات الإصدار / الموردون',
@@ -703,11 +677,11 @@ class _PartiesPageState extends State<PartiesPage> {
               initialValue: sort,
               onSelected: (v) => widget.s.set('partySort_${widget.kind}', v),
               itemBuilder: (_) => const [
-                PopupMenuItem(value: 'name', child: Text('أبجديًا')),
-                PopupMenuItem(value: 'new', child: Text('الأحدث إضافة')),
-                PopupMenuItem(value: 'recent', child: Text('آخر تعامل')),
-                PopupMenuItem(value: 'USD', child: Text('الأعلى رصيدًا USD')),
-                PopupMenuItem(value: 'IQD', child: Text('الأعلى رصيدًا IQD')),
+                PopupMenuItem(value: 'name', child: UiText('أبجديًا')),
+                PopupMenuItem(value: 'new', child: UiText('الأحدث إضافة')),
+                PopupMenuItem(value: 'recent', child: UiText('آخر تعامل')),
+                PopupMenuItem(value: 'USD', child: UiText('الأعلى رصيدًا USD')),
+                PopupMenuItem(value: 'IQD', child: UiText('الأعلى رصيدًا IQD')),
               ],
             ),
             IconButton(
@@ -748,20 +722,20 @@ class _PartiesPageState extends State<PartiesPage> {
                               avatar: r['avatar'],
                               name: partyDisplayName(r),
                             ),
-                            title: Text(partyDisplayName(r)),
+                            title: UiText(partyDisplayName(r)),
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 if ((r['phone'] ?? '').toString().isNotEmpty)
                                   InkWell(
                                     onTap: () => phoneActions(c, r['phone']),
-                                    child: Text(
+                                    child: UiText(
                                       normalizePhone(r['phone']),
                                       textDirection: TextDirection.ltr,
                                     ),
                                   ),
                                 if (widget.kind == 'customer')
-                                  Text(
+                                  UiText(
                                     '${widget.s.list('passenger').where((p) => p['customer'] == r['id']).length} مسافرين',
                                     style: const TextStyle(fontSize: 12),
                                   ),
@@ -799,7 +773,7 @@ class _PartiesPageState extends State<PartiesPage> {
                                               padding: const EdgeInsets.only(
                                                 top: 4,
                                               ),
-                                              child: Text(
+                                              child: UiText(
                                                 hidden
                                                     ? '${item.value.name}: ••••'
                                                     : '${item.value.name}: $label ${value == null ? '' : item.value.format(value.abs())}',
@@ -890,13 +864,13 @@ class _AccountPageState extends State<AccountPage> {
     builder: (c, _) {
       final p = s.parties.where((r) => r['id'] == id).firstOrNull;
       if (p == null) {
-        return const Scaffold(body: Center(child: Text('تم حذف الحساب')));
+        return const Scaffold(body: Center(child: UiText('تم حذف الحساب')));
       }
       final financial = ['customer', 'supplier'].contains(p['kind']);
       final history = s.history(id);
       return Scaffold(
         appBar: ClayAppBar(
-          title: Text(partyDisplayName(p)),
+          title: UiText(partyDisplayName(p)),
           actions: [
             if (financial)
               IconButton(
@@ -934,10 +908,10 @@ class _AccountPageState extends State<AccountPage> {
               if (p['phone'] != '')
                 ActionChip(
                   avatar: const Icon(Icons.phone_outlined),
-                  label: Text(p['phone']),
+                  label: UiText(p['phone']),
                   onPressed: () => phoneActions(c, p['phone']),
                 ),
-              if (p['notes'] != null && p['notes'] != '') Text(p['notes']),
+              if (p['notes'] != null && p['notes'] != '') UiText(p['notes']),
               if (financial)
                 FutureBuilder<List<int>>(
                   future: Future.wait(
@@ -962,7 +936,7 @@ class _AccountPageState extends State<AccountPage> {
                   ),
                 ),
               if (financial)
-                const Text(
+                const UiText(
                   'عليه = مستحق • له = رصيد لصالح الحساب • صفر = متوازن',
                 ),
             ]),
@@ -979,7 +953,7 @@ class _AccountPageState extends State<AccountPage> {
                       supplier: p['kind'] == 'supplier',
                     ),
                     icon: const Icon(Icons.swap_horiz),
-                    label: const Text('تسوية'),
+                    label: const UiText('تسوية'),
                   ),
                   OutlinedButton.icon(
                     onPressed: () => Navigator.push(
@@ -987,7 +961,7 @@ class _AccountPageState extends State<AccountPage> {
                       MaterialPageRoute(builder: (_) => StatementPage(s, id)),
                     ),
                     icon: const Icon(Icons.description_outlined),
-                    label: const Text('كشف الحساب'),
+                    label: const UiText('كشف الحساب'),
                   ),
                   TextButton(
                     onPressed: () => newEntry(
@@ -997,35 +971,35 @@ class _AccountPageState extends State<AccountPage> {
                       party: id,
                       supplier: p['kind'] == 'supplier',
                     ),
-                    child: const Text('رصيد افتتاحي'),
+                    child: const UiText('رصيد افتتاحي'),
                   ),
                   if (p['kind'] == 'customer') ...[
                     ActionChip(
-                      label: const Text('+ تذكرة'),
+                      label: const UiText('+ تذكرة'),
                       onPressed: () => newEntry(c, s, 'ticket', party: id),
                     ),
                     ActionChip(
-                      label: const Text('+ فندق'),
+                      label: const UiText('+ فندق'),
                       onPressed: () => newEntry(c, s, 'hotel', party: id),
                     ),
                     ActionChip(
-                      label: const Text('+ فيزا'),
+                      label: const UiText('+ فيزا'),
                       onPressed: () => newEntry(c, s, 'visa', party: id),
                     ),
                   ],
                   if (p['kind'] == 'supplier') ...[
                     ActionChip(
-                      label: const Text('+ تذكرة'),
+                      label: const UiText('+ تذكرة'),
                       onPressed: () =>
                           newEntry(c, s, 'ticket', party: id, supplier: true),
                     ),
                     ActionChip(
-                      label: const Text('+ فندق'),
+                      label: const UiText('+ فندق'),
                       onPressed: () =>
                           newEntry(c, s, 'hotel', party: id, supplier: true),
                     ),
                     ActionChip(
-                      label: const Text('+ فيزا'),
+                      label: const UiText('+ فيزا'),
                       onPressed: () =>
                           newEntry(c, s, 'visa', party: id, supplier: true),
                     ),
@@ -1037,14 +1011,17 @@ class _AccountPageState extends State<AccountPage> {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: SegmentedButton<String>(
                   segments: const [
-                    ButtonSegment(value: 'operations', label: Text('العمليات')),
+                    ButtonSegment(
+                      value: 'operations',
+                      label: UiText('العمليات'),
+                    ),
                     ButtonSegment(
                       value: 'passengers',
-                      label: Text('المسافرون'),
+                      label: UiText('المسافرون'),
                     ),
                     ButtonSegment(
                       value: 'attachments',
-                      label: Text('المرفقات'),
+                      label: UiText('المرفقات'),
                     ),
                   ],
                   selected: {tab},
@@ -1055,7 +1032,7 @@ class _AccountPageState extends State<AccountPage> {
               Section('المسافرون التابعون', [
                 TextButton.icon(
                   icon: const Icon(Icons.person_add_alt),
-                  label: const Text('إضافة مسافر'),
+                  label: const UiText('إضافة مسافر'),
                   onPressed: () =>
                       editParty(c, s, 'passenger', party: {'customer': id}),
                 ),
@@ -1064,7 +1041,7 @@ class _AccountPageState extends State<AccountPage> {
                     .where((r) => r['customer'] == id)
                     .map(
                       (r) => ListTile(
-                        title: Text(r['name']),
+                        title: UiText(r['name']),
                         onTap: () => editParty(c, s, 'passenger', party: r),
                       ),
                     ),
@@ -1072,16 +1049,16 @@ class _AccountPageState extends State<AccountPage> {
             ],
             if (financial && (p['kind'] != 'customer' || tab == 'operations'))
               Section('ملخص الحساب', [
-                Text(
+                UiText(
                   'عدد الخدمات: ${history.where((e) => ['ticket', 'visa', 'hotel'].contains(e.kind)).length}',
                 ),
                 if (history.isNotEmpty)
-                  Text('آخر حركة: ${displayDate(history.last.date)}'),
+                  UiText('آخر حركة: ${displayDate(history.last.date)}'),
                 for (final currency in Currency.values) ...[
-                  Text(
+                  UiText(
                     'إجمالي الخدمات ${currency.name}: ${currency.format(history.where((e) => e.currency == currency && ['ticket', 'visa', 'hotel', 'refund'].contains(e.kind)).fold<int>(0, (sum, e) => sum + s.movement(e, id)))}',
                   ),
-                  Text(
+                  UiText(
                     'التسديدات ${currency.name}: ${currency.format(history.where((e) => e.currency == currency && e.kind == 'settlement').fold<int>(0, (sum, e) => sum - s.movement(e, id)))}',
                   ),
                 ],
@@ -1091,7 +1068,7 @@ class _AccountPageState extends State<AccountPage> {
                   .where((r) => r['family'] == id || r['customer'] == id)
                   .map(
                     (r) => ListTile(
-                      title: Text(r['name']),
+                      title: UiText(r['name']),
                       onTap: () => Navigator.push(
                         c,
                         MaterialPageRoute(
@@ -1106,7 +1083,7 @@ class _AccountPageState extends State<AccountPage> {
                 child: Row(
                   children: [
                     const Expanded(
-                      child: Text(
+                      child: UiText(
                         'حركة الحساب',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
@@ -1126,19 +1103,19 @@ class _AccountPageState extends State<AccountPage> {
                   scrollDirection: Axis.horizontal,
                   child: DataTable(
                     columns: const [
-                      DataColumn(label: Text('التاريخ')),
-                      DataColumn(label: Text('العملية')),
-                      DataColumn(label: Text('الحركة')),
+                      DataColumn(label: UiText('التاريخ')),
+                      DataColumn(label: UiText('العملية')),
+                      DataColumn(label: UiText('الحركة')),
                     ],
                     rows: history
                         .map(
                           (e) => DataRow(
                             cells: [
                               DataCell(
-                                Text(displayDate(e.date, weekday: false)),
+                                UiText(displayDate(e.date, weekday: false)),
                               ),
                               DataCell(
-                                Text('#${e.id} ${e.label}'),
+                                UiText('#${e.id} ${e.label}'),
                                 onTap: () => Navigator.push(
                                   c,
                                   MaterialPageRoute(
@@ -1147,7 +1124,7 @@ class _AccountPageState extends State<AccountPage> {
                                 ),
                               ),
                               DataCell(
-                                Text(e.currency.format(s.movement(e, id))),
+                                UiText(e.currency.format(s.movement(e, id))),
                               ),
                             ],
                           ),
@@ -1162,7 +1139,7 @@ class _AccountPageState extends State<AccountPage> {
                       (k) => Card(
                         child: ExpansionTile(
                           initiallyExpanded: true,
-                          title: Text(
+                          title: UiText(
                             '${k.value} (${history.where((e) => e.kind == k.key).length})',
                           ),
                           children: history.reversed
@@ -1188,76 +1165,22 @@ class _AccountPageState extends State<AccountPage> {
                 List<String>.from(p['attachments'])
                     .map(
                       (path) => ListTile(
-                        title: const Text('فتح المرفق'),
+                        title: const UiText('فتح المرفق'),
                         leading: const Icon(Icons.attach_file),
                         onTap: () => openAttachment(c, path),
                       ),
                     )
                     .toList(),
               ),
-            TextButton.icon(
-              icon: const Icon(Icons.delete_forever, color: Colors.red),
-              label: const Text(
-                'حذف الحساب وكل بياناته',
-                style: TextStyle(color: Colors.red),
+            if (financial)
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final done = await confirmClearance(c, s, party: id);
+                  if (done && c.mounted) Navigator.pop(c);
+                },
+                icon: const Icon(Icons.inventory_2_outlined),
+                label: const UiText('تصفية الحساب ونقل الماضي للأرشيف'),
               ),
-              onPressed: () async {
-                final yes = await showDialog<bool>(
-                  context: c,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('حذف الحساب نهائيًا؟'),
-                    content: const Text(
-                      'سيتم حذف الحساب والمسافرين التابعين وحركاته المالية. ستتغير أرصدة جهات الإصدار والأرباح المرتبطة بهذه الحركات.',
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('إلغاء'),
-                      ),
-                      FilledButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('حذف'),
-                      ),
-                    ],
-                  ),
-                );
-                if (yes != true) return;
-                try {
-                  await s.deleteParty(id);
-                  if (c.mounted) Navigator.pop(c);
-                } catch (e) {
-                  if (c.mounted) message(c, e);
-                }
-              },
-            ),
-            TextButton(
-              onPressed: () async {
-                final yes = await showDialog<bool>(
-                  context: c,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('أرشفة الحساب؟'),
-                    content: const Text(
-                      'يبقى تاريخه المالي محفوظًا ويمكن استعادته من المحذوفات.',
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('إلغاء'),
-                      ),
-                      FilledButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('أرشفة'),
-                      ),
-                    ],
-                  ),
-                );
-                if (yes == true) {
-                  await s.archiveParty(id, true);
-                  if (c.mounted) Navigator.pop(c);
-                }
-              },
-              child: const Text('أرشفة الحساب'),
-            ),
           ],
         ),
       );
@@ -1303,7 +1226,7 @@ class _SearchPageState extends State<SearchPage> {
             );
           }).toList();
     return Scaffold(
-      appBar: ClayAppBar(title: const Text('البحث الموحّد')),
+      appBar: ClayAppBar(title: const UiText('البحث الموحّد')),
       body: Column(
         children: [
           Padding(
@@ -1341,12 +1264,12 @@ class _SearchPageState extends State<SearchPage> {
                               imagePath: p['profileImage'],
                               avatar: p['avatar'],
                             ),
-                            title: Text(partyDisplayName(p)),
+                            title: UiText(partyDisplayName(p)),
                             subtitle: p['phone'] == ''
                                 ? null
                                 : InkWell(
                                     onTap: () => phoneActions(c, p['phone']),
-                                    child: Text(
+                                    child: UiText(
                                       p['phone'],
                                       style: const TextStyle(
                                         decoration: TextDecoration.underline,
@@ -1408,7 +1331,7 @@ class _PassengerGroupsPageState extends State<PassengerGroupsPage> {
       }).toList();
       return Scaffold(
         appBar: ClayAppBar(
-          title: const Text('المسافرون حسب الزبون'),
+          title: const UiText('المسافرون حسب الزبون'),
           actions: [
             IconButton(
               tooltip: 'إضافة مسافر',
@@ -1465,16 +1388,18 @@ class _PassengerGroupsPageState extends State<PassengerGroupsPage> {
                               imagePath: owner['profileImage'],
                               avatar: owner['avatar'],
                             ),
-                            title: Text('${owner['name']}'),
-                            subtitle: Text(
+                            title: UiText('${owner['name']}'),
+                            subtitle: UiText(
                               '${all.length} مسافرين${owner['archived'] == 1 ? ' • زبون مؤرشف' : ''}',
                             ),
                             children: [
                               ...children.map(
                                 (p) => ListTile(
                                   leading: const Icon(Icons.person_outline),
-                                  title: Text(partyDisplayName(p)),
-                                  subtitle: Text('تابع إلى: ${owner['name']}'),
+                                  title: UiText(partyDisplayName(p)),
+                                  subtitle: UiText(
+                                    'تابع إلى: ${owner['name']}',
+                                  ),
                                   trailing: const Icon(Icons.chevron_left),
                                   onTap: () => Navigator.push(
                                     context,
@@ -1487,7 +1412,7 @@ class _PassengerGroupsPageState extends State<PassengerGroupsPage> {
                               if (children.isEmpty)
                                 const Padding(
                                   padding: EdgeInsets.all(12),
-                                  child: Text('لا يوجد مسافرون لهذا الزبون'),
+                                  child: UiText('لا يوجد مسافرون لهذا الزبون'),
                                 ),
                               TextButton.icon(
                                 onPressed: () => editParty(
@@ -1497,7 +1422,7 @@ class _PassengerGroupsPageState extends State<PassengerGroupsPage> {
                                   party: {'customer': owner['id']},
                                 ),
                                 icon: const Icon(Icons.person_add_alt),
-                                label: const Text('إضافة مسافر'),
+                                label: const UiText('إضافة مسافر'),
                               ),
                             ],
                           ),

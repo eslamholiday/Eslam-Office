@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'domain.dart';
+import 'ambient_motion.dart';
 
 class Experience {
   static const channel = MethodChannel('eslam_money/experience');
@@ -49,9 +50,18 @@ class Experience {
         'intensity': (preferences['hapticIntensity'] as num? ?? .45)
             .clamp(0, 1)
             .toDouble(),
-        'style': ['soft', 'pop', 'bell'].contains(preferences['soundStyle'])
+        'style':
+            [
+              'soft',
+              'pop',
+              'bell',
+              'silk',
+              'wood',
+              'crystal',
+              'water',
+            ].contains(preferences['soundStyle'])
             ? preferences['soundStyle']
-            : 'soft',
+            : 'silk',
       });
     } on PlatformException {
       /* Feedback must never block an operation. */
@@ -97,7 +107,13 @@ class _ExperienceTapRegionState extends State<ExperienceTapRegion> {
           start.pointer == event.pointer &&
           (start.position - event.position).distance < 9 &&
           (event.timeStamp - start.timeStamp).inMilliseconds < 450) {
-        unawaited(Experience.fire('select'));
+        if (AmbientRuntime.enabled) {
+          Future<void>.delayed(const Duration(milliseconds: 45), () async {
+            if (AmbientRuntime.foreground) await Experience.fire('select');
+          });
+        } else {
+          unawaited(Experience.fire('select'));
+        }
       }
     },
     child: widget.child,

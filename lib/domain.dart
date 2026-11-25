@@ -4,6 +4,11 @@ import 'package:intl/intl.dart';
 enum Currency { USD, IQD }
 
 Map<String, dynamic> displayPreferences = {};
+String displayLabel(String text, [Map<String, dynamic>? preferences]) =>
+    ((preferences ?? displayPreferences)['uiLabels'] as Map?)?[text]
+        ?.toString() ??
+    text;
+
 String localizedDigits(String value) {
   if (displayPreferences['arabicDigits'] != true) return value;
   for (var i = 0; i < 10; i++) {
@@ -161,9 +166,11 @@ class Entry {
     r['id'] as int,
   );
   String get kind => data['kind'] as String;
-  String get label => kind == 'ticket' && data['ticketType'] == 'change'
-      ? 'تغيير'
-      : types[kind] ?? kind;
+  String get label => displayLabel(
+    kind == 'ticket' && data['ticketType'] == 'change'
+        ? 'تغيير'
+        : types[kind] ?? kind,
+  );
   int get quantity => kind == 'ticket'
       ? (data['lines'] as List? ?? []).fold<int>(
           0,

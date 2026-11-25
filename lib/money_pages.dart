@@ -1,3 +1,4 @@
+import 'labels.dart';
 import 'package:flutter/material.dart';
 import 'domain.dart';
 import 'store.dart';
@@ -14,7 +15,7 @@ class StatementsHub extends StatelessWidget {
     length: 2,
     child: Scaffold(
       appBar: ClayAppBar(
-        title: const Text('الكشوفات'),
+        title: const UiText('الكشوفات'),
         bottom: const TabBar(
           tabs: [
             Tab(text: 'الزبائن'),
@@ -61,8 +62,8 @@ class _StatementAccountsState extends State<StatementAccounts> {
             (p) => Card(
               child: ListTile(
                 leading: const Icon(Icons.description_outlined),
-                title: Text(p['name']),
-                subtitle: Text(normalizePhone(p['phone'] ?? '')),
+                title: UiText(p['name']),
+                subtitle: UiText(normalizePhone(p['phone'] ?? '')),
                 trailing: const Icon(Icons.chevron_left),
                 onTap: () => Navigator.push(
                   c,
@@ -82,7 +83,7 @@ class SupplierBalances extends StatelessWidget {
   const SupplierBalances(this.s, {super.key});
   @override
   Widget build(BuildContext c) => Scaffold(
-    appBar: ClayAppBar(title: const Text('مستحقات جهات الإصدار')),
+    appBar: ClayAppBar(title: const UiText('مستحقات جهات الإصدار')),
     body: ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -95,8 +96,8 @@ class SupplierBalances extends StatelessWidget {
                 ),
                 builder: (c, snapshot) => Card(
                   child: ListTile(
-                    title: Text(p['name']),
-                    subtitle: Text(
+                    title: UiText(p['name']),
+                    subtitle: UiText(
                       snapshot.hasData
                           ? '${Currency.USD.format(snapshot.data![0])}\n${Currency.IQD.format(snapshot.data![1])}'
                           : '…',
@@ -128,15 +129,15 @@ class ReviewPage extends StatelessWidget {
           .where((e) => s.reviewIssues(e).isNotEmpty)
           .toList();
       return Scaffold(
-        appBar: ClayAppBar(title: const Text('مركز التدقيق')),
+        appBar: ClayAppBar(title: const UiText('مركز التدقيق')),
         body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Text(
+            UiText(
               '${rows.length} عملية تحتاج مراجعة',
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
             ),
-            const Text('التنبيهات للمراجعة ولا تغيّر القيم أو تمنع الحفظ.'),
+            const UiText('التنبيهات للمراجعة ولا تغيّر القيم أو تمنع الحفظ.'),
             const SizedBox(height: 12),
             if (rows.isEmpty)
               const EmptyState(
@@ -147,7 +148,7 @@ class ReviewPage extends StatelessWidget {
               (e) => Card(
                 child: ListTile(
                   leading: const Icon(Icons.fact_check_outlined),
-                  title: Text('#${e.id} ${e.label} • ${entryLabel(s, e)}'),
+                  title: UiText('#${e.id} ${e.label} • ${entryLabel(s, e)}'),
                   subtitle: Wrap(
                     spacing: 5,
                     runSpacing: 4,
@@ -155,7 +156,7 @@ class ReviewPage extends StatelessWidget {
                         .reviewIssues(e)
                         .map(
                           (issue) => Chip(
-                            label: Text(
+                            label: UiText(
                               issue,
                               style: const TextStyle(fontSize: 11),
                             ),
@@ -222,12 +223,12 @@ class _ExpensesPageState extends State<ExpensesPage> {
             (categories[key] ?? 0) + (e.data['amount'] as int? ?? 0);
       }
       return Scaffold(
-        appBar: ClayAppBar(title: const Text('المصروف')),
+        appBar: ClayAppBar(title: const UiText('المصروف')),
         body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
             Section('رصيد المصروف المتاح', [
-              const Text(
+              const UiText(
                 'أرباح الخدمات بعد الاسترجاعات + الإضافات اليدوية − جميع المصروفات. هذا رصيد تخصيص للمصروف، وليس رصيد النقد المقبوض.',
               ),
               const SizedBox(height: 12),
@@ -241,19 +242,19 @@ class _ExpensesPageState extends State<ExpensesPage> {
                 FilledButton.icon(
                   onPressed: () => newEntry(c, s, 'expense'),
                   icon: const Icon(Icons.remove),
-                  label: const Text('مصروف جديد'),
+                  label: const UiText('مصروف جديد'),
                 ),
                 OutlinedButton.icon(
                   onPressed: () => newEntry(c, s, 'funding'),
                   icon: const Icon(Icons.add),
-                  label: const Text('إضافة رصيد'),
+                  label: const UiText('إضافة رصيد'),
                 ),
               ],
             ),
             const SizedBox(height: 16),
             SegmentedButton<Currency>(
               segments: Currency.values
-                  .map((v) => ButtonSegment(value: v, label: Text(v.name)))
+                  .map((v) => ButtonSegment(value: v, label: UiText(v.name)))
                   .toList(),
               selected: {currency},
               onSelectionChanged: (v) => setState(() => currency = v.first),
@@ -270,7 +271,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
                       }.entries
                       .map(
                         (e) => ChoiceChip(
-                          label: Text(e.value),
+                          label: UiText(e.value),
                           selected: range == e.key,
                           onSelected: (_) => setState(() => range = e.key),
                         ),
@@ -281,13 +282,13 @@ class _ExpensesPageState extends State<ExpensesPage> {
             AmountBox('مصروفات الفترة', currency.format(expenses)),
             ...categories.entries.map(
               (e) => ListTile(
-                title: Text(e.key),
-                trailing: Text(currency.format(e.value)),
+                title: UiText(e.key),
+                trailing: UiText(currency.format(e.value)),
               ),
             ),
             OutlinedButton.icon(
               icon: const Icon(Icons.description_outlined),
-              label: const Text('كشف المصروفات'),
+              label: const UiText('كشف المصروفات'),
               onPressed: () => Navigator.push(
                 c,
                 MaterialPageRoute(

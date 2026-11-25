@@ -1,3 +1,4 @@
+import 'labels.dart';
 import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -12,6 +13,7 @@ import 'domain.dart';
 import 'store.dart';
 import 'visual_system.dart';
 import 'experience.dart';
+import 'geography.dart';
 export 'visual_system.dart';
 
 const navy = Color(0xFF123B5D), gold = Color(0xFFD4A84F);
@@ -29,7 +31,9 @@ Color kindColor(String kind) =>
     kind == 'refund' ? const Color(0xffba5959) : artColor(artIndex(kind));
 void message(BuildContext c, Object e) {
   ScaffoldMessenger.of(c).showSnackBar(
-    SnackBar(content: Text(e.toString().replaceFirst('FormatException: ', ''))),
+    SnackBar(
+      content: UiText(e.toString().replaceFirst('FormatException: ', '')),
+    ),
   );
 }
 
@@ -59,54 +63,70 @@ class Section extends StatelessWidget {
     this.subtitle,
   });
   @override
-  Widget build(BuildContext c) => collapsible
-      ? Card(
-          child: ExpansionTile(
-            leading: ArtIcon(titleArt(title), size: 34),
-            initiallyExpanded: initiallyExpanded,
-            maintainState: true,
-            subtitle: subtitle == null
-                ? null
-                : Text(subtitle!, maxLines: 2, overflow: TextOverflow.ellipsis),
-            title: Text(
-              title,
-              style: const TextStyle(fontWeight: FontWeight.w700),
+  Widget build(BuildContext c) {
+    LabelScope.watch(c);
+    return collapsible
+        ? Card(
+            child: ExpansionTile(
+              leading: ArtIcon(
+                (displayPreferences['uiIcons'] as Map?)?[title] as int? ??
+                    titleArt(title),
+                size: 34,
+              ),
+              initiallyExpanded: initiallyExpanded,
+              maintainState: true,
+              subtitle: subtitle == null
+                  ? null
+                  : UiText(
+                      subtitle!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+              title: UiText(
+                title,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              childrenPadding: EdgeInsets.all(
+                displayPreferences['compactForms'] == true ? 10 : 16,
+              ),
+              children: children,
             ),
-            childrenPadding: EdgeInsets.all(
-              displayPreferences['compactForms'] == true ? 10 : 16,
-            ),
-            children: children,
-          ),
-        )
-      : Card(
-          child: Padding(
-            padding: EdgeInsets.all(
-              displayPreferences['compactForms'] == true ? 10 : 18,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    ArtIcon(titleArt(title), size: 36),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: Theme.of(c).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
+          )
+        : Card(
+            child: Padding(
+              padding: EdgeInsets.all(
+                displayPreferences['compactForms'] == true ? 10 : 18,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      ArtIcon(
+                        (displayPreferences['uiIcons'] as Map?)?[title]
+                                as int? ??
+                            titleArt(title),
+                        size: 36,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: UiText(
+                          title,
+                          style: Theme.of(c).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
-                    ),
-                    if (trailing != null) trailing!,
-                  ],
-                ),
-                const SizedBox(height: 12),
-                ...children,
-              ],
+                      if (trailing != null) trailing!,
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  ...children,
+                ],
+              ),
             ),
-          ),
-        );
+          );
+  }
 }
 
 class EmptyState extends StatelessWidget {
@@ -128,13 +148,13 @@ class EmptyState extends StatelessWidget {
       children: [
         const ArtIcon(15, size: 100),
         const SizedBox(height: 18),
-        Text(
+        UiText(
           title,
           style: Theme.of(c).textTheme.titleLarge,
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
-        Text(
+        UiText(
           subtitle,
           textAlign: TextAlign.center,
           style: const TextStyle(color: Colors.grey),
@@ -145,7 +165,7 @@ class EmptyState extends StatelessWidget {
             child: FilledButton.icon(
               onPressed: action,
               icon: const Icon(Icons.add),
-              label: const Text('إضافة'),
+              label: const UiText('إضافة'),
             ),
           ),
       ],
@@ -180,10 +200,10 @@ class AmountBox extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: Theme.of(c).textTheme.labelLarge),
+        UiText(label, style: Theme.of(c).textTheme.labelLarge),
         const SizedBox(height: 8),
         FittedBox(
-          child: Text(
+          child: UiText(
             value,
             textDirection: TextDirection.ltr,
             style: Theme.of(c).textTheme.titleLarge?.copyWith(
@@ -247,7 +267,7 @@ Widget textField(
   child: TextField(
     controller: controller,
     decoration: InputDecoration(
-      labelText: label,
+      labelText: uiLabel(label),
       prefixIcon: Icon(fieldIcon(label)),
       floatingLabelBehavior: FloatingLabelBehavior.always,
     ),
@@ -290,17 +310,20 @@ class DateField extends StatelessWidget {
       },
       child: InputDecorator(
         decoration: InputDecoration(
-          labelText: label,
+          labelText: uiLabel(label),
           prefixIcon: Icon(fieldIcon(label)),
+          labelText: decoration?.labelText == null
+              ? null
+              : uiLabel(decoration!.labelText!),
           floatingLabelBehavior: FloatingLabelBehavior.always,
           suffixIcon: value != null && optional
               ? IconButton(
                   icon: const Icon(Icons.clear, size: 18),
                   onPressed: () => onChanged(null),
                 )
-              : const Icon(Icons.calendar_month_outlined),
+              : const Icon(Icons.expand_more),
         ),
-        child: Text(
+        child: UiText(
           value == null ? 'اختر التاريخ' : displayDate(value),
           style: value == null ? const TextStyle(color: Colors.grey) : null,
         ),
@@ -365,7 +388,7 @@ Future<int?> chooseListItem(
               height: MediaQuery.sizeOf(ctx).height * .65,
               child: Column(
                 children: [
-                  Text(label, style: Theme.of(ctx).textTheme.titleLarge),
+                  UiText(label, style: Theme.of(ctx).textTheme.titleLarge),
                   Padding(
                     padding: const EdgeInsets.all(12),
                     child: TextField(
@@ -380,29 +403,36 @@ Future<int?> chooseListItem(
                     children: [
                       TextButton(
                         onPressed: () => Navigator.pop(ctx, -1),
-                        child: const Text('بدون اختيار'),
+                        child: const UiText('بدون اختيار'),
                       ),
                       if (add)
                         TextButton.icon(
                           onPressed: () => Navigator.pop(ctx, -2),
                           icon: const Icon(Icons.add),
-                          label: const Text('إضافة جديد'),
+                          label: const UiText('إضافة جديد'),
                         ),
                     ],
                   ),
                   Expanded(
                     child: rows.isEmpty
-                        ? const Center(child: Text('لا توجد نتائج'))
+                        ? const Center(child: UiText('لا توجد نتائج'))
                         : ListView.builder(
                             itemCount: rows.length,
                             itemBuilder: (ctx, i) {
                               final r = rows[i];
                               return ListTile(
-                                title: Text('${r['name']}'),
+                                title: Row(
+                                  children: [
+                                    CountryBadge(GeoCatalog.recordCode(r)),
+                                    if (GeoCatalog.recordCode(r) != null)
+                                      const SizedBox(width: 8),
+                                    Expanded(child: UiText('${r['name']}')),
+                                  ],
+                                ),
                                 subtitle: r['phone'] != null && r['phone'] != ''
-                                    ? Text('${r['phone']}')
+                                    ? UiText('${r['phone']}')
                                     : r['code'] != null && r['code'] != ''
-                                    ? Text('${r['code']}')
+                                    ? UiText('${r['code']}')
                                     : null,
                                 leading: selected == r['id']
                                     ? const Icon(Icons.check_circle_outline)
@@ -496,8 +526,11 @@ class PickField extends StatelessWidget {
       },
       child: InputDecorator(
         decoration: InputDecoration(
-          labelText: label,
+          labelText: uiLabel(label),
           prefixIcon: Icon(fieldIcon(label)),
+          labelText: decoration?.labelText == null
+              ? null
+              : uiLabel(decoration!.labelText!),
           floatingLabelBehavior: FloatingLabelBehavior.always,
           suffixIcon: Row(
             mainAxisSize: MainAxisSize.min,
@@ -512,11 +545,23 @@ class PickField extends StatelessWidget {
             ],
           ),
         ),
-        child: Text(
-          items.where((r) => r['id'] == value).firstOrNull?['name'] ??
-              'اختياري',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+        child: Row(
+          children: [
+            CountryBadge(
+              GeoCatalog.recordCode(
+                items.where((r) => r['id'] == value).firstOrNull ?? {},
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: UiText(
+                items.where((r) => r['id'] == value).firstOrNull?['name'] ??
+                    'اختياري',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
       ),
     ),
@@ -583,7 +628,7 @@ class ProfileAvatar extends StatelessWidget {
       backgroundImage: hasImage ? FileImage(file) : null,
       child: hasImage
           ? null
-          : Text(
+          : UiText(
               avatar?.isNotEmpty == true
                   ? avatar!
                   : (name?.trim().isNotEmpty == true
@@ -648,23 +693,23 @@ class ProfilePicker extends StatelessWidget {
           OutlinedButton.icon(
             onPressed: () => _pick(context, ImageSource.gallery),
             icon: const Icon(Icons.photo_outlined),
-            label: const Text('رفع صورة'),
+            label: const UiText('رفع صورة'),
           ),
           OutlinedButton.icon(
             onPressed: () => _pick(context, ImageSource.camera),
             icon: const Icon(Icons.camera_alt_outlined),
-            label: const Text('كاميرا'),
+            label: const UiText('كاميرا'),
           ),
           if ((imagePath?.isNotEmpty ?? false) || (avatar?.isNotEmpty ?? false))
             TextButton.icon(
               onPressed: () => onChanged(null, null),
               icon: const Icon(Icons.delete_outline),
-              label: const Text('إزالة'),
+              label: const UiText('إزالة'),
             ),
         ],
       ),
       const SizedBox(height: 10),
-      const Text('أو اختر شخصية / ستكر'),
+      const UiText('أو اختر شخصية / ستكر'),
       const SizedBox(height: 8),
       Wrap(
         spacing: 8,
@@ -672,7 +717,7 @@ class ProfilePicker extends StatelessWidget {
         children: profileAvatars
             .map(
               (v) => ChoiceChip(
-                label: Text(v, style: const TextStyle(fontSize: 22)),
+                label: UiText(v, style: const TextStyle(fontSize: 22)),
                 selected: imagePath == null && avatar == v,
                 onSelected: (_) => onChanged(null, v),
               ),
@@ -734,17 +779,17 @@ class _AttachmentsState extends State<Attachments> {
           OutlinedButton.icon(
             onPressed: busy ? null : () => pick(0),
             icon: const Icon(Icons.camera_alt_outlined),
-            label: const Text('كاميرا'),
+            label: const UiText('كاميرا'),
           ),
           OutlinedButton.icon(
             onPressed: busy ? null : () => pick(1),
             icon: const Icon(Icons.image_outlined),
-            label: const Text('صورة'),
+            label: const UiText('صورة'),
           ),
           OutlinedButton.icon(
             onPressed: busy ? null : () => pick(2),
             icon: const Icon(Icons.attach_file),
-            label: const Text('ملف'),
+            label: const UiText('ملف'),
           ),
         ],
       ),
@@ -765,7 +810,7 @@ class _AttachmentsState extends State<Attachments> {
                       const Icon(Icons.broken_image_outlined),
                 )
               : const Icon(Icons.description_outlined),
-          title: Text(
+          title: UiText(
             p.basename(path).split('_').skip(1).join('_'),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -788,7 +833,7 @@ Future<void> openAttachment(BuildContext c, String path) async {
       c,
       MaterialPageRoute(
         builder: (_) => Scaffold(
-          appBar: ClayAppBar(title: const Text('معاينة الصورة')),
+          appBar: ClayAppBar(title: const UiText('معاينة الصورة')),
           body: Center(
             child: InteractiveViewer(
               minScale: 1,
@@ -796,7 +841,7 @@ Future<void> openAttachment(BuildContext c, String path) async {
               child: Image.file(
                 File(path),
                 fit: BoxFit.contain,
-                errorBuilder: (_, e, s) => const Text('الصورة غير متوفرة'),
+                errorBuilder: (_, e, s) => const UiText('الصورة غير متوفرة'),
               ),
             ),
           ),
@@ -850,7 +895,7 @@ class ChoiceField<T> extends StatelessWidget {
                         ),
                         child: Column(
                           children: [
-                            Text(
+                            UiText(
                               decoration?.labelText ?? 'اختر من القائمة',
                               style: Theme.of(ctx).textTheme.titleLarge,
                             ),
@@ -874,10 +919,9 @@ class ChoiceField<T> extends StatelessWidget {
                                     .where(
                                       (i) =>
                                           query.isEmpty ||
-                                          (i.child is Text &&
-                                              normalize(
-                                                (i.child as Text).data ?? '',
-                                              ).contains(query)),
+                                          normalize(
+                                            uiLabel(widgetCaption(i.child)),
+                                          ).contains(query),
                                     )
                                     .map(
                                       (i) => ListTile(
@@ -906,6 +950,9 @@ class ChoiceField<T> extends StatelessWidget {
             },
       child: InputDecorator(
         decoration: (decoration ?? const InputDecoration()).copyWith(
+          labelText: decoration?.labelText == null
+              ? null
+              : uiLabel(decoration!.labelText!),
           floatingLabelBehavior: FloatingLabelBehavior.always,
           suffixIcon: onClear == null
               ? const Icon(Icons.expand_more)
@@ -921,7 +968,7 @@ class ChoiceField<T> extends StatelessWidget {
                   ],
                 ),
         ),
-        child: selected?.child ?? const Text('اختياري'),
+        child: selected?.child ?? const UiText('اختياري'),
       ),
     );
   }

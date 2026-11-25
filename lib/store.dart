@@ -3,11 +3,14 @@ import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'domain.dart';
 import 'expense_categories.dart';
+import 'geography.dart';
 
 class Store extends ChangeNotifier {
   final Database db;
   List<Map<String, dynamic>> parties = [], refs = [], rules = [], logs = [];
   List<Entry> entries = [];
+  List<Map<String, dynamic>> clearances = [];
+  Set<int> retiredParties = {};
   Map<String, dynamic> settings = {};
   final Set<Future<void>> _preferenceWrites = {};
   Store(this.db);
@@ -17,7 +20,7 @@ class Store extends ChangeNotifier {
     final db = await f.openDatabase(
       location,
       options: OpenDatabaseOptions(
-        version: 2,
+        version: 3,
         onConfigure: (d) async {
           await d.execute('PRAGMA foreign_keys=ON');
         },
@@ -27,6 +30,7 @@ class Store extends ChangeNotifier {
               "ALTER TABLE audit ADD COLUMN payload TEXT NOT NULL DEFAULT '{}'",
             );
           }
+          if (oldVersion < 3) await _createClearanceTables(d);
         },
         onCreate: (d, v) async {
           await d.execute(
@@ -56,6 +60,7 @@ class Store extends ChangeNotifier {
           await d.execute(
             "CREATE TABLE audit(id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, action TEXT NOT NULL, target TEXT NOT NULL, payload TEXT NOT NULL DEFAULT '{}')",
           );
+          await _createClearanceTables(d);
           for (final pair in {
             'airline': [
               'الخطوط الجوية العراقية|IA',
@@ -194,7 +199,171 @@ class Store extends ChangeNotifier {
       });
       await s.reload();
     }
+    if (s.settings['experience21'] != true) {
+      await s.set('visualPack', 'glass');
+      await s.set('soundStyle', 'silk');
+      await s.set('ambientLevel', 2);
+      await s.set('experience21', true);
+    }
     return s;
+  }
+
+  static Future<void> _createClearanceTables(DatabaseExecutor db) async {
+    await db.execute(
+      'CREATE TABLE IF NOT EXISTS clearance_batches(id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, date TEXT NOT NULL, payload TEXT NOT NULL)',
+    );
+    await db.execute(
+      'CREATE TABLE IF NOT EXISTS clearance_entries(id INTEGER PRIMARY KEY, batch INTEGER NOT NULL REFERENCES clearance_batches(id), payload TEXT NOT NULL)',
+    );
+    await db.execute(
+      'CREATE TABLE IF NOT EXISTS retired_parties(id INTEGER PRIMARY KEY, batch INTEGER NOT NULL REFERENCES clearance_batches(id))',
+    );
+  }
+
+  /// Moves full journal bundles into an immutable, independent history.
+  /// Active SQL queries continue to operate solely on entries and ledger.
+  Future<int> clearToArchive({
+    Set<int>? entryIds,
+    int? party,
+    bool retireAccount = false,
+    bool all = false,
+  }) async {
+    final batchId = await db.transaction((tx) async {
+      final current = (await tx.query(
+        'entries',
+      )).map((r) => Map<String, Object?>.from(r)).toList();
+      final parsed = current.map(Entry.row).toList();
+      final ids = <int>{...?(entryIds)};
+      if (all) ids.addAll(parsed.where((e) => e.posted).map((e) => e.id!));
+      if (party != null) {
+        ids.addAll(
+          parsed
+              .where(
+                (e) =>
+                    e.data['customer'] == party || e.data['supplier'] == party,
+              )
+              .map((e) => e.id!),
+        );
+        ids.addAll(
+          (await tx.query(
+            'ledger',
+            columns: ['entry_id'],
+            where: 'party=?',
+            whereArgs: [party],
+          )).map((r) => r['entry_id'] as int),
+        );
+      }
+      bool changed;
+      do {
+        changed = false;
+        for (final e in parsed) {
+          final linked = [
+            e.data['original'],
+            e.data['corrects'],
+          ].whereType<int>();
+          if (ids.contains(e.id)) {
+            for (final id in linked) {
+              if (parsed.any((e) => e.id == id) && ids.add(id)) changed = true;
+            }
+          } else if (linked.any(ids.contains) && ids.add(e.id!)) {
+            changed = true;
+          }
+        }
+      } while (changed);
+      final selected = current.where((r) => ids.contains(r['id'])).toList();
+      if (selected.isEmpty && !(retireAccount && party != null))
+        throw const FormatException('لا توجد عمليات للتصفية');
+      final allPeople = await tx.query('parties');
+      final retirement = <int>{if (retireAccount && party != null) party};
+      if (retirement.isNotEmpty) {
+        retirement.addAll(
+          allPeople
+              .map(_decode)
+              .where((p) => p['kind'] == 'passenger' && p['customer'] == party)
+              .map((p) => p['id'] as int),
+        );
+      }
+      final ledger = <Map<String, Object?>>[];
+      final related = <int>{...retirement};
+      for (final row in selected) {
+        final entry = Entry.row(row);
+        related.addAll(
+          [
+            entry.data['customer'],
+            entry.data['supplier'],
+            ...entry.passengers,
+          ].whereType<int>(),
+        );
+        ledger.addAll(
+          await tx.query('ledger', where: 'entry_id=?', whereArgs: [row['id']]),
+        );
+      }
+      related.addAll(ledger.map((r) => r['party']).whereType<int>());
+      final label = all
+          ? 'تصفية جميع العمليات المعتمدة'
+          : party != null
+          ? 'تصفية حساب ${name(party)}'
+          : 'تصفية عملية ${selected.first['id']}';
+      final batch = await tx.insert('clearance_batches', {
+        'title': label,
+        'date': DateTime.now().toIso8601String(),
+        'payload': jsonEncode({
+          'version': 1,
+          'entries': selected,
+          'ledger': ledger,
+          'parties': allPeople.where((r) => related.contains(r['id'])).toList(),
+          'refs': await tx.query('refs'),
+          'settings': settings,
+          'retired': retirement.toList(),
+          'party': party,
+        }),
+      });
+      for (final row in selected) {
+        await tx.insert('clearance_entries', {
+          'id': row['id'],
+          'batch': batch,
+          'payload': jsonEncode(row),
+        });
+        await tx.delete('ledger', where: 'entry_id=?', whereArgs: [row['id']]);
+        await tx.delete('entries', where: 'id=?', whereArgs: [row['id']]);
+      }
+      for (final id in retirement) {
+        await tx.update(
+          'parties',
+          {'archived': 1},
+          where: 'id=?',
+          whereArgs: [id],
+        );
+        await tx.insert('retired_parties', {
+          'id': id,
+          'batch': batch,
+        }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+      // A recovery draft must not resurrect a cleared record on reopening.
+      for (final row in await tx.query('settings')) {
+        final key = row['key'] as String;
+        if (!key.startsWith('recovery_')) continue;
+        final value = jsonDecode(row['value'] as String);
+        if (value is Map &&
+            (ids.contains(value['id']) ||
+                ids.contains(int.tryParse(key.split('_').last)) ||
+                (party != null &&
+                    (value['customer'] == party ||
+                        value['supplier'] == party)) ||
+                (all && value['posted'] == true))) {
+          await tx.delete('settings', where: 'key=?', whereArgs: [key]);
+        }
+      }
+      await audit(
+        tx,
+        'تصفية وأرشفة نهائية',
+        '$batch',
+        payload: {'count': selected.length, 'archiveOnly': true},
+      );
+      return batch;
+    });
+    await reload();
+    return batchId;
   }
 
   Future<void> reload() async {
@@ -208,6 +377,13 @@ class Store extends ChangeNotifier {
       'entries',
       orderBy: 'date DESC,id DESC',
     )).map(Entry.row).toList();
+    clearances = (await db.query(
+      'clearance_batches',
+      orderBy: 'id DESC',
+    )).map(_decode).toList();
+    retiredParties = (await db.query(
+      'retired_parties',
+    )).map((r) => r['id'] as int).toSet();
     logs = (await db.query(
       'audit',
       orderBy: 'id DESC',
@@ -282,6 +458,8 @@ class Store extends ChangeNotifier {
       'payload': jsonEncode({...p, 'phone': normalizePhone(p['phone'] ?? '')}),
       'archived': p['archived'] ?? 0,
     };
+    if (id != null && retiredParties.contains(id))
+      throw const FormatException('حساب مصفّى للقراءة فقط');
     final result = await db.transaction((t) async {
       Map<String, Object?>? before;
       if (id != null) {
@@ -313,6 +491,8 @@ class Store extends ChangeNotifier {
   }
 
   Future<void> archiveParty(int id, bool value) async {
+    if (!value && retiredParties.contains(id))
+      throw const FormatException('حساب مصفّى؛ الأرشيف للاطلاع فقط');
     await db.transaction((t) async {
       await t.update(
         'parties',
@@ -331,6 +511,14 @@ class Store extends ChangeNotifier {
     Map<String, dynamic> payload, {
     int? id,
   }) async {
+    final previous = refs.where((r) => r['id'] == id).firstOrNull;
+    payload = Map<String, dynamic>.from(payload);
+    for (final key in ['countryCode', 'flagCode']) {
+      if (!payload.containsKey(key) && previous?.containsKey(key) == true)
+        payload[key] = previous![key];
+    }
+    final geo = GeoCatalog.infer(kind, name);
+    if (geo != null) payload.putIfAbsent('countryCode', () => geo);
     final normalizedName = normalize(name);
     final duplicate = refs
         .where(
@@ -400,6 +588,8 @@ class Store extends ChangeNotifier {
   }
 
   Future<int> saveEntry(Map<String, dynamic> raw, {int? id}) async {
+    if ([raw['customer'], raw['supplier']].any(retiredParties.contains))
+      throw const FormatException('اختر حسابًا حاليًا؛ الحساب السابق مصفّى');
     final d = Map<String, dynamic>.from(raw);
     final currency = Currency.values.byName(d['currency']);
     if (d['posted'] == true &&
@@ -650,6 +840,17 @@ class Store extends ChangeNotifier {
             .map((e) => Map<String, dynamic>.from(e as Map))
             .toList();
         for (final row in restoredEntries) {
+          if ((await t.query(
+            'clearance_entries',
+            columns: ['id'],
+            where: 'id=?',
+            whereArgs: [row['id']],
+          )).isNotEmpty)
+            throw const FormatException(
+              'العملية مصفّاة ولا تعود إلى الحسابات الحالية',
+            );
+          if ([row['customer'], row['supplier']].any(retiredParties.contains))
+            throw const FormatException('الحساب مصفّى');
           await t.insert(
             'entries',
             row,
@@ -665,6 +866,8 @@ class Store extends ChangeNotifier {
         }
       } else if (undoType == 'restoreParty') {
         final before = Map<String, dynamic>.from(payload['before'] as Map);
+        if (retiredParties.contains(before['id']))
+          throw const FormatException('الحساب مصفّى؛ الأرشيف للاطلاع فقط');
         await t.update(
           'parties',
           before,

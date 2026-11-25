@@ -9,9 +9,13 @@ import 'reports.dart';
 import 'settings.dart';
 import 'money_pages.dart';
 import 'experience.dart';
+import 'ambient_motion.dart';
+import 'geography.dart';
+import 'labels.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  AmbientRuntime.enabled = true;
   runApp(const Bootstrap());
 }
 
@@ -22,7 +26,12 @@ class Bootstrap extends StatefulWidget {
 }
 
 class _BootstrapState extends State<Bootstrap> {
-  late Future<Store> future = Store.open();
+  Future<Store> loadOffice() async {
+    await GeoCatalog.load();
+    return Store.open();
+  }
+
+  late Future<Store> future = loadOffice();
   @override
   Widget build(BuildContext c) => FutureBuilder<Store>(
     future: future,
@@ -47,7 +56,7 @@ class _BootstrapState extends State<Bootstrap> {
                             size: 56,
                           ),
                           const SizedBox(height: 20),
-                          const Text(
+                          const UiText(
                             'تعذر فتح البيانات',
                             style: TextStyle(color: Colors.white, fontSize: 24),
                           ),
@@ -59,8 +68,8 @@ class _BootstrapState extends State<Bootstrap> {
                           const SizedBox(height: 20),
                           FilledButton(
                             onPressed: () =>
-                                setState(() => future = Store.open()),
-                            child: const Text('إعادة المحاولة'),
+                                setState(() => future = loadOffice()),
+                            child: const UiText('إعادة المحاولة'),
                           ),
                         ],
                       )
@@ -69,7 +78,7 @@ class _BootstrapState extends State<Bootstrap> {
                         children: [
                           ArtIcon(0, size: 94),
                           SizedBox(height: 20),
-                          Text(
+                          UiText(
                             'Eslam Money',
                             style: TextStyle(color: Colors.white, fontSize: 28),
                           ),
@@ -120,7 +129,10 @@ class OfficeApp extends StatelessWidget {
                 MediaQuery.disableAnimationsOf(c) ||
                 s.settings['reduceMotion'] == true,
           ),
-          child: ExperienceTapRegion(child: child!),
+          child: LabelScope(
+            notifier: s,
+            child: MotionGate(child: ExperienceTapRegion(child: child!)),
+          ),
         ),
         home: Shell(s),
       );
@@ -184,21 +196,32 @@ class _ShellState extends State<Shell> {
                   setState(() => current = visible[next]);
                 }
               },
-        child: NavigationBar(
-          selectedIndex: visible.indexOf(selected),
-          onDestinationSelected: (i) {
-            if (current != visible[i]) Experience.fire('navigate');
-            setState(() => current = visible[i]);
-          },
-          destinations: visible
-              .map(
-                (k) => NavigationDestination(
-                  icon: ArtIcon(artIndex(k), size: 32),
-                  selectedIcon: ArtIcon(artIndex(k), size: 40),
-                  label: navLabels[k]!,
-                ),
-              )
-              .toList(),
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: activePack.id == 'glass' ? 10 : 0,
+            vertical: activePack.id == 'glass' ? 6 : 0,
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(
+              activePack.id == 'glass' ? 28 : 0,
+            ),
+            child: NavigationBar(
+              selectedIndex: visible.indexOf(selected),
+              onDestinationSelected: (i) {
+                if (current != visible[i]) Experience.fire('navigate');
+                setState(() => current = visible[i]);
+              },
+              destinations: visible
+                  .map(
+                    (k) => NavigationDestination(
+                      icon: ArtIcon(artIndex(k), size: 32),
+                      selectedIcon: ArtIcon(artIndex(k), size: 40),
+                      label: navLabels[k]!,
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
         ),
       ),
     );
@@ -311,7 +334,7 @@ class HomePage extends StatelessWidget {
         );
     return Scaffold(
       appBar: ClayAppBar(
-        title: const Text('الرئيسية'),
+        title: const UiText('الرئيسية'),
         actions: [
           IconButton(
             tooltip: 'البحث الموحّد',
@@ -333,11 +356,11 @@ class HomePage extends StatelessWidget {
                   children: [
                     ArtIcon(0, size: 56),
                     SizedBox(height: 12),
-                    Text(
+                    UiText(
                       'Eslam Money',
                       style: TextStyle(color: Colors.white, fontSize: 25),
                     ),
-                    Text(
+                    UiText(
                       'Travel • Business • Finance',
                       style: TextStyle(color: Colors.white70),
                     ),
@@ -346,8 +369,15 @@ class HomePage extends StatelessWidget {
               ),
               ...shortcuts.map(
                 (e) => ListTile(
-                  leading: Icon(e.$2),
-                  title: Text(e.$1),
+                  leading: ArtIcon(switch (e.$1) {
+                    'المسافرون' => 19,
+                    'جهات الإصدار' => 6,
+                    'المصروف' => 3,
+                    'الحركات' => 4,
+                    'مركز التدقيق' => 30,
+                    _ => 13,
+                  }, size: 36),
+                  title: UiText(e.$1),
                   onTap: () {
                     Navigator.pop(c);
                     open(e.$3);
@@ -355,22 +385,22 @@ class HomePage extends StatelessWidget {
                 ),
               ),
               ListTile(
-                leading: const Icon(Icons.bar_chart),
-                title: const Text('الأرباح والتقارير'),
+                leading: const ArtIcon(7, size: 36),
+                title: const UiText('الأرباح والتقارير'),
                 onTap: () {
                   Navigator.pop(c);
                   open(ReportsPage(s));
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.info_outline),
-                title: const Text('نبذة التطبيق'),
+                leading: const ArtIcon(25, size: 36),
+                title: const UiText('نبذة التطبيق'),
                 onTap: () => showAboutDialog(
                   context: c,
                   applicationName: 'Eslam Money',
-                  applicationVersion: '2.0.0',
+                  applicationVersion: '2.1.0',
                   children: [
-                    const Text(
+                    const UiText(
                       'Eslam Holiday\nEslamholiday.com\n07713414312\nجميع الحقوق محفوظة 2026',
                     ),
                   ],
@@ -391,7 +421,81 @@ class HomePage extends StatelessWidget {
               subtitle: 'Eslam Money • مكتبك بين إيديك',
               height: 140,
             ),
-            if (s.settings['homeServiceCards'] != false) ...[
+            if (s.settings['showRecoveryHome'] != false)
+              for (final saved in s.settings.entries.where(
+                (r) =>
+                    r.key.startsWith('recovery_') &&
+                    r.value is Map &&
+                    r.value['kind'] != null,
+              ))
+                Card(
+                  child: ListTile(
+                    leading: const ArtIcon(31),
+                    title: UiText(
+                      'متابعة مسودة ${types[saved.value['kind']] ?? ''}',
+                    ),
+                    subtitle: UiText('${saved.value['date'] ?? ''}'),
+                    trailing: const Icon(Icons.chevron_left),
+                    onTap: () => open(
+                      EntryForm(
+                        s,
+                        saved.value['kind'],
+                        draft: Entry(
+                          Map<String, dynamic>.from(saved.value),
+                          int.tryParse(saved.key.split('_').last),
+                        ),
+                        resume: true,
+                      ),
+                    ),
+                  ),
+                ),
+            if (s.settings['homeServiceCards'] != false &&
+                activePack.id == 'glass')
+              Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: Row(
+                  children: [
+                    for (final item in [
+                      ('ticket', 'التذاكر'),
+                      ('visa', 'الفيزا'),
+                      ('hotel', 'الفنادق'),
+                    ])
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Tactile(
+                            child: Card(
+                              child: InkWell(
+                                onTap: () => open(EntryForm(s, item.$1)),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                    horizontal: 4,
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      ArtIcon(artIndex(item.$1), size: 64),
+                                      const SizedBox(height: 6),
+                                      UiText(
+                                        item.$2,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            if (s.settings['homeServiceCards'] != false &&
+                activePack.id != 'glass') ...[
               Tactile(
                 child: ServiceBanner(
                   kind: 'ticket',
@@ -425,7 +529,7 @@ class HomePage extends StatelessWidget {
                 ...visibleShortcuts.map(
                   (e) => ActionChip(
                     avatar: Icon(e.$2),
-                    label: Text(e.$1),
+                    label: UiText(e.$1),
                     onPressed: () => open(e.$3),
                   ),
                 ),
@@ -434,12 +538,14 @@ class HomePage extends StatelessWidget {
                 ).contains('about'))
                   ActionChip(
                     avatar: const Icon(Icons.info_outline),
-                    label: const Text('نبذة التطبيق'),
+                    label: const UiText('نبذة التطبيق'),
                     onPressed: () => showAboutDialog(
                       context: c,
                       applicationName: 'Eslam Money',
-                      applicationVersion: '2.0.0',
-                      children: [const Text('Eslamholiday.com • 07713414312')],
+                      applicationVersion: '2.1.0',
+                      children: [
+                        const UiText('Eslamholiday.com • 07713414312'),
+                      ],
                     ),
                   ),
               ],
@@ -447,7 +553,7 @@ class HomePage extends StatelessWidget {
             Row(
               children: [
                 const Expanded(
-                  child: Text(
+                  child: UiText(
                     'نظرة على الحسابات',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
@@ -491,7 +597,7 @@ class HomePage extends StatelessWidget {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
+                                    UiText(
                                       labels[key]!,
                                       style: const TextStyle(
                                         fontWeight: FontWeight.bold,
@@ -506,7 +612,7 @@ class HomePage extends StatelessWidget {
                                         ),
                                         child: FittedBox(
                                           fit: BoxFit.scaleDown,
-                                          child: Text(
+                                          child: AmountMotionText(
                                             s.settings['hideAmounts'] == true
                                                 ? '••••'
                                                 : Currency.values[i].format(
@@ -571,12 +677,13 @@ class HomePage extends StatelessWidget {
                                       'تذاكر' => 0,
                                       'فيز' => 1,
                                       'فنادق' => 2,
-                                      'مسافرون' || 'زبائن' => 5,
+                                      'مسافرون' => 19,
+                                      'زبائن' => 20,
                                       'شركات الإصدار' => 6,
                                       'التسوية' => 4,
                                       _ => 3,
                                     }, size: 42),
-                                    Text(
+                                    UiText(
                                       '${counts[stat.$1]}',
                                       style: TextStyle(
                                         color: stat.$3,
@@ -584,7 +691,7 @@ class HomePage extends StatelessWidget {
                                         fontWeight: FontWeight.w800,
                                       ),
                                     ),
-                                    Text(
+                                    UiText(
                                       stat.$1,
                                       textAlign: TextAlign.center,
                                       maxLines: 2,
@@ -608,14 +715,14 @@ class HomePage extends StatelessWidget {
             Row(
               children: [
                 const Expanded(
-                  child: Text(
+                  child: UiText(
                     'آخر الحركات',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ),
                 TextButton(
                   onPressed: () => open(EntriesPage(s)),
-                  child: const Text('عرض الكل'),
+                  child: const UiText('عرض الكل'),
                 ),
               ],
             ),
@@ -629,7 +736,7 @@ class HomePage extends StatelessWidget {
               ...s.entries.take(5).map((e) => EntryTile(s, e)),
             const SizedBox(height: 16),
             const Center(
-              child: Text(
+              child: UiText(
                 'Eslam Holiday • جميع الحقوق محفوظة 2026',
                 style: TextStyle(color: Colors.grey, fontSize: 11),
               ),

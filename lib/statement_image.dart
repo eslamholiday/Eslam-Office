@@ -22,7 +22,10 @@ Future<Uint8List> whiteStatementPng(Uint8List source) async {
         try {
           final bytes = await opaque.toByteData(format: ui.ImageByteFormat.png);
           if (bytes == null) throw StateError('تعذر إنشاء صورة الكشف');
-          return bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes);
+          return bytes.buffer.asUint8List(
+            bytes.offsetInBytes,
+            bytes.lengthInBytes,
+          );
         } finally {
           opaque.dispose();
         }
