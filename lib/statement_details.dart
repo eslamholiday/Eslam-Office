@@ -6,7 +6,6 @@ const statementDetails = <String, String>{
   'route': 'مدينتا المغادرة والوصول',
   'country': 'الدولة',
   'airline': 'شركة الطيران',
-  'pnr': 'رقم الحجز',
   'tripType': 'نوع الرحلة',
   'travelDates': 'الذهاب والعودة',
   'hotelName': 'اسم الفندق',
@@ -59,7 +58,6 @@ Map<String, String> statementDetailValues(
     if (e.kind == 'ticket') ...{
       'route': [ref('from'), ref('to')].where((v) => v.isNotEmpty).join(' ← '),
       'airline': ref('airline'),
-      'pnr': text('pnr'),
       'tripType': choiceLabel(
         p,
         'tripType',
@@ -146,14 +144,16 @@ String statementDescription(
   if (details) {
     final values = statementDetailValues(s, e, settings);
     for (final key in orderedStatementDetails(settings)) {
-      if (showStatementDetail(settings, key) && values[key] != null)
+      if (showStatementDetail(settings, key) && values[key] != null) {
         parts.add(
           '${uiLabel(statementDetails[key]!, settings)}: ${values[key]}',
         );
+      }
     }
   }
   if (settings['statementShowNotes'] == true &&
-      (e.data['notes'] ?? '').toString().isNotEmpty)
+      (e.data['notes'] ?? '').toString().isNotEmpty) {
     parts.add('${e.data['notes']}');
+  }
   return parts.join('\n');
 }

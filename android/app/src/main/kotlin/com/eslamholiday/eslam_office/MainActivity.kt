@@ -144,7 +144,7 @@ class MainActivity : FlutterActivity() {
             if (call.method == "shareImages") {
                 try {
                     val paths = call.argument<List<String>>("paths") ?: emptyList()
-                    require(paths.isNotEmpty() && paths.size <= 100) { "No images to share" }
+                    require(paths.isNotEmpty() && paths.size <= 500) { "No images to share" }
                     val allowed = java.io.File(cacheDir, "statement_share").canonicalFile
                     val uris = ArrayList<android.net.Uri>()
                     paths.forEach { path ->

@@ -271,8 +271,9 @@ class Store extends ChangeNotifier {
         }
       } while (changed);
       final selected = current.where((r) => ids.contains(r['id'])).toList();
-      if (selected.isEmpty && !(retireAccount && party != null))
+      if (selected.isEmpty && !(retireAccount && party != null)) {
         throw const FormatException('لا توجد عمليات للتصفية');
+      }
       final allPeople = await tx.query('parties');
       final retirement = <int>{if (retireAccount && party != null) party};
       if (retirement.isNotEmpty) {
@@ -458,8 +459,9 @@ class Store extends ChangeNotifier {
       'payload': jsonEncode({...p, 'phone': normalizePhone(p['phone'] ?? '')}),
       'archived': p['archived'] ?? 0,
     };
-    if (id != null && retiredParties.contains(id))
+    if (id != null && retiredParties.contains(id)) {
       throw const FormatException('حساب مصفّى للقراءة فقط');
+    }
     final result = await db.transaction((t) async {
       Map<String, Object?>? before;
       if (id != null) {
@@ -491,8 +493,9 @@ class Store extends ChangeNotifier {
   }
 
   Future<void> archiveParty(int id, bool value) async {
-    if (!value && retiredParties.contains(id))
+    if (!value && retiredParties.contains(id)) {
       throw const FormatException('حساب مصفّى؛ الأرشيف للاطلاع فقط');
+    }
     await db.transaction((t) async {
       await t.update(
         'parties',
@@ -514,8 +517,9 @@ class Store extends ChangeNotifier {
     final previous = refs.where((r) => r['id'] == id).firstOrNull;
     payload = Map<String, dynamic>.from(payload);
     for (final key in ['countryCode', 'flagCode']) {
-      if (!payload.containsKey(key) && previous?.containsKey(key) == true)
+      if (!payload.containsKey(key) && previous?.containsKey(key) == true) {
         payload[key] = previous![key];
+      }
     }
     final geo = GeoCatalog.infer(kind, name);
     if (geo != null) payload.putIfAbsent('countryCode', () => geo);
@@ -588,8 +592,9 @@ class Store extends ChangeNotifier {
   }
 
   Future<int> saveEntry(Map<String, dynamic> raw, {int? id}) async {
-    if ([raw['customer'], raw['supplier']].any(retiredParties.contains))
+    if ([raw['customer'], raw['supplier']].any(retiredParties.contains)) {
       throw const FormatException('اختر حسابًا حاليًا؛ الحساب السابق مصفّى');
+    }
     final d = Map<String, dynamic>.from(raw);
     final currency = Currency.values.byName(d['currency']);
     if (d['posted'] == true &&
@@ -845,12 +850,14 @@ class Store extends ChangeNotifier {
             columns: ['id'],
             where: 'id=?',
             whereArgs: [row['id']],
-          )).isNotEmpty)
+          )).isNotEmpty) {
             throw const FormatException(
               'العملية مصفّاة ولا تعود إلى الحسابات الحالية',
             );
-          if ([row['customer'], row['supplier']].any(retiredParties.contains))
+          }
+          if ([row['customer'], row['supplier']].any(retiredParties.contains)) {
             throw const FormatException('الحساب مصفّى');
+          }
           await t.insert(
             'entries',
             row,
@@ -866,8 +873,9 @@ class Store extends ChangeNotifier {
         }
       } else if (undoType == 'restoreParty') {
         final before = Map<String, dynamic>.from(payload['before'] as Map);
-        if (retiredParties.contains(before['id']))
+        if (retiredParties.contains(before['id'])) {
           throw const FormatException('الحساب مصفّى؛ الأرشيف للاطلاع فقط');
+        }
         await t.update(
           'parties',
           before,

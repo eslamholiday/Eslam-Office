@@ -121,19 +121,23 @@ int titleArt(String text) {
   if (text.contains('مسافر')) return 19;
   if (text.contains('زبون') ||
       text.contains('زبائن') ||
-      text.contains('ملف الحساب'))
+      text.contains('ملف الحساب')) {
     return 20;
+  }
   if (text.contains('تفاصيل السفر') || text.contains('الوجهة')) return 21;
-  if (text.contains('معلومات العملية') || text.contains('البيانات الأساسية'))
+  if (text.contains('معلومات العملية') || text.contains('البيانات الأساسية')) {
     return 13;
+  }
   if (text.contains('عمولة') || text.contains('النتيجة')) return 22;
   if (text.contains('ملاحظ') || text.contains('مرفقات')) return 23;
   if (text.contains('تاريخ') ||
       text.contains('الفترة') ||
-      text.contains('الإضاءة'))
+      text.contains('الإضاءة')) {
     return 24;
-  if (text.contains('أعلام') || text.contains('دول') || text.contains('مدن'))
+  }
+  if (text.contains('أعلام') || text.contains('دول') || text.contains('مدن')) {
     return 25;
+  }
   if (text.contains('قوالب')) return 31;
   if (text.contains('الرئيسية')) return 26;
   if (text.contains('تذكر') ||
@@ -207,8 +211,9 @@ Color artColor(int index) =>
       _ => 3,
     }];
 IconData fieldIcon(String label) {
-  if (label.contains('العدد') || label.contains('عدد'))
+  if (label.contains('العدد') || label.contains('عدد')) {
     return Icons.numbers_rounded;
+  }
   if (label.contains('اسم') ||
       label.contains('مسافر') ||
       label.contains('زبون') ||

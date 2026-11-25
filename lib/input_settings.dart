@@ -20,8 +20,9 @@ const editableLists = {
 };
 
 Future<int?> addReference(BuildContext context, Store s, String kind) async {
-  if (kind == 'city' || kind == 'country')
+  if (kind == 'city' || kind == 'country') {
     return editGeographicReference(context, s, kind);
+  }
   final controller = TextEditingController();
   int? result;
   await showDialog<void>(
@@ -285,7 +286,8 @@ class ChoiceOptionsPage extends StatelessWidget {
                     leading: ReorderableDragStartListener(
                       index: i,
                       child: ArtIcon(
-                        (s.settings['uiIcons'] as Map?)?[all[k]] as int? ??
+                        (config['icons'] as Map?)?[k] as int? ??
+                            (s.settings['uiIcons'] as Map?)?[all[k]] as int? ??
                             titleArt(all[k]!),
                         size: 32,
                       ),
@@ -294,11 +296,12 @@ class ChoiceOptionsPage extends StatelessWidget {
                     onTap: () => rename(c, k, all[k]!),
                     onLongPress: () async {
                       final icon = await chooseUiIcon(c, titleArt(all[k]!));
-                      if (icon != null)
-                        await s.set('uiIcons', {
-                          ...?s.settings['uiIcons'] as Map?,
-                          all[k]!: icon,
+                      if (icon != null) {
+                        await s.set('choices_${field.key}', {
+                          ...config,
+                          'icons': {...?config['icons'] as Map?, k: icon},
                         });
+                      }
                     },
                     trailing: Switch(
                       value: !hidden.contains(k),

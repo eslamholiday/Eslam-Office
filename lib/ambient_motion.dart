@@ -113,10 +113,11 @@ class _AmbientMotionState extends State<AmbientMotion>
           .round()
           .clamp(4000, 16000);
       controller.duration = Duration(milliseconds: ms);
-      if (run && !controller.isAnimating)
+      if (run && !controller.isAnimating) {
         controller.repeat();
-      else if (!run && controller.isAnimating)
+      } else if (!run && controller.isAnimating) {
         controller.stop();
+      }
     });
   }
 
@@ -131,8 +132,9 @@ class _AmbientMotionState extends State<AmbientMotion>
   Widget build(BuildContext context) {
     LabelScope.watch(context);
     check();
-    if (!allowed || MediaQuery.disableAnimationsOf(context))
+    if (!allowed || MediaQuery.disableAnimationsOf(context)) {
       return widget.child;
+    }
     return AnimatedBuilder(
       animation: controller,
       child: widget.child,

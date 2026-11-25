@@ -124,8 +124,9 @@ class GeoCatalog {
         country['code'],
         country['ar'],
         country['en'],
-      ].any((v) => clean('$v') == key))
+      ].any((v) => clean('$v') == key)) {
         return country['code'] as String;
+      }
     }
     return countryAliases[key];
   }
@@ -137,10 +138,11 @@ class GeoCatalog {
       : null;
   static String? recordCode(Map<String, dynamic> record) {
     if (!['city', 'country'].contains(record['kind'])) return null;
-    if (record.containsKey('flagCode'))
+    if (record.containsKey('flagCode')) {
       return '${record['flagCode']}'.isEmpty
           ? null
           : record['flagCode'] as String;
+    }
     if (record['countryCode'] != null) return record['countryCode'] as String;
     return displayPreferences['autoGeoFlags'] == false
         ? null
@@ -157,8 +159,9 @@ class CountryBadge extends StatelessWidget {
   const CountryBadge(this.code, {super.key, this.size});
   @override
   Widget build(BuildContext context) {
-    if (code == null || displayPreferences['showFlags'] == false)
+    if (code == null || displayPreferences['showFlags'] == false) {
       return const SizedBox.shrink();
+    }
     return FutureBuilder<void>(
       future: GeoCatalog.load(),
       builder: (_, snapshot) {

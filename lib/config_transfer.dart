@@ -74,8 +74,9 @@ class ConfigTransfer {
   static Future<void> importData(Store s, Map<String, dynamic> data) async {
     if (data['format'] != 'EslamMoneyPreferences' ||
         data['version'] != 1 ||
-        data['settings'] is! Map)
+        data['settings'] is! Map) {
       throw const FormatException('ملف تخصيصات غير مدعوم');
+    }
     final settings = Map<String, dynamic>.from(data['settings']);
     for (final scope in inputScopes.keys) {
       final key = 'defaults_$scope';
@@ -116,8 +117,11 @@ class ConfigTransfer {
       if (matches.length != 1) continue;
       final old = matches.single;
       final payload = Map<String, dynamic>.from(old)..remove('payload');
-      for (final key in ['countryCode', 'flagCode'])
-        if (r.containsKey(key)) payload[key] = r[key];
+      for (final key in ['countryCode', 'flagCode']) {
+        if (r.containsKey(key)) {
+          payload[key] = r[key];
+        }
+      }
       await s.saveRef(old['kind'], old['name'], payload, id: old['id']);
     }
     for (final value in data['accounts'] as List? ?? []) {
@@ -126,8 +130,9 @@ class ConfigTransfer {
           .list('customer')
           .where((v) => normalize(v['name']) == normalize(r['name']))
           .toList();
-      if (matches.length == 1 && r['config'] is Map)
+      if (matches.length == 1 && r['config'] is Map) {
         await s.set('statement_party_${matches.single['id']}', r['config']);
+      }
     }
   }
 }

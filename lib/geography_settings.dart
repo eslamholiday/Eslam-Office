@@ -1,6 +1,5 @@
 import 'labels.dart';
 import 'package:flutter/material.dart';
-import 'domain.dart';
 import 'geography.dart';
 import 'store.dart';
 import 'ui.dart';
@@ -111,11 +110,12 @@ Future<int?> editGeographicReference(
               subtitle: const UiText('ربط العلم فقط؛ قوائمك تبقى كما هي'),
               onTap: () async {
                 final chosen = await chooseFlag(ctx, code);
-                if (chosen != null)
+                if (chosen != null) {
                   set(() {
                     code = chosen;
                     manual = true;
                   });
+                }
               },
             ),
           ],
@@ -127,8 +127,9 @@ Future<int?> editGeographicReference(
           ),
           FilledButton(
             onPressed: () => guarded(ctx, () async {
-              if (name.text.trim().isEmpty)
+              if (name.text.trim().isEmpty) {
                 throw const FormatException('أدخل الاسم');
+              }
               final payload = <String, dynamic>{...?record}
                 ..remove('id')
                 ..remove('kind')

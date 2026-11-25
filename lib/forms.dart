@@ -145,6 +145,7 @@ class _PartyFormState extends State<PartyForm> {
       'travelerType' => Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: ChoiceField<String>(
+          fieldKey: 'travelerType',
           initialValue: travelerType,
           onClear: travelerType == null
               ? null
@@ -556,8 +557,9 @@ class _EntryFormState extends State<EntryForm> {
     }
     baseline = jsonEncode(collect());
     if (!widget.preview) {
-      if (!widget.resume)
+      if (!widget.resume) {
         WidgetsBinding.instance.addPostFrameCallback((_) => offerRecovery());
+      }
       recoveryTimer = Timer.periodic(const Duration(seconds: 3), (_) {
         if (mounted &&
             !busy &&
@@ -669,8 +671,9 @@ class _EntryFormState extends State<EntryForm> {
 
   Map<String, dynamic> collect() {
     final v = Map<String, dynamic>.from(d);
-    if (widget.kind == 'ticket')
+    if (widget.kind == 'ticket') {
       v['tripType'] = v['return'] == null ? 'oneWay' : 'roundTrip';
+    }
     for (final key in [
       'notes',
       'hotelName',
@@ -1402,6 +1405,7 @@ class _EntryFormState extends State<EntryForm> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: ChoiceField<String>(
+        fieldKey: f.key,
         initialValue: d[f.key]?.toString(),
         decoration: InputDecoration(
           labelText: label,

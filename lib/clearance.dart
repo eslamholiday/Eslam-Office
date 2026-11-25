@@ -5,6 +5,7 @@ import 'domain.dart';
 import 'store.dart';
 import 'ui.dart';
 import 'reports.dart';
+import 'input_schema.dart';
 
 Set<int> clearanceSelection(
   List<Entry> entries, {
@@ -82,20 +83,29 @@ Future<bool> confirmClearance(
                 const UiText(
                   'يشمل المعتمد فقط؛ تبقى المسودات وبطاقات الحسابات.',
                 ),
-              if (party != null) ...[
-                RadioListTile<bool>(
-                  title: const UiText('تصفية العمليات وإبقاء بطاقة الحساب'),
-                  value: false,
+              if (party != null)
+                RadioGroup<bool>(
                   groupValue: retire,
-                  onChanged: busy ? null : (v) => set(() => retire = v!),
+                  onChanged: (v) {
+                    if (!busy && v != null) set(() => retire = v);
+                  },
+                  child: Column(
+                    children: [
+                      RadioListTile<bool>(
+                        title: const UiText(
+                          'تصفية العمليات وإبقاء بطاقة الحساب',
+                        ),
+                        value: false,
+                        enabled: !busy,
+                      ),
+                      RadioListTile<bool>(
+                        title: const UiText('تصفية وأرشفة الحساب كاملًا'),
+                        value: true,
+                        enabled: !busy,
+                      ),
+                    ],
+                  ),
                 ),
-                RadioListTile<bool>(
-                  title: const UiText('تصفية وأرشفة الحساب كاملًا'),
-                  value: true,
-                  groupValue: retire,
-                  onChanged: busy ? null : (v) => set(() => retire = v!),
-                ),
-              ],
             ],
           ),
         ),
@@ -298,11 +308,38 @@ class ClearanceDetailPage extends StatelessWidget {
               childrenPadding: const EdgeInsets.all(16),
               children: [
                 UiText(description(e)),
-                ...e.data.entries
-                    .where(
-                      (p) => p.value != null && p.value.toString().isNotEmpty,
-                    )
-                    .map((p) => SelectableText('${p.key}: ${p.value}')),
+                for (final f in inputSpecs(e.kind).where(
+                  (f) => ![
+                    'attachments',
+                    'passengers',
+                    'customer',
+                    'supplier',
+                  ].contains(f.key),
+                ))
+                  if (e.data[f.key] != null &&
+                      e.data[f.key].toString().isNotEmpty)
+                    ListTile(
+                      dense: true,
+                      title: UiText(f.label),
+                      subtitle: SelectableText(
+                        f.reference != null
+                            ? name(e.data[f.key], 'refs')
+                            : f.choices.isNotEmpty
+                            ? f.choices[e.data[f.key].toString()] ??
+                                  e.data[f.key].toString()
+                            : f.type == 'money'
+                            ? e.currency.format(e.data[f.key] as int? ?? 0)
+                            : e.data[f.key].toString(),
+                      ),
+                    ),
+                for (final path in List<String>.from(
+                  e.data['attachments'] ?? [],
+                ))
+                  ListTile(
+                    leading: const Icon(Icons.attachment),
+                    title: const UiText('عرض المرفق المحفوظ'),
+                    onTap: () => openAttachment(context, path),
+                  ),
               ],
             ),
           ),

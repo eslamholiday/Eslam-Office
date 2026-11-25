@@ -312,9 +312,6 @@ class DateField extends StatelessWidget {
         decoration: InputDecoration(
           labelText: uiLabel(label),
           prefixIcon: Icon(fieldIcon(label)),
-          labelText: decoration?.labelText == null
-              ? null
-              : uiLabel(decoration!.labelText!),
           floatingLabelBehavior: FloatingLabelBehavior.always,
           suffixIcon: value != null && optional
               ? IconButton(
@@ -528,9 +525,6 @@ class PickField extends StatelessWidget {
         decoration: InputDecoration(
           labelText: uiLabel(label),
           prefixIcon: Icon(fieldIcon(label)),
-          labelText: decoration?.labelText == null
-              ? null
-              : uiLabel(decoration!.labelText!),
           floatingLabelBehavior: FloatingLabelBehavior.always,
           suffixIcon: Row(
             mainAxisSize: MainAxisSize.min,
@@ -856,6 +850,7 @@ Future<void> openAttachment(BuildContext c, String path) async {
 
 class ChoiceField<T> extends StatelessWidget {
   final bool isExpanded;
+  final String? fieldKey;
   final T? initialValue;
   final List<DropdownMenuItem<T>>? items;
   final ValueChanged<T?>? onChanged;
@@ -864,6 +859,7 @@ class ChoiceField<T> extends StatelessWidget {
   const ChoiceField({
     super.key,
     this.isExpanded = true,
+    this.fieldKey,
     this.initialValue,
     this.items,
     this.onChanged,
@@ -925,6 +921,20 @@ class ChoiceField<T> extends StatelessWidget {
                                     )
                                     .map(
                                       (i) => ListTile(
+                                        leading: ArtIcon(
+                                          ((displayPreferences['choices_$fieldKey']
+                                                          as Map?)?['icons']
+                                                      as Map?)?[i.value
+                                                      ?.toString()]
+                                                  as int? ??
+                                              (displayPreferences['uiIcons']
+                                                      as Map?)?[widgetCaption(
+                                                    i.child,
+                                                  )]
+                                                  as int? ??
+                                              titleArt(widgetCaption(i.child)),
+                                          size: 30,
+                                        ),
                                         title: i.child,
                                         trailing: i.value == initialValue
                                             ? const Icon(

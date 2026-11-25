@@ -10,7 +10,6 @@ import 'input_schema.dart';
 import 'experience_settings.dart';
 import 'experience.dart';
 import 'geography_settings.dart';
-import 'geography.dart';
 import 'clearance.dart';
 import 'label_settings.dart';
 import 'config_transfer.dart';

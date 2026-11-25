@@ -88,8 +88,9 @@ class _StatementPageState extends State<StatementPage> {
     final templates = widget.s.settings['statementTemplates'] as Map?;
     final defaultTemplate =
         templates?[widget.s.settings['statementDefaultTemplate']];
-    if (defaultTemplate is Map)
+    if (defaultTemplate is Map) {
       options.addAll(Map<String, dynamic>.from(defaultTemplate));
+    }
     if (saved is Map) options.addAll(Map<String, dynamic>.from(saved));
     mode = options['statementMode'] ?? 'original';
   }
@@ -404,10 +405,11 @@ class _StatementPageState extends State<StatementPage> {
             value: personal,
             onChanged: (v) async {
               personal = v;
-              if (!v)
+              if (!v) {
                 await widget.s.set('statement_party_${widget.party}', null);
-              else
+              } else {
                 await option('statementMode', mode);
+              }
               if (mounted) setState(() {});
             },
           ),
@@ -643,8 +645,9 @@ class _StatementPageState extends State<StatementPage> {
                       )..remove(e.key);
                       await widget.s.set('statementTemplates', templates);
                       if (widget.s.settings['statementDefaultTemplate'] ==
-                          e.key)
+                          e.key) {
                         await widget.s.set('statementDefaultTemplate', null);
+                      }
                       if (mounted) setState(() {});
                     },
                   ),
@@ -715,16 +718,20 @@ class PdfPage extends StatelessWidget {
         ? font
         : pw.Font.ttf(await rootBundle.load('assets/fonts/$family-Bold.ttf'));
     final latin = pw.Font.ttf(await rootBundle.load('assets/fonts/Cairo.ttf'));
-    final fontSize = (config['statementFontSize'] as num? ?? 12).toDouble();
+    final fontSize = (config['statementFontSize'] as num? ?? 12)
+        .toDouble()
+        .clamp(9, 16);
     final lineSpacing = (config['statementLineSpacing'] as num? ?? 1.25)
-        .toDouble();
+        .toDouble()
+        .clamp(0, 3);
     format = config['statementPaper'] == 'a5'
         ? PdfPageFormat.a5
         : config['statementPaper'] == 'letter'
         ? PdfPageFormat.letter
         : format;
-    if (config['statementLandscape'] == true && format.height > format.width)
+    if (config['statementLandscape'] == true && format.height > format.width) {
       format = format.landscape;
+    }
     pw.Widget cell(String text, {bool header = false}) => pw.Padding(
       padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 6),
       child: pw.Text(
@@ -969,7 +976,7 @@ class PdfPage extends StatelessWidget {
         dpi: statementImageDpi(config['imageDpi']).toDouble(),
       )) {
         final png = await whiteStatementPng(await page.toPng());
-        final name = '${filename}_p${count + 1}.png';
+        final name = '$filename_p${count + 1}.png';
         await File('${dir.path}/$name').writeAsBytes(png, flush: true);
         if (gallery &&
             !await Gallery.save(
@@ -1002,11 +1009,8 @@ class PdfPage extends StatelessWidget {
   Future<void> shareImages(BuildContext context) async {
     final images = <Uint8List>[];
     final bytes = await document(PdfPageFormat.a4);
-    await for (final page in Printing.raster(
-      bytes,
-      dpi: statementImageDpi(config['imageDpi']).toDouble(),
-    )) {
-      images.add(await whiteStatementPng(await page.toPng()));
+    await for (final page in Printing.raster(bytes, dpi: 36)) {
+      images.add(await page.toPng());
     }
     if (!context.mounted || images.isEmpty) return;
     final selected = <int>{for (var i = 0; i < images.length; i++) i};
@@ -1026,8 +1030,9 @@ class PdfPage extends StatelessWidget {
                     value: selected.length == images.length,
                     onChanged: (v) => set(() {
                       selected.clear();
-                      if (v == true)
+                      if (v == true) {
                         selected.addAll(List.generate(images.length, (i) => i));
+                      }
                     }),
                   ),
                   Expanded(
@@ -1073,9 +1078,20 @@ class PdfPage extends StatelessWidget {
     await dir.create(recursive: true);
     final stamp = DateTime.now().millisecondsSinceEpoch;
     final paths = <String>[];
-    for (final i in selected) {
-      final file = File('${dir.path}/statement-${stamp}-p${i + 1}.png');
-      await file.writeAsBytes(images[i], flush: true);
+    final pages = selected.toList()..sort();
+    var index = 0;
+    await for (final page in Printing.raster(
+      bytes,
+      pages: pages,
+      dpi: statementImageDpi(config['imageDpi']).toDouble(),
+    )) {
+      final file = File(
+        '${dir.path}/statement-$stamp-p${pages[index++] + 1}.png',
+      );
+      await file.writeAsBytes(
+        await whiteStatementPng(await page.toPng()),
+        flush: true,
+      );
       paths.add(file.path);
     }
     await Gallery.shareImages(paths);

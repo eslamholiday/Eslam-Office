@@ -1,7 +1,6 @@
 import 'labels.dart';
 import 'package:flutter/material.dart';
 import 'domain.dart';
-import 'ui.dart';
 
 class TravelRange {
   final String? start, end;
@@ -82,8 +81,11 @@ Future<TravelRange?> chooseTravelRange(
                     if (!selectEnd || first == null) {
                       first = date;
                       if (last != null &&
-                          (hotel ? !last!.isAfter(date) : last!.isBefore(date)))
+                          (hotel
+                              ? !last!.isAfter(date)
+                              : last!.isBefore(date))) {
                         last = null;
+                      }
                       selectEnd = true;
                     } else {
                       last = date;

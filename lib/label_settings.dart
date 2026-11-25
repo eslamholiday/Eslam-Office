@@ -78,10 +78,11 @@ class _UiLabelsPageState extends State<UiLabelsPage> {
       final labels = Map<String, dynamic>.from(
         widget.s.settings['uiLabels'] ?? {},
       );
-      if (value.isEmpty || value == original)
+      if (value.isEmpty || value == original) {
         labels.remove(original);
-      else
+      } else {
         labels[original] = value;
+      }
       await widget.s.set('uiLabels', labels);
     }
     await Future<void>.delayed(const Duration(milliseconds: 300));
@@ -140,11 +141,12 @@ class _UiLabelsPageState extends State<UiLabelsPage> {
                                   context,
                                   titleArt(original),
                                 );
-                                if (icon != null)
+                                if (icon != null) {
                                   await widget.s.set('uiIcons', {
                                     ...?widget.s.settings['uiIcons'] as Map?,
                                     original: icon,
                                   });
+                                }
                               },
                             ),
                             title: UiText(uiLabel(original)),
