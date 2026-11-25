@@ -18,6 +18,7 @@ import 'package:eslam_office/labels.dart';
 import 'package:eslam_office/statement_details.dart';
 import 'package:eslam_office/store.dart';
 import 'package:eslam_office/visual_system.dart';
+import 'package:eslam_office/ui.dart' show ChoiceField;
 
 Widget host(Widget child, {Store? store}) => MaterialApp(
   locale: const Locale('ar'),
@@ -537,6 +538,57 @@ void main() {
       );
       await t.pump();
       expect(transforms, findsNothing);
+      await t.pumpWidget(const SizedBox());
+      expect(t.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'native choice target stays inside its field rather than merging the enclosing card',
+    (t) async {
+      final semantics = t.ensureSemantics();
+      addTearDown(semantics.dispose);
+      await t.pumpWidget(
+        host(
+          Scaffold(
+            body: Card(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('عنوان البطاقة'),
+                  const SizedBox(height: 140),
+                  ChoiceField<String>(
+                    initialValue: 'silk',
+                    decoration: const InputDecoration(labelText: 'طابع الصوت'),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'silk',
+                        child: UiText('نسيم هادئ'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'crystal',
+                        child: UiText('زجاج كريستالي'),
+                      ),
+                    ],
+                    onChanged: (_) {},
+                  ),
+                  const SizedBox(height: 140),
+                  const Text('نهاية البطاقة'),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await t.pumpAndSettle();
+      final field = find.byType(ChoiceField<String>);
+      expect(
+        t.getSemantics(field).rect.height,
+        closeTo(t.getSize(field).height, 1),
+      );
+      expect(t.getSemantics(field).rect.height, lessThan(120));
+      await t.tap(field);
+      await t.pumpAndSettle();
+      expect(find.text('زجاج كريستالي'), findsOneWidget);
       await t.pumpWidget(const SizedBox());
       expect(t.takeException(), isNull);
     },

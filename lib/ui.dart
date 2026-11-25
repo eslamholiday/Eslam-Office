@@ -895,110 +895,113 @@ class ChoiceField<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final selected = items?.where((i) => i.value == initialValue).firstOrNull;
-    return InkWell(
-      onTap: onChanged == null
-          ? null
-          : () async {
-              var query = '';
-              await showModalBottomSheet<void>(
-                context: context,
-                showDragHandle: true,
-                isScrollControlled: true,
-                builder: (ctx) => StatefulBuilder(
-                  builder: (ctx, set) => SafeArea(
-                    child: SizedBox(
-                      height: MediaQuery.sizeOf(ctx).height * .65,
-                      child: Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          16,
-                          0,
-                          16,
-                          MediaQuery.viewInsetsOf(ctx).bottom,
-                        ),
-                        child: Column(
-                          children: [
-                            UiText(
-                              decoration?.labelText ?? 'اختر من القائمة',
-                              style: Theme.of(ctx).textTheme.titleLarge,
-                            ),
-                            if ((items?.length ?? 0) > 5)
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 12,
-                                ),
-                                child: TextField(
-                                  decoration: const InputDecoration(
-                                    prefixIcon: Icon(Icons.search),
-                                    hintText: 'بحث',
+    return Semantics(
+      container: true,
+      child: InkWell(
+        onTap: onChanged == null
+            ? null
+            : () async {
+                var query = '';
+                await showModalBottomSheet<void>(
+                  context: context,
+                  showDragHandle: true,
+                  isScrollControlled: true,
+                  builder: (ctx) => StatefulBuilder(
+                    builder: (ctx, set) => SafeArea(
+                      child: SizedBox(
+                        height: MediaQuery.sizeOf(ctx).height * .65,
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            16,
+                            0,
+                            16,
+                            MediaQuery.viewInsetsOf(ctx).bottom,
+                          ),
+                          child: Column(
+                            children: [
+                              UiText(
+                                decoration?.labelText ?? 'اختر من القائمة',
+                                style: Theme.of(ctx).textTheme.titleLarge,
+                              ),
+                              if ((items?.length ?? 0) > 5)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
                                   ),
-                                  onChanged: (v) =>
-                                      set(() => query = normalize(v)),
+                                  child: TextField(
+                                    decoration: const InputDecoration(
+                                      prefixIcon: Icon(Icons.search),
+                                      hintText: 'بحث',
+                                    ),
+                                    onChanged: (v) =>
+                                        set(() => query = normalize(v)),
+                                  ),
+                                ),
+                              Expanded(
+                                child: ListView(
+                                  children: (items ?? <DropdownMenuItem<T>>[])
+                                      .where(
+                                        (i) =>
+                                            query.isEmpty ||
+                                            normalize(
+                                              uiLabel(widgetCaption(i.child)),
+                                            ).contains(query),
+                                      )
+                                      .map(
+                                        (i) => ListTile(
+                                          leading: ArtIcon(
+                                            choiceArt(
+                                              fieldKey,
+                                              i.value,
+                                              widgetCaption(i.child),
+                                            ),
+                                            size: 30,
+                                          ),
+                                          title: i.child,
+                                          trailing: i.value == initialValue
+                                              ? const Icon(
+                                                  Icons.check_circle_outline,
+                                                )
+                                              : null,
+                                          onTap: () {
+                                            onChanged?.call(i.value);
+                                            Navigator.pop(ctx);
+                                          },
+                                        ),
+                                      )
+                                      .toList(),
                                 ),
                               ),
-                            Expanded(
-                              child: ListView(
-                                children: (items ?? <DropdownMenuItem<T>>[])
-                                    .where(
-                                      (i) =>
-                                          query.isEmpty ||
-                                          normalize(
-                                            uiLabel(widgetCaption(i.child)),
-                                          ).contains(query),
-                                    )
-                                    .map(
-                                      (i) => ListTile(
-                                        leading: ArtIcon(
-                                          choiceArt(
-                                            fieldKey,
-                                            i.value,
-                                            widgetCaption(i.child),
-                                          ),
-                                          size: 30,
-                                        ),
-                                        title: i.child,
-                                        trailing: i.value == initialValue
-                                            ? const Icon(
-                                                Icons.check_circle_outline,
-                                              )
-                                            : null,
-                                        onTap: () {
-                                          onChanged?.call(i.value);
-                                          Navigator.pop(ctx);
-                                        },
-                                      ),
-                                    )
-                                    .toList(),
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              );
-            },
-      child: InputDecorator(
-        decoration: (decoration ?? const InputDecoration()).copyWith(
-          labelText: decoration?.labelText == null
-              ? null
-              : uiLabel(decoration!.labelText!),
-          floatingLabelBehavior: FloatingLabelBehavior.always,
-          suffixIcon: onClear == null
-              ? const Icon(Icons.expand_more)
-              : Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      tooltip: 'مسح الاختيار',
-                      icon: const Icon(Icons.clear, size: 18),
-                      onPressed: onClear,
-                    ),
-                    const Icon(Icons.expand_more),
-                  ],
-                ),
+                );
+              },
+        child: InputDecorator(
+          decoration: (decoration ?? const InputDecoration()).copyWith(
+            labelText: decoration?.labelText == null
+                ? null
+                : uiLabel(decoration!.labelText!),
+            floatingLabelBehavior: FloatingLabelBehavior.always,
+            suffixIcon: onClear == null
+                ? const Icon(Icons.expand_more)
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'مسح الاختيار',
+                        icon: const Icon(Icons.clear, size: 18),
+                        onPressed: onClear,
+                      ),
+                      const Icon(Icons.expand_more),
+                    ],
+                  ),
+          ),
+          child: selected?.child ?? const UiText('اختياري'),
         ),
-        child: selected?.child ?? const UiText('اختياري'),
       ),
     );
   }
