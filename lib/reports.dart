@@ -412,8 +412,9 @@ class _StatementPageState extends State<StatementPage> {
                     (widget.s.settings['statementTemplates'] as Map?)?[widget
                         .s
                         .settings['statementDefaultTemplate']];
-                if (defaults is Map)
+                if (defaults is Map) {
                   options.addAll(Map<String, dynamic>.from(defaults));
+                }
                 mode = options['statementMode'] ?? 'original';
               } else {
                 await option('statementMode', mode);
