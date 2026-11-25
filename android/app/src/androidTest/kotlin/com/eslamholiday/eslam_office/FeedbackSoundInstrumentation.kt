@@ -45,12 +45,24 @@ class FeedbackSoundInstrumentation : Instrumentation() {
             }
 
             var count = 0
+            fun waitUntil(message: String, condition: () -> Boolean) {
+                repeat(50) {
+                    if (condition()) return
+                    Thread.sleep(50)
+                }
+                check(condition()) { message }
+            }
             for (mode in listOf(AudioManager.RINGER_MODE_NORMAL, AudioManager.RINGER_MODE_VIBRATE, AudioManager.RINGER_MODE_SILENT)) {
-                audio.ringerMode = mode
+                // SYSTEM is aliased to RING on phones; zeroing it can change ringer mode.
+                // Set the requested mode afterwards, and wait for AudioService to apply it.
                 audio.setStreamVolume(AudioManager.STREAM_SYSTEM, 0, 0)
+                audio.ringerMode = mode
+                waitUntil("Could not set ringer mode $mode") { audio.ringerMode == mode }
                 audio.setStreamVolume(AudioManager.STREAM_MUSIC, audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC), 0)
-                check(audio.ringerMode == mode) { "Could not set ringer mode $mode" }
-                check(audio.getStreamVolume(AudioManager.STREAM_MUSIC) > 0)
+                waitUntil("Media remained muted") { audio.getStreamVolume(AudioManager.STREAM_MUSIC) > 0 }
+                if (mode != AudioManager.RINGER_MODE_NORMAL) {
+                    check(audio.getStreamVolume(AudioManager.STREAM_SYSTEM) == 0)
+                }
                 // New decode and cached replay must both reach an Android audio stream.
                 val style = listOf("silk", "wood", "crystal")[mode]
                 repeat(2) {
@@ -69,8 +81,10 @@ class FeedbackSoundInstrumentation : Instrumentation() {
                 }
             }
             audio.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0)
+            waitUntil("Media did not mute") { audio.getStreamVolume(AudioManager.STREAM_MUSIC) == 0 }
             check(play().first == "device_muted")
             audio.setStreamVolume(AudioManager.STREAM_MUSIC, audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC), 0)
+            waitUntil("Media did not unmute") { audio.getStreamVolume(AudioManager.STREAM_MUSIC) > 0 }
             check(play(volume = 0f).first == "app_muted")
             check(play(style = "missing_asset").first == "error")
             runOnMainSync { sounds.pause() }
