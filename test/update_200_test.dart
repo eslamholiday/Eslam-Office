@@ -146,8 +146,9 @@ void main() {
       var state = 'device_muted';
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(Experience.channel, (call) async {
-            if (state == 'exception')
+            if (state == 'exception') {
               throw PlatformException(code: 'AUDIO_FAILED');
+            }
             return {'sound': state, 'streamId': state == 'played' ? 17 : 0};
           });
       addTearDown(

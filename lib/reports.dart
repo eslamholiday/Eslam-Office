@@ -77,37 +77,47 @@ class _StatementPageState extends State<StatementPage> {
   String? from, to;
   Set<String> kinds = {};
   int? passenger;
-  bool includeDrafts = false, personal = false;
+  bool includeDrafts = false;
   Map<String, dynamic> options = {};
   @override
   void initState() {
     super.initState();
-    final saved = widget.s.settings['statement_party_${widget.party}'];
-    personal = saved is Map;
     options = Map<String, dynamic>.from(widget.s.settings);
-    final templates = widget.s.settings['statementTemplates'] as Map?;
-    final defaultTemplate =
-        templates?[widget.s.settings['statementDefaultTemplate']];
-    if (defaultTemplate is Map) {
-      options.addAll(Map<String, dynamic>.from(defaultTemplate));
-    }
-    if (saved is Map) options.addAll(Map<String, dynamic>.from(saved));
     mode = options['statementMode'] ?? 'original';
+    rate.text = options['statementExchangeRate']?.toString() ?? '150000';
+    fee.text = options['statementExchangeFee']?.toString() ?? '';
+    quickRange = options['statementQuickRange'] ?? 'all';
+    final range = quickRange == 'custom'
+        ? <String?>[options['statementFrom'], options['statementTo']]
+        : quickDateRange(quickRange);
+    from = range[0];
+    to = range[1];
+    kinds = Set<String>.from(options['statementKinds'] ?? <String>[]);
+    includeDrafts = options['statementIncludeDrafts'] == true;
+    rate.addListener(() => option('statementExchangeRate', rate.text));
+    fee.addListener(() => option('statementExchangeFee', fee.text));
   }
 
   Future<void> option(String key, dynamic value) async {
     options[key] = value;
-    if (personal) {
-      await widget.s.set('statement_party_${widget.party}', {
-        for (final e in options.entries)
-          if (e.key.startsWith('statement') &&
-              !e.key.startsWith('statement_party_') &&
-              e.key != 'statementTemplates')
-            e.key: e.value,
-      });
-    } else {
-      await widget.s.set(key, value);
+    // All accounts use the last saved presentation settings.
+    await widget.s.set(key, value);
+    if (mounted) setState(() {});
+  }
+
+  Future<void> applyTemplate(Map values) async {
+    for (final e in values.entries) {
+      final key = e.key.toString();
+      if (key.startsWith('statement') &&
+          !key.startsWith('statement_party_') &&
+          key != 'statementTemplates' &&
+          key != 'statementDefaultTemplate') {
+        await option(key, e.value);
+      }
     }
+    mode = options['statementMode'] ?? 'original';
+    rate.text = options['statementExchangeRate']?.toString() ?? rate.text;
+    fee.text = options['statementExchangeFee']?.toString() ?? fee.text;
     if (mounted) setState(() {});
   }
 
@@ -155,6 +165,9 @@ class _StatementPageState extends State<StatementPage> {
       from = values[0];
       to = values[1];
     });
+    option('statementQuickRange', key);
+    option('statementFrom', from);
+    option('statementTo', to);
   }
 
   final rate = TextEditingController(text: '150000'),
@@ -180,7 +193,7 @@ class _StatementPageState extends State<StatementPage> {
         throw const FormatException('أدخل سعر الصرف');
       }
       options['statementMode'] = mode;
-      if (personal) await option('statementMode', mode);
+      await option('statementMode', mode);
       final allHistory = includeDrafts
           ? widget.s.entries
                 .where(
@@ -242,7 +255,7 @@ class _StatementPageState extends State<StatementPage> {
         return amounts.entries
             .where((p) => mode == 'original' || p.key.name == mode)
             .map((p) => p.key.format(p.value))
-            .join('  |  ');
+            .join('\n');
       }
 
       if (options['statementShowPrevious'] != false) {
@@ -392,35 +405,19 @@ class _StatementPageState extends State<StatementPage> {
                 child: UiText('عرض الكل بالدينار'),
               ),
             ],
-            onChanged: (v) => setState(() => mode = v!),
+            onChanged: (v) {
+              mode = v!;
+              option('statementMode', mode);
+            },
           ),
           if (mode.startsWith('all'))
             pair(
               textField(rate, '100 USD = دينار', number: true, grouped: true),
               textField(fee, 'عمولة التحويل ‰', number: true),
             ),
-          SwitchListTile(
-            title: const UiText('إعدادات خاصة بهذا الحساب'),
-            subtitle: const UiText('تُحفظ الأعمدة والتنسيق لهذا الحساب'),
-            value: personal,
-            onChanged: (v) async {
-              personal = v;
-              if (!v) {
-                await widget.s.set('statement_party_${widget.party}', null);
-                options = Map<String, dynamic>.from(widget.s.settings);
-                final defaults =
-                    (widget.s.settings['statementTemplates'] as Map?)?[widget
-                        .s
-                        .settings['statementDefaultTemplate']];
-                if (defaults is Map) {
-                  options.addAll(Map<String, dynamic>.from(defaults));
-                }
-                mode = options['statementMode'] ?? 'original';
-              } else {
-                await option('statementMode', mode);
-              }
-              if (mounted) setState(() {});
-            },
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: UiText('تُحفظ إعدادات الكشف تلقائيًا لجميع الحسابات'),
           ),
           ChoiceField<String>(
             initialValue: options['statementPreset'] ?? 'detailed',
@@ -466,11 +463,14 @@ class _StatementPageState extends State<StatementPage> {
               start: from,
               end: to,
               label: 'فترة الكشف',
-              onChanged: (r) => setState(() {
+              onChanged: (r) {
                 from = r.start;
                 to = r.end;
                 quickRange = 'custom';
-              }),
+                option('statementQuickRange', quickRange);
+                option('statementFrom', from);
+                option('statementTo', to);
+              },
             ),
             Wrap(
               spacing: 6,
@@ -481,9 +481,10 @@ class _StatementPageState extends State<StatementPage> {
                     (e) => FilterChip(
                       label: UiText(e.value),
                       selected: kinds.contains(e.key),
-                      onSelected: (v) => setState(
-                        () => v ? kinds.add(e.key) : kinds.remove(e.key),
-                      ),
+                      onSelected: (v) {
+                        v ? kinds.add(e.key) : kinds.remove(e.key);
+                        option('statementKinds', kinds.toList());
+                      },
                     ),
                   )
                   .toList(),
@@ -511,7 +512,10 @@ class _StatementPageState extends State<StatementPage> {
             SwitchListTile(
               title: const UiText('تضمين المسودات للعرض فقط'),
               value: includeDrafts,
-              onChanged: (v) => setState(() => includeDrafts = v),
+              onChanged: (v) {
+                includeDrafts = v;
+                option('statementIncludeDrafts', v);
+              },
             ),
           ],
           collapsible: true,
@@ -622,8 +626,7 @@ class _StatementPageState extends State<StatementPage> {
               leading: const Icon(Icons.style_outlined),
               title: UiText(e.key),
               onTap: () async {
-                options.addAll(Map<String, dynamic>.from(e.value));
-                if (mounted) setState(() {});
+                await applyTemplate(e.value as Map);
               },
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -636,6 +639,7 @@ class _StatementPageState extends State<StatementPage> {
                           : Icons.star_border,
                     ),
                     onPressed: () async {
+                      await applyTemplate(e.value as Map);
                       await widget.s.set(
                         'statementDefaultTemplate',
                         widget.s.settings['statementDefaultTemplate'] == e.key
@@ -743,22 +747,126 @@ class PdfPage extends StatelessWidget {
     if (config['statementLandscape'] == true && format.height > format.width) {
       format = format.landscape;
     }
-    pw.Widget cell(String text, {bool header = false}) => pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-      child: pw.Text(
-        uiLabel(text, config),
-        textDirection: RegExp(r'[\u0600-\u06ff]').hasMatch(text)
-            ? pw.TextDirection.rtl
-            : pw.TextDirection.ltr,
-        style: pw.TextStyle(
-          font: header ? bold : font,
+    String safeText(String text) =>
+        uiLabel(text, config).replaceAll('←', '-').replaceAll('→', '-');
+    pw.TextStyle style({bool header = false, bool emphasis = false}) =>
+        pw.TextStyle(
+          font: header || emphasis ? bold : font,
           fontFallback: [latin],
-          fontSize: header ? fontSize : fontSize,
+          fontSize: fontSize,
           lineSpacing: lineSpacing,
           color: header ? PdfColors.white : PdfColors.black,
-        ),
+        );
+    pw.Widget directedRow({
+      required pw.TextDirection textDirection,
+      pw.MainAxisSize mainAxisSize = pw.MainAxisSize.max,
+      pw.CrossAxisAlignment crossAxisAlignment = pw.CrossAxisAlignment.center,
+      required List<pw.Widget> children,
+    }) => pw.Directionality(
+      textDirection: textDirection,
+      child: pw.Row(
+        mainAxisSize: mainAxisSize,
+        crossAxisAlignment: crossAxisAlignment,
+        children: children,
       ),
     );
+    pw.Widget moneyLine(String text) {
+      final value = text.trim();
+      final match = RegExp(r'[+-]?[0-9٠-٩][0-9٠-٩,٬.٫]*').firstMatch(value);
+      if (match == null) {
+        return pw.Text(
+          safeText(value),
+          textDirection: pw.TextDirection.ltr,
+          style: style(),
+        );
+      }
+      final number = match.group(0)!;
+      final unit = value.replaceRange(match.start, match.end, '').trim();
+      return pw.Align(
+        alignment: pw.Alignment.centerRight,
+        child: pw.FittedBox(
+          fit: pw.BoxFit.scaleDown,
+          alignment: pw.Alignment.centerRight,
+          child: directedRow(
+            textDirection: pw.TextDirection.ltr,
+            mainAxisSize: pw.MainAxisSize.min,
+            children: [
+              pw.Text(
+                number,
+                textDirection: pw.TextDirection.ltr,
+                style: pw.TextStyle(font: latin, fontSize: fontSize),
+              ),
+              if (unit.isNotEmpty) ...[
+                pw.SizedBox(width: 4),
+                pw.Text(
+                  unit,
+                  textDirection: RegExp(r'[\u0600-\u06ff]').hasMatch(unit)
+                      ? pw.TextDirection.rtl
+                      : pw.TextDirection.ltr,
+                  style: style(),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
+    pw.Widget moneyLines(String text) => pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: text
+          .split(RegExp(r'\s*\|\s*|\n'))
+          .where((v) => v.trim().isNotEmpty)
+          .map(
+            (v) => pw.Padding(
+              padding: const pw.EdgeInsets.symmetric(vertical: 2),
+              child: moneyLine(v),
+            ),
+          )
+          .toList(),
+    );
+    pw.Widget cell(String text, {bool header = false, String column = ''}) {
+      final monetary =
+          !header &&
+          (['الحركة', 'الرصيد', 'عليه', 'له', 'المبلغ'].contains(column) ||
+              RegExp(
+                r'^(?:\$|USD|IQD|[+-]?[0-9٠-٩][0-9٠-٩,٬.٫]*\s*(?:د\.ع|USD|IQD|\$))',
+              ).hasMatch(text.trim()));
+      final lines = safeText(
+        text,
+      ).split('\n').where((v) => v.trim().isNotEmpty).toList();
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(horizontal: 7, vertical: 8),
+        child: monetary
+            ? moneyLines(text)
+            : pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < lines.length; i++)
+                    pw.Padding(
+                      padding: pw.EdgeInsets.only(
+                        bottom: i + 1 < lines.length ? 3 : 0,
+                      ),
+                      child: pw.Text(
+                        lines[i],
+                        textAlign: header || column == 'التاريخ'
+                            ? pw.TextAlign.center
+                            : pw.TextAlign.right,
+                        textDirection:
+                            RegExp(r'[\u0600-\u06ff]').hasMatch(lines[i])
+                            ? pw.TextDirection.rtl
+                            : pw.TextDirection.ltr,
+                        style: style(
+                          header: header,
+                          emphasis: column == 'العملية' && i == 0,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+      );
+    }
+
     final split =
         config['statementSplitMovement'] == true && headers.contains('الحركة');
     final movementIndex = headers.indexOf('الحركة');
@@ -793,10 +901,60 @@ class PdfPage extends StatelessWidget {
       _ => 60.0,
     };
     final logoAlignment = switch (config['logoAlign']) {
-      'left' => pw.Alignment.centerLeft,
-      'center' => pw.Alignment.center,
-      _ => pw.Alignment.centerRight,
+      'left' => pw.CrossAxisAlignment.start,
+      'center' => pw.CrossAxisAlignment.center,
+      _ => pw.CrossAxisAlignment.end,
     };
+    final brand = pw.Column(
+      crossAxisAlignment: logoAlignment,
+      children: [
+        if (config['statementShowOffice'] != false)
+          pw.Text(
+            config['office'] ?? 'Eslam Holiday',
+            textDirection:
+                RegExp(
+                  r'[\u0600-\u06ff]',
+                ).hasMatch(config['office'] ?? 'Eslam Holiday')
+                ? pw.TextDirection.rtl
+                : pw.TextDirection.ltr,
+            style: pw.TextStyle(
+              fontSize: 18,
+              font: bold,
+              color: PdfColor.fromInt(activePack.secondary.toARGB32()),
+            ),
+          ),
+        pw.SizedBox(height: 3),
+        pw.Text(
+          [
+            if (config['statementShowPhone'] != false)
+              config['phone'] ?? '07713414312',
+            if (config['statementShowWebsite'] != false)
+              config['website'] ?? 'Eslamholiday.com',
+          ].join('  |  '),
+          textDirection: pw.TextDirection.ltr,
+          style: pw.TextStyle(font: latin, fontSize: 9),
+        ),
+        if (config['statementShowTransferAccount'] != false &&
+            (config['transferAccount'] ?? '9645239113')
+                .toString()
+                .trim()
+                .isNotEmpty)
+          pw.Padding(
+            padding: const pw.EdgeInsets.only(top: 4),
+            child: pw.Text(
+              'للتحويل الإلكتروني: ${config['transferAccount'] ?? '9645239113'}',
+              textDirection: pw.TextDirection.rtl,
+              style: const pw.TextStyle(fontSize: 9),
+            ),
+          ),
+      ],
+    );
+    pw.Widget logoImage() => pw.Image(
+      logo!,
+      width: logoWidth,
+      height: logoWidth * .82,
+      fit: pw.BoxFit.contain,
+    );
     doc.addPage(
       pw.MultiPage(
         maxPages: 500,
@@ -817,67 +975,32 @@ class PdfPage extends StatelessWidget {
         header: (_) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.stretch,
           children: [
-            if (logo != null) ...[
-              pw.Align(
-                alignment: logoAlignment,
-                child: pw.Image(
-                  logo,
-                  width: logoWidth,
-                  height: logoWidth * .82,
-                  fit: pw.BoxFit.contain,
-                ),
-              ),
-              pw.SizedBox(height: 8),
-            ],
-            if (config['statementShowOffice'] != false)
-              pw.Text(
-                config['office'] ?? 'Eslam Holiday',
-                textDirection:
-                    RegExp(
-                      r'[\u0600-\u06ff]',
-                    ).hasMatch(config['office'] ?? 'Eslam Holiday')
-                    ? pw.TextDirection.rtl
-                    : pw.TextDirection.ltr,
-                style: pw.TextStyle(
-                  fontSize: 20,
-                  color: PdfColor.fromInt(activePack.secondary.toARGB32()),
-                ),
-              ),
-            pw.Text(
-              [
-                if (config['statementShowPhone'] != false)
-                  config['phone'] ?? '07713414312',
-                if (config['statementShowWebsite'] != false)
-                  config['website'] ?? 'Eslamholiday.com',
-              ].join('  •  '),
-              textDirection: pw.TextDirection.ltr,
-              style: const pw.TextStyle(fontSize: 9),
-            ),
-            if (config['statementShowTransferAccount'] != false &&
-                (config['transferAccount'] ?? '9645239113')
-                    .toString()
-                    .trim()
-                    .isNotEmpty)
-              pw.Padding(
-                padding: const pw.EdgeInsets.only(top: 5),
-                child: pw.Row(
-                  children: [
-                    pw.Text(
-                      'للتحويل الإلكتروني رقم حساب: ',
-                      style: const pw.TextStyle(fontSize: 9),
-                    ),
-                    pw.Text(
-                      config['transferAccount'] ?? '9645239113',
-                      textDirection: pw.TextDirection.ltr,
-                      style: const pw.TextStyle(fontSize: 9),
-                    ),
+            if (logo != null && config['logoAlign'] == 'center')
+              pw.Column(children: [logoImage(), pw.SizedBox(height: 5), brand])
+            else
+              directedRow(
+                textDirection: pw.TextDirection.ltr,
+                crossAxisAlignment: pw.CrossAxisAlignment.center,
+                children: [
+                  if (logo != null && config['logoAlign'] == 'left') ...[
+                    logoImage(),
+                    pw.SizedBox(width: 12),
                   ],
-                ),
+                  pw.Expanded(child: brand),
+                  if (logo != null && config['logoAlign'] != 'left') ...[
+                    pw.SizedBox(width: 12),
+                    logoImage(),
+                  ],
+                ],
               ),
             pw.SizedBox(height: 12),
-            pw.Text(title, style: const pw.TextStyle(fontSize: 16)),
+            pw.Text(
+              title,
+              textAlign: pw.TextAlign.right,
+              style: pw.TextStyle(font: bold, fontSize: 15),
+            ),
             pw.Divider(color: PdfColor.fromInt(activePack.primary.toARGB32())),
-            pw.SizedBox(height: 8),
+            pw.SizedBox(height: 6),
           ],
         ),
         footer: (ctx) => pw.Row(
@@ -899,17 +1022,18 @@ class PdfPage extends StatelessWidget {
         build: (_) => [
           pw.Table(
             border: pw.TableBorder.all(
-              color: PdfColor.fromInt(0xffb6c6d8),
-              width: .45,
+              color: PdfColor.fromInt(0xffd6dde5),
+              width: .4,
             ),
+            defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
             columnWidths: {
               for (var i = 0; i < finalHeaders.length; i++)
                 i: pw.FlexColumnWidth(
                   finalHeaders.reversed.toList()[i] == 'العملية'
-                      ? 4
+                      ? 4.5
                       : finalHeaders.reversed.toList()[i] == 'التاريخ'
-                      ? 1.6
-                      : 2.1,
+                      ? 1.8
+                      : 2.6,
                 ),
             },
             children: [
@@ -926,10 +1050,13 @@ class PdfPage extends StatelessWidget {
                 pw.TableRow(
                   decoration: pw.BoxDecoration(
                     color: i.isOdd
-                        ? PdfColor.fromInt(0xfff1f6ff)
+                        ? PdfColor.fromInt(0xfff6f8fb)
                         : PdfColors.white,
                   ),
-                  children: finalRows[i].reversed.map(cell).toList(),
+                  children: [
+                    for (var j = finalHeaders.length - 1; j >= 0; j--)
+                      cell(finalRows[i][j], column: finalHeaders[j]),
+                  ],
                 ),
             ],
           ),
@@ -942,13 +1069,28 @@ class PdfPage extends StatelessWidget {
                 decoration: pw.BoxDecoration(
                   color: PdfColor.fromInt(activePack.canvas.toARGB32()),
                 ),
-                child: pw.Text(
-                  uiLabel(text, config),
-                  style: pw.TextStyle(
-                    fontSize: fontSize,
-                    fontFallback: [latin],
-                  ),
-                ),
+                child:
+                    text.contains(':') &&
+                        (text.contains(r'$') ||
+                            text.contains('د.ع') ||
+                            text.contains('USD') ||
+                            text.contains('IQD'))
+                    ? directedRow(
+                        textDirection: pw.TextDirection.rtl,
+                        children: [
+                          pw.Text(
+                            safeText(text.substring(0, text.indexOf(':') + 1)),
+                            style: style(emphasis: true),
+                          ),
+                          pw.SizedBox(width: 12),
+                          pw.Expanded(
+                            child: moneyLines(
+                              text.substring(text.indexOf(':') + 1),
+                            ),
+                          ),
+                        ],
+                      )
+                    : pw.Text(safeText(text), style: style()),
               ),
             ),
           ),

@@ -28,7 +28,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Statement-PDF-evidence
-          path: /tmp/eslam-statement-test.pdf
+          path: /tmp/eslam-statement-*.pdf
       - name: Build installable preview APK
         run: flutter build apk --debug --target-platform android-arm64,android-x64
       - name: Build native audio regression test

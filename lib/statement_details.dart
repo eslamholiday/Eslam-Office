@@ -51,12 +51,12 @@ Map<String, String> statementDetailValues(
   String dates(String start, String end) => [
     if (text(start).isNotEmpty) displayDate(text(start), weekday: false),
     if (text(end).isNotEmpty) displayDate(text(end), weekday: false),
-  ].join(' ← ');
+  ].join(' - ');
   final result = <String, String>{
     'country': ref('country'),
     'supplier': s.name(d['supplier'] as int?),
     if (e.kind == 'ticket') ...{
-      'route': [ref('from'), ref('to')].where((v) => v.isNotEmpty).join(' ← '),
+      'route': [ref('from'), ref('to')].where((v) => v.isNotEmpty).join(' - '),
       'airline': ref('airline'),
       'tripType': choiceLabel(
         p,
@@ -125,11 +125,13 @@ String statementDescription(
   bool details = true,
 }) {
   final parts = <String>[
-    uiLabel(e.label, settings),
-    if (settings['statementShowNumber'] != false) '#${e.id}',
-    if (settings['statementShowQuantity'] != false &&
-        ['ticket', 'visa', 'hotel'].contains(e.kind))
-      '${uiLabel('العدد', settings)}: ${e.quantity}',
+    [
+      uiLabel(e.label, settings),
+      if (settings['statementShowNumber'] != false) '#${e.id}',
+      if (settings['statementShowQuantity'] != false &&
+          ['ticket', 'visa', 'hotel'].contains(e.kind))
+        '(${e.quantity})',
+    ].join(' '),
     if (settings['statementShowPassengers'] != false && e.passengers.isNotEmpty)
       e.passengers.map(s.name).join('، '),
     if (settings['statementShowPayment'] != false &&
@@ -145,9 +147,15 @@ String statementDescription(
     final values = statementDetailValues(s, e, settings);
     for (final key in orderedStatementDetails(settings)) {
       if (showStatementDetail(settings, key) && values[key] != null) {
-        parts.add(
-          '${uiLabel(statementDetails[key]!, settings)}: ${values[key]}',
-        );
+        final value = values[key]!;
+        parts.add(switch (key) {
+          'nights' => '$value ${uiLabel('ليلة', settings)}',
+          'rooms' => '$value ${uiLabel('غرفة', settings)}',
+          'people' => '$value ${uiLabel('شخص', settings)}',
+          'visaDays' => '$value ${uiLabel('يوم', settings)}',
+          'entriesCount' => '$value ${uiLabel('دخول', settings)}',
+          _ => value,
+        });
       }
     }
   }
