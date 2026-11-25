@@ -16,14 +16,14 @@ class Experience {
   };
   static DateTime? _last;
   static String? _lastEvent;
-  static Future<void> fire(String event, {String? preview}) async {
-    if (!events.contains(event)) return;
+  static Future<String?> fire(String event, {String? preview}) async {
+    if (!events.contains(event)) return null;
     final now = DateTime.now();
     if (preview == null &&
         _last != null &&
         now.difference(_last!).inMilliseconds < 100 &&
         (event == 'select' || event == _lastEvent)) {
-      return;
+      return null;
     }
     final preferences = displayPreferences;
     final sound =
@@ -36,38 +36,44 @@ class Experience {
         (preview == null &&
             preferences['hapticEnabled'] != false &&
             preferences['haptic_$event'] != false);
-    if (!sound && !haptic) return;
+    if (!sound && !haptic) return null;
     _last = now;
     _lastEvent = event;
     try {
-      await channel.invokeMethod<void>('feedback', {
-        'event': event,
-        'sound': sound,
-        'haptic': haptic,
-        'volume': (preferences['soundVolume'] as num? ?? .25)
-            .clamp(0, 1)
-            .toDouble(),
-        'intensity': (preferences['hapticIntensity'] as num? ?? .45)
-            .clamp(0, 1)
-            .toDouble(),
-        'style':
-            [
-              'soft',
-              'pop',
-              'bell',
-              'silk',
-              'wood',
-              'crystal',
-              'water',
-            ].contains(preferences['soundStyle'])
-            ? preferences['soundStyle']
-            : 'silk',
-      });
+      final response = await channel
+          .invokeMapMethod<String, dynamic>('feedback', {
+            'event': event,
+            'sound': sound,
+            'haptic': haptic,
+            'volume': (preferences['soundVolume'] as num? ?? .25)
+                .clamp(0, 1)
+                .toDouble(),
+            'intensity': (preferences['hapticIntensity'] as num? ?? .45)
+                .clamp(0, 1)
+                .toDouble(),
+            'style':
+                [
+                  'soft',
+                  'pop',
+                  'bell',
+                  'silk',
+                  'wood',
+                  'crystal',
+                  'water',
+                ].contains(preferences['soundStyle'])
+                ? preferences['soundStyle']
+                : 'silk',
+          })
+          .timeout(const Duration(seconds: 7));
+      return response?['sound'] as String?;
     } on PlatformException {
       /* Feedback must never block an operation. */
     } on MissingPluginException {
       /* Other platforms and widget tests. */
+    } on TimeoutException {
+      /* A stalled audio decoder must not leave a preview waiting. */
     }
+    return 'error';
   }
 }
 

@@ -140,6 +140,72 @@ void main() {
     },
   );
 
+  test(
+    'preview returns native mute/playback results and reports failures',
+    () async {
+      var state = 'device_muted';
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(Experience.channel, (call) async {
+            if (state == 'exception')
+              throw PlatformException(code: 'AUDIO_FAILED');
+            return {'sound': state, 'streamId': state == 'played' ? 17 : 0};
+          });
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(Experience.channel, null),
+      );
+      displayPreferences = {'soundEnabled': false, 'sound_navigate': false};
+      for (final outcome in ['device_muted', 'app_muted', 'played', 'error']) {
+        state = outcome;
+        expect(await Experience.fire('navigate', preview: 'sound'), outcome);
+      }
+      state = 'exception';
+      expect(await Experience.fire('navigate', preview: 'sound'), 'error');
+    },
+  );
+
+  testWidgets(
+    'muted media is explained when a real preview button is pressed',
+    (t) async {
+      t.view.physicalSize = const Size(430, 1200);
+      t.view.devicePixelRatio = 1;
+      addTearDown(t.view.resetPhysicalSize);
+      addTearDown(t.view.resetDevicePixelRatio);
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            Experience.channel,
+            (_) async => {'sound': 'device_muted', 'streamId': 0},
+          );
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(Experience.channel, null),
+      );
+      final s = (await t.runAsync(
+        () =>
+            Store.open(factory: databaseFactoryFfi, path: inMemoryDatabasePath),
+      ))!;
+      await t.pumpWidget(host(ExperienceSettingsPage(s)));
+      await t.pumpAndSettle();
+      final button = find
+          .ancestor(
+            of: find.text('التنقل والرجوع'),
+            matching: find.byWidgetPredicate((w) => w is OutlinedButton),
+          )
+          .first;
+      await t.ensureVisible(button);
+      await t.tap(button);
+      await t.pumpAndSettle();
+      expect(
+        find.text('صوت الوسائط في الجهاز مكتوم؛ ارفعه بأزرار الصوت'),
+        findsOneWidget,
+      );
+      expect(t.takeException(), isNull);
+      await t.pumpWidget(const SizedBox());
+      await t.runAsync(s.flushSettings);
+      await t.runAsync(() => s.db.close());
+    },
+  );
+
   testWidgets(
     'appearance remains usable in dark mode with larger Arabic text',
     (t) async {

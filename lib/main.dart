@@ -404,7 +404,7 @@ class HomePage extends StatelessWidget {
                 onTap: () => showAboutDialog(
                   context: c,
                   applicationName: 'Eslam Money',
-                  applicationVersion: '2.1.0',
+                  applicationVersion: '2.1.1',
                   children: [
                     const UiText(
                       'Eslam Holiday\nEslamholiday.com\n07713414312\nجميع الحقوق محفوظة 2026',
@@ -548,7 +548,7 @@ class HomePage extends StatelessWidget {
                     onPressed: () => showAboutDialog(
                       context: c,
                       applicationName: 'Eslam Money',
-                      applicationVersion: '2.1.0',
+                      applicationVersion: '2.1.1',
                       children: [
                         const UiText('Eslamholiday.com • 07713414312'),
                       ],

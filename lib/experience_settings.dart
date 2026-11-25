@@ -216,6 +216,22 @@ class ExperienceSettingsPage extends StatelessWidget {
   final Store s;
   final String initial;
   const ExperienceSettingsPage(this.s, {super.key, this.initial = 'sound'});
+  Future<void> previewSound(BuildContext context, String event) async {
+    final state = await Experience.fire(event, preview: 'sound');
+    if (!context.mounted) return;
+    final message = switch (state) {
+      'app_muted' => 'ارفع مستوى مؤثرات التطبيق لتجربة الصوت',
+      'device_muted' => 'صوت الوسائط في الجهاز مكتوم؛ ارفعه بأزرار الصوت',
+      'error' => 'تعذّر تشغيل الصوت؛ جرّب مرة أخرى',
+      _ => null,
+    };
+    if (message != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: UiText(message)));
+    }
+  }
+
   Widget toggle(
     String title,
     String key,
@@ -272,9 +288,12 @@ class ExperienceSettingsPage extends StatelessWidget {
                     'تفعيل المؤثرات الصوتية',
                     'soundEnabled',
                     Icons.volume_up_rounded,
-                    subtitle: 'أصوات محلية قصيرة تحترم الوضع الصامت للجهاز',
+                    subtitle:
+                        'أصوات محلية قصيرة ترتبط بمستوى صوت الوسائط في الجهاز',
                   ),
-                  const UiText('مستوى الصوت'),
+                  UiText(
+                    'مستوى المؤثرات: ${((s.settings['soundVolume'] as num? ?? .25).clamp(0, 1) * 100).round()}٪',
+                  ),
                   Slider(
                     value: (s.settings['soundVolume'] as num? ?? .25)
                         .toDouble()
@@ -322,8 +341,7 @@ class ExperienceSettingsPage extends StatelessWidget {
                     children: [
                       for (final event in Experience.events)
                         OutlinedButton.icon(
-                          onPressed: () =>
-                              Experience.fire(event, preview: 'sound'),
+                          onPressed: () => previewSound(context, event),
                           icon: const Icon(Icons.play_arrow_rounded),
                           label: UiText(Experience.eventLabels[event]!),
                         ),

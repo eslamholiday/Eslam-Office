@@ -1,8 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 mkdir -p smoke-output
-apk_path="$(find apk -name '*.apk' -print -quit)"
+apk_path="$(find apk -name 'app-debug.apk' -print -quit)"
 adb install -r "$apk_path"
+test_apk="$(find apk -name 'app-debug-androidTest.apk' -print -quit)"
+adb install -r "$test_apk"
+adb shell cmd notification allow_dnd com.eslamholiday.eslam_office.preview
+adb shell am instrument -w com.eslamholiday.eslam_office.preview.test/com.eslamholiday.eslam_office.FeedbackSoundInstrumentation | tee smoke-output/native-audio.txt
+python3 - <<'PY'
+from pathlib import Path
+result = Path('smoke-output/native-audio.txt').read_text()
+assert 'INSTRUMENTATION_CODE: -1' in result and 'OK: 41 decoded/playback checks' in result, result
+PY
 adb shell svc wifi disable
 adb shell svc data disable
 adb logcat -c

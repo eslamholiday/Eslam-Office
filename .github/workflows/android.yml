@@ -31,10 +31,14 @@ jobs:
           path: /tmp/eslam-statement-test.pdf
       - name: Build installable preview APK
         run: flutter build apk --debug --target-platform android-arm64,android-x64
+      - name: Build native audio regression test
+        run: cd android && ./gradlew app:assembleDebugAndroidTest -Ptarget-platform=android-arm64,android-x64
       - uses: actions/upload-artifact@v4
         with:
           name: Eslam-Office-Preview-APK
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          path: |
+            build/app/outputs/flutter-apk/app-debug.apk
+            build/app/outputs/apk/androidTest/debug/app-debug-androidTest.apk
           retention-days: 30
       - name: Prepare release signing when configured
         if: github.event_name != 'pull_request'

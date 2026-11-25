@@ -3,12 +3,10 @@ package com.eslamholiday.eslam_office
 import androidx.core.content.FileProvider
 import android.content.ClipData
 import android.content.Context
-import android.media.AudioAttributes
 import android.media.AudioManager
-import android.media.SoundPool
+import android.os.Bundle
 import android.os.Vibrator
 import android.os.VibrationEffect
-import io.flutter.FlutterInjector
 import android.app.Activity
 import android.content.Intent
 import android.provider.ContactsContract
@@ -23,38 +21,10 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private var contactResult: MethodChannel.Result? = null
     private val contactRequest = 4201
-    private var soundPool: SoundPool? = null
-    private val soundIds = mutableMapOf<String, Int>()
-    private val loadedSounds = mutableSetOf<Int>()
-    private val pendingSounds = mutableMapOf<Int, Float>()
+    private var soundPlayer: FeedbackSoundPlayer? = null
 
-    private fun feedback(event: String, style: String, sound: Boolean, haptic: Boolean, volume: Float, intensity: Float) {
-        val audio = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        // Sonification follows system sound volume, ringer mode and DND.
-        if (sound && volume > 0 && audio.ringerMode == AudioManager.RINGER_MODE_NORMAL) {
-            try {
-                if (soundPool == null) {
-                    soundPool = SoundPool.Builder().setMaxStreams(3).setAudioAttributes(
-                        AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()).build()
-                    soundPool!!.setOnLoadCompleteListener { pool, id, status ->
-                        if (status == 0) {
-                            loadedSounds.add(id)
-                            pendingSounds.remove(id)?.let { pool.play(id, it, it, 1, 0, 1f) }
-                        } else pendingSounds.remove(id)
-                    }
-                }
-                val path = "assets/sounds/${style}_${event}.wav"
-                val id = soundIds.getOrPut(path) {
-                    val asset = FlutterInjector.instance().flutterLoader().getLookupKeyForAsset(path)
-                    val file = java.io.File(cacheDir, "eslam-${style}-${event}.wav")
-                    if (!file.exists()) assets.open(asset).use { input -> file.outputStream().use { input.copyTo(it) } }
-                    soundPool!!.load(file.path, 1)
-                }
-                if (loadedSounds.contains(id)) soundPool!!.play(id, volume, volume, 1, 0, 1f)
-                else pendingSounds[id] = volume
-            } catch (_: Exception) { /* A sound failure never blocks a form. */ }
-        }
+    private fun feedback(event: String, style: String, sound: Boolean, haptic: Boolean, volume: Float, intensity: Float,
+                         done: (String, Int) -> Unit) {
         if (haptic && intensity > 0) {
             try {
                 @Suppress("DEPRECATION")
@@ -73,15 +43,26 @@ class MainActivity : FlutterActivity() {
                 }
             } catch (_: Exception) { /* Honor devices without vibration. */ }
         }
+        if (sound) {
+            val player = soundPlayer ?: FeedbackSoundPlayer(this).also { soundPlayer = it }
+            player.play(event, style, volume, done)
+        } else done("disabled", 0)
+    }
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        volumeControlStream = AudioManager.STREAM_MUSIC
+    }
+    override fun onResume() {
+        super.onResume()
+        soundPlayer?.resume()
     }
     override fun onPause() {
-        pendingSounds.clear()
-        soundPool?.autoPause()
+        soundPlayer?.pause()
         super.onPause()
     }
     override fun onDestroy() {
-        soundPool?.release()
-        soundPool = null
+        soundPlayer?.release()
+        soundPlayer = null
         super.onDestroy()
     }
 
@@ -119,8 +100,9 @@ class MainActivity : FlutterActivity() {
                 } else {
                     feedback(event, style, call.argument<Boolean>("sound") == true, call.argument<Boolean>("haptic") == true,
                         (call.argument<Double>("volume") ?: 0.25).toFloat().coerceIn(0f, 1f),
-                        (call.argument<Double>("intensity") ?: 0.45).toFloat().coerceIn(0f, 1f))
-                    result.success(null)
+                        (call.argument<Double>("intensity") ?: 0.45).toFloat().coerceIn(0f, 1f)) { state, stream ->
+                            result.success(mapOf("sound" to state, "streamId" to stream))
+                        }
                 }
             }
         }
