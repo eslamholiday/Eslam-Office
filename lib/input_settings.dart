@@ -286,16 +286,17 @@ class ChoiceOptionsPage extends StatelessWidget {
                     leading: ReorderableDragStartListener(
                       index: i,
                       child: ArtIcon(
-                        (config['icons'] as Map?)?[k] as int? ??
-                            (s.settings['uiIcons'] as Map?)?[all[k]] as int? ??
-                            titleArt(all[k]!),
+                        choiceArt(field.key, k, all[k]!),
                         size: 32,
                       ),
                     ),
                     title: UiText(all[k]!),
                     onTap: () => rename(c, k, all[k]!),
                     onLongPress: () async {
-                      final icon = await chooseUiIcon(c, titleArt(all[k]!));
+                      final icon = await chooseUiIcon(
+                        c,
+                        choiceArt(field.key, k, all[k]!),
+                      );
                       if (icon != null) {
                         await s.set('choices_${field.key}', {
                           ...config,

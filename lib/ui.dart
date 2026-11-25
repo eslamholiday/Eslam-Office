@@ -27,6 +27,32 @@ IconData kindIcon(String kind) => switch (kind) {
   'refund' => Icons.undo_rounded,
   _ => Icons.account_balance_wallet_rounded,
 };
+// Stable option keys own their default artwork; renaming a caption does not change its meaning.
+const choiceArtwork = <String, Map<String, int>>{
+  'paymentMethod': {
+    'cash': 14,
+    'bank': 6,
+    'card': 20,
+    'wallet': 3,
+    'credit': 22,
+  },
+  'settlementMode': {'cash': 14, 'adjustment': 22},
+  'direction': {'-1': 4, '1': 7},
+  'currency': {'USD': 14, 'IQD': 3},
+  'partyType': {'customer': 20, 'supplier': 6},
+  'travelerType': {'ADT': 16, 'CHD': 17, 'INF': 18},
+  'ticketType': {'ticket': 0, 'change': 4},
+  'tripType': {'oneWay': 0, 'roundTrip': 21},
+  'commissionMode': {'percent': 22, 'fee': 14},
+};
+int choiceArt(String? field, Object? value, String caption) =>
+    ((displayPreferences['choices_$field'] as Map?)?['icons'] as Map?)?[value
+            ?.toString()]
+        as int? ??
+    (displayPreferences['uiIcons'] as Map?)?[caption] as int? ??
+    choiceArtwork[field]?[value?.toString()] ??
+    titleArt(caption);
+
 Color kindColor(String kind) =>
     kind == 'refund' ? const Color(0xffba5959) : artColor(artIndex(kind));
 void message(BuildContext c, Object e) {
@@ -922,17 +948,11 @@ class ChoiceField<T> extends StatelessWidget {
                                     .map(
                                       (i) => ListTile(
                                         leading: ArtIcon(
-                                          ((displayPreferences['choices_$fieldKey']
-                                                          as Map?)?['icons']
-                                                      as Map?)?[i.value
-                                                      ?.toString()]
-                                                  as int? ??
-                                              (displayPreferences['uiIcons']
-                                                      as Map?)?[widgetCaption(
-                                                    i.child,
-                                                  )]
-                                                  as int? ??
-                                              titleArt(widgetCaption(i.child)),
+                                          choiceArt(
+                                            fieldKey,
+                                            i.value,
+                                            widgetCaption(i.child),
+                                          ),
                                           size: 30,
                                         ),
                                         title: i.child,
