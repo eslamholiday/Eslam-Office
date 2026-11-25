@@ -40,31 +40,32 @@ class Experience {
     _last = now;
     _lastEvent = event;
     try {
-      final response = await channel
-          .invokeMapMethod<String, dynamic>('feedback', {
-            'event': event,
-            'sound': sound,
-            'haptic': haptic,
-            'volume': (preferences['soundVolume'] as num? ?? .25)
-                .clamp(0, 1)
-                .toDouble(),
-            'intensity': (preferences['hapticIntensity'] as num? ?? .45)
-                .clamp(0, 1)
-                .toDouble(),
-            'style':
-                [
-                  'soft',
-                  'pop',
-                  'bell',
-                  'silk',
-                  'wood',
-                  'crystal',
-                  'water',
-                ].contains(preferences['soundStyle'])
-                ? preferences['soundStyle']
-                : 'silk',
-          })
-          .timeout(const Duration(seconds: 7));
+      final request = channel.invokeMapMethod<String, dynamic>('feedback', {
+        'event': event,
+        'sound': sound,
+        'haptic': haptic,
+        'volume': (preferences['soundVolume'] as num? ?? .25)
+            .clamp(0, 1)
+            .toDouble(),
+        'intensity': (preferences['hapticIntensity'] as num? ?? .45)
+            .clamp(0, 1)
+            .toDouble(),
+        'style':
+            [
+              'soft',
+              'pop',
+              'bell',
+              'silk',
+              'wood',
+              'crystal',
+              'water',
+            ].contains(preferences['soundStyle'])
+            ? preferences['soundStyle']
+            : 'silk',
+      });
+      final response = await (preview == null
+          ? request
+          : request.timeout(const Duration(seconds: 7)));
       return response?['sound'] as String?;
     } on PlatformException {
       /* Feedback must never block an operation. */
