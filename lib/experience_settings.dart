@@ -251,8 +251,6 @@ class ExperienceSettingsPage extends StatelessWidget {
         appBar: const ClayAppBar(
           title: UiText('الصوت والاهتزاز والإيماءات'),
           bottom: TabBar(
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white70,
             tabs: [
               Tab(icon: Icon(Icons.volume_up_rounded), child: UiText('الصوت')),
               Tab(

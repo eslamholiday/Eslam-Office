@@ -55,6 +55,9 @@ def tap(label, scroll=True):
             break
         adb('shell', 'input', 'swipe', '550', '1700', '550', '800', '350')
         time.sleep(.5)
+    if not nodes:
+        Path('smoke-output/missing-control.xml').write_bytes(xml)
+        Path('smoke-output/missing-control.png').write_bytes(adb('exec-out', 'screencap', '-p'))
     assert nodes, f'Missing control: {label}'
     nodes.sort(key=lambda n: len(n.get('text', '') + n.get('content-desc', '')))
     points = [int(v) for v in re.findall(r'\d+', nodes[0].get('bounds', ''))]
@@ -86,7 +89,7 @@ tap('تجربة الاهتزاز')
 Path('smoke-output/haptics.png').write_bytes(adb('exec-out', 'screencap', '-p'))
 adb('shell', 'input', 'keyevent', '4'); time.sleep(1)
 tap('الصوت')
-tap('طابع الصوت')
+tap('نسيم هادئ')
 Path('smoke-output/sound-packs.png').write_bytes(adb('exec-out', 'screencap', '-p'))
 tap('زجاج كريستالي')
 tap('التنقل والرجوع')
