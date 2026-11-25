@@ -254,9 +254,12 @@ class ExperienceSettingsPage extends StatelessWidget {
             labelColor: Colors.white,
             unselectedLabelColor: Colors.white70,
             tabs: [
-              Tab(icon: Icon(Icons.volume_up_rounded), text: 'الصوت'),
-              Tab(icon: Icon(Icons.vibration_rounded), text: 'الاهتزاز'),
-              Tab(icon: Icon(Icons.swipe_rounded), text: 'الإيماءات'),
+              Tab(icon: Icon(Icons.volume_up_rounded), child: UiText('الصوت')),
+              Tab(
+                icon: Icon(Icons.vibration_rounded),
+                child: UiText('الاهتزاز'),
+              ),
+              Tab(icon: Icon(Icons.swipe_rounded), child: UiText('الإيماءات')),
             ],
           ),
         ),

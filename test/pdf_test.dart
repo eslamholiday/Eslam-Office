@@ -21,7 +21,9 @@ void main() {
         65,
         (i) => [
           '2026-10-02',
-          'تذكرة بغداد — دبي #$i',
+          i == 0
+              ? 'فندق: Grand Hyatt Dubai\nالوجهة: Dubai — بغداد\nالمسافر: Ali محمد\nUSD 130.00'
+              : 'تذكرة بغداد — دبي #$i',
           '130.00 USD',
           '${(i + 1) * 130}.00 USD',
         ],
@@ -30,6 +32,8 @@ void main() {
     );
     final bytes = await page.document(PdfPageFormat.a4);
     expect(bytes.length, greaterThan(10000));
+    expect(String.fromCharCodes(bytes), contains('/FontFile2'));
+    expect(String.fromCharCodes(bytes), isNot(contains('/Subtype /Image')));
     await File('/tmp/eslam-statement-test.pdf').writeAsBytes(bytes);
     await s.db.close();
   });

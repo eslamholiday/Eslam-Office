@@ -1,3 +1,5 @@
 Country flag artwork: hampusborgos/country-flags, public-domain flags from Wikimedia and contributors. https://github.com/hampusborgos/country-flags
 Arabic territory names: Unicode CLDR, Unicode License V3. https://github.com/unicode-org/cldr-json
 Arabic document fonts: Noto Fonts, SIL Open Font License 1.1. https://github.com/notofonts/noto-fonts
+
+Bundled document fonts are OFL derivatives renamed internally to Eslam Arabic Naskh / Eslam Arabic Sans. Noto Arabic outlines, shaping and metrics are preserved; only characters missing from Noto are merged from Cairo to keep mixed Arabic/Latin text in one font run. Cairo license: assets/fonts/OFL.txt. Noto license: Noto-OFL.txt.

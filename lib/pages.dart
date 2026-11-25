@@ -1181,6 +1181,71 @@ class _AccountPageState extends State<AccountPage> {
                 icon: const Icon(Icons.inventory_2_outlined),
                 label: const UiText('تصفية الحساب ونقل الماضي للأرشيف'),
               ),
+            if (!financial) ...[
+              TextButton.icon(
+                icon: const Icon(Icons.delete_forever, color: Colors.red),
+                label: const UiText(
+                  'حذف الحساب وكل بياناته',
+                  style: TextStyle(color: Colors.red),
+                ),
+                onPressed: () async {
+                  final yes = await showDialog<bool>(
+                    context: c,
+                    builder: (ctx) => AlertDialog(
+                      title: const UiText('حذف الحساب نهائيًا؟'),
+                      content: const UiText(
+                        'سيتم حذف الحساب والمسافرين التابعين وحركاته المالية. ستتغير أرصدة جهات الإصدار والأرباح المرتبطة بهذه الحركات.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const UiText('إلغاء'),
+                        ),
+                        FilledButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: const UiText('حذف'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (yes != true) return;
+                  try {
+                    await s.deleteParty(id);
+                    if (c.mounted) Navigator.pop(c);
+                  } catch (e) {
+                    if (c.mounted) message(c, e);
+                  }
+                },
+              ),
+              TextButton(
+                onPressed: () async {
+                  final yes = await showDialog<bool>(
+                    context: c,
+                    builder: (ctx) => AlertDialog(
+                      title: const UiText('أرشفة الحساب؟'),
+                      content: const UiText(
+                        'يبقى تاريخه المالي محفوظًا ويمكن استعادته من المحذوفات.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const UiText('إلغاء'),
+                        ),
+                        FilledButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: const UiText('أرشفة'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (yes == true) {
+                    await s.archiveParty(id, true);
+                    if (c.mounted) Navigator.pop(c);
+                  }
+                },
+                child: const UiText('أرشفة الحساب'),
+              ),
+            ],
           ],
         ),
       );

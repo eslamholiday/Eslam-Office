@@ -10,6 +10,7 @@ import 'input_schema.dart';
 import 'experience_settings.dart';
 import 'experience.dart';
 import 'geography_settings.dart';
+import 'geography.dart';
 import 'clearance.dart';
 import 'label_settings.dart';
 import 'config_transfer.dart';
@@ -98,7 +99,7 @@ class SettingsPage extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  ArtIcon(art, size: 48),
+                  ArtIcon(captionArt(title, fallback: art), size: 48),
                   const Spacer(),
                   const Icon(Icons.chevron_left_rounded, size: 18),
                 ],
@@ -727,6 +728,9 @@ class _ReferencePageState extends State<ReferencePage> {
                 children: rows
                     .map(
                       (r) => ListTile(
+                        leading: ['city', 'country'].contains(kind)
+                            ? CountryBadge(GeoCatalog.recordCode(r))
+                            : null,
                         title: UiText(r['name']),
                         subtitle: UiText(r['code'] ?? ''),
                         onTap: () => edit(c, r),

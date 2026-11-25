@@ -778,9 +778,9 @@ class _FormCustomizationPageState extends State<FormCustomizationPage> {
             ],
             bottom: const TabBar(
               tabs: [
-                Tab(text: 'الحقول'),
-                Tab(text: 'الأقسام'),
-                Tab(text: 'الافتراضيات'),
+                Tab(child: UiText('الحقول')),
+                Tab(child: UiText('الأقسام')),
+                Tab(child: UiText('الافتراضيات')),
               ],
             ),
           ),

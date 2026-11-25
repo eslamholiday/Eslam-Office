@@ -407,6 +407,14 @@ class _StatementPageState extends State<StatementPage> {
               personal = v;
               if (!v) {
                 await widget.s.set('statement_party_${widget.party}', null);
+                options = Map<String, dynamic>.from(widget.s.settings);
+                final defaults =
+                    (widget.s.settings['statementTemplates'] as Map?)?[widget
+                        .s
+                        .settings['statementDefaultTemplate']];
+                if (defaults is Map)
+                  options.addAll(Map<String, dynamic>.from(defaults));
+                mode = options['statementMode'] ?? 'original';
               } else {
                 await option('statementMode', mode);
               }
@@ -823,9 +831,15 @@ class PdfPage extends StatelessWidget {
             if (config['statementShowOffice'] != false)
               pw.Text(
                 config['office'] ?? 'Eslam Holiday',
+                textDirection:
+                    RegExp(
+                      r'[\u0600-\u06ff]',
+                    ).hasMatch(config['office'] ?? 'Eslam Holiday')
+                    ? pw.TextDirection.rtl
+                    : pw.TextDirection.ltr,
                 style: pw.TextStyle(
                   fontSize: 20,
-                  color: PdfColor.fromInt(0xff087f82),
+                  color: PdfColor.fromInt(activePack.secondary.toARGB32()),
                 ),
               ),
             pw.Text(
@@ -861,7 +875,7 @@ class PdfPage extends StatelessWidget {
               ),
             pw.SizedBox(height: 12),
             pw.Text(title, style: const pw.TextStyle(fontSize: 16)),
-            pw.Divider(color: PdfColor.fromInt(0xffef635a)),
+            pw.Divider(color: PdfColor.fromInt(activePack.primary.toARGB32())),
             pw.SizedBox(height: 8),
           ],
         ),
@@ -901,7 +915,7 @@ class PdfPage extends StatelessWidget {
               pw.TableRow(
                 repeat: true,
                 decoration: pw.BoxDecoration(
-                  color: PdfColor.fromInt(0xff2869b8),
+                  color: PdfColor.fromInt(activePack.primary.toARGB32()),
                 ),
                 children: finalHeaders.reversed
                     .map((v) => cell(v, header: true))
@@ -924,8 +938,8 @@ class PdfPage extends StatelessWidget {
               padding: const pw.EdgeInsets.only(bottom: 6),
               child: pw.Container(
                 padding: const pw.EdgeInsets.all(6),
-                decoration: const pw.BoxDecoration(
-                  color: PdfColor.fromInt(0xffffefe4),
+                decoration: pw.BoxDecoration(
+                  color: PdfColor.fromInt(activePack.canvas.toARGB32()),
                 ),
                 child: pw.Text(
                   uiLabel(text, config),

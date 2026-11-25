@@ -431,10 +431,47 @@ class Store extends ChangeNotifier {
   }
 
   Future<void> _writeSetting(String key, dynamic value) async {
-    await db.insert('settings', {
-      'key': key,
-      'value': jsonEncode(value),
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
+    final record = {'key': key, 'value': jsonEncode(value)};
+    if (key.startsWith('recovery_') && value is Map) {
+      final applied = await db.transaction((tx) async {
+        final id = int.tryParse(key.split('_').last) ?? value['id'] as int?;
+        if (id != null &&
+            (await tx.query(
+              'entries',
+              columns: ['id'],
+              where: 'id=?',
+              whereArgs: [id],
+            )).isEmpty) {
+          return false;
+        }
+        for (final party in [
+          value['customer'],
+          value['supplier'],
+        ].whereType<int>()) {
+          if ((await tx.query(
+            'retired_parties',
+            columns: ['id'],
+            where: 'id=?',
+            whereArgs: [party],
+          )).isNotEmpty) {
+            return false;
+          }
+        }
+        await tx.insert(
+          'settings',
+          record,
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+        return true;
+      });
+      if (!applied) return;
+    } else {
+      await db.insert(
+        'settings',
+        record,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
     settings[key] = value;
     displayPreferences = Map<String, dynamic>.from(settings);
     notifyListeners();
@@ -459,6 +496,9 @@ class Store extends ChangeNotifier {
       'payload': jsonEncode({...p, 'phone': normalizePhone(p['phone'] ?? '')}),
       'archived': p['archived'] ?? 0,
     };
+    if (retiredParties.contains(p['customer'])) {
+      throw const FormatException('اختر حساب زبون حاليًا؛ الحساب السابق مصفّى');
+    }
     if (id != null && retiredParties.contains(id)) {
       throw const FormatException('حساب مصفّى للقراءة فقط');
     }

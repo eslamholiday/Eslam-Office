@@ -214,9 +214,15 @@ class _ShellState extends State<Shell> {
               destinations: visible
                   .map(
                     (k) => NavigationDestination(
-                      icon: ArtIcon(artIndex(k), size: 32),
-                      selectedIcon: ArtIcon(artIndex(k), size: 40),
-                      label: navLabels[k]!,
+                      icon: ArtIcon(
+                        captionArt(navLabels[k]!, fallback: artIndex(k)),
+                        size: 32,
+                      ),
+                      selectedIcon: ArtIcon(
+                        captionArt(navLabels[k]!, fallback: artIndex(k)),
+                        size: 40,
+                      ),
+                      label: uiLabel(navLabels[k]!),
                     ),
                   )
                   .toList(),

@@ -43,7 +43,7 @@ class UiLabelsPage extends StatefulWidget {
 }
 
 class _UiLabelsPageState extends State<UiLabelsPage> {
-  String query = '';
+  String query = '', group = 'الرئيسية والتنقل';
   Future<void> edit(String original) async {
     final controller = TextEditingController(text: uiLabel(original));
     final value = await showDialog<String>(
@@ -99,9 +99,9 @@ class _UiLabelsPageState extends State<UiLabelsPage> {
           title: UiText('العناوين ومحتويات القوائم'),
           bottom: TabBar(
             tabs: [
-              Tab(text: 'العناوين'),
-              Tab(text: 'الخيارات'),
-              Tab(text: 'الحقول'),
+              Tab(child: UiText('العناوين')),
+              Tab(child: UiText('الخيارات')),
+              Tab(child: UiText('الحقول')),
             ],
           ),
         ),
@@ -110,10 +110,25 @@ class _UiLabelsPageState extends State<UiLabelsPage> {
             Column(
               children: [
                 Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+                  child: ChoiceField<String>(
+                    initialValue: group,
+                    decoration: const InputDecoration(
+                      labelText: 'مجموعة العناوين',
+                    ),
+                    items: uiLabelGroups.keys
+                        .map(
+                          (g) => DropdownMenuItem(value: g, child: UiText(g)),
+                        )
+                        .toList(),
+                    onChanged: (value) => setState(() => group = value!),
+                  ),
+                ),
+                Padding(
                   padding: const EdgeInsets.all(14),
                   child: TextField(
                     decoration: const InputDecoration(
-                      labelText: 'بحث عن عنوان أو زر أو حالة',
+                      labelText: 'بحث في كل العناوين والأزرار والحالات',
                       prefixIcon: Icon(Icons.search),
                     ),
                     onChanged: (v) => setState(() => query = normalize(v)),
@@ -121,43 +136,46 @@ class _UiLabelsPageState extends State<UiLabelsPage> {
                 ),
                 Expanded(
                   child: ListView(
-                    children: uiLabelCatalog
-                        .where(
-                          (v) => normalize('$v ${uiLabel(v)}').contains(query),
-                        )
-                        .map(
-                          (original) => ListTile(
-                            leading: IconButton(
-                              tooltip: 'اختيار الأيقونة',
-                              icon: ArtIcon(
-                                (widget.s.settings['uiIcons']
-                                            as Map?)?[original]
-                                        as int? ??
-                                    titleArt(original),
-                                size: 32,
+                    children:
+                        (query.isEmpty ? uiLabelGroups[group]! : uiLabelCatalog)
+                            .where(
+                              (v) =>
+                                  normalize('$v ${uiLabel(v)}').contains(query),
+                            )
+                            .map(
+                              (original) => ListTile(
+                                leading: IconButton(
+                                  tooltip: 'اختيار الأيقونة',
+                                  icon: ArtIcon(
+                                    (widget.s.settings['uiIcons']
+                                                as Map?)?[original]
+                                            as int? ??
+                                        titleArt(original),
+                                    size: 32,
+                                  ),
+                                  onPressed: () async {
+                                    final icon = await chooseUiIcon(
+                                      context,
+                                      titleArt(original),
+                                    );
+                                    if (icon != null) {
+                                      await widget.s.set('uiIcons', {
+                                        ...?widget.s.settings['uiIcons']
+                                            as Map?,
+                                        original: icon,
+                                      });
+                                    }
+                                  },
+                                ),
+                                title: UiText(uiLabel(original)),
+                                subtitle: uiLabel(original) == original
+                                    ? null
+                                    : UiText(original),
+                                trailing: const Icon(Icons.edit_outlined),
+                                onTap: () => edit(original),
                               ),
-                              onPressed: () async {
-                                final icon = await chooseUiIcon(
-                                  context,
-                                  titleArt(original),
-                                );
-                                if (icon != null) {
-                                  await widget.s.set('uiIcons', {
-                                    ...?widget.s.settings['uiIcons'] as Map?,
-                                    original: icon,
-                                  });
-                                }
-                              },
-                            ),
-                            title: UiText(uiLabel(original)),
-                            subtitle: uiLabel(original) == original
-                                ? null
-                                : UiText(original),
-                            trailing: const Icon(Icons.edit_outlined),
-                            onTap: () => edit(original),
-                          ),
-                        )
-                        .toList(),
+                            )
+                            .toList(),
                   ),
                 ),
               ],

@@ -91,6 +91,8 @@ void main() {
       expect(s.clearances.single['ledger'], before);
       expect(s.clearances.single['entries'], hasLength(2));
       expect(s.settings.containsKey('recovery_ticket_$original'), false);
+      await s.set('recovery_ticket_$original', sale());
+      expect(s.settings.containsKey('recovery_ticket_$original'), false);
       final next = await s.saveEntry(sale());
       expect(next, greaterThan(original));
       await expectLater(
@@ -125,6 +127,14 @@ void main() {
         throwsFormatException,
       );
       await expectLater(s.saveEntry(sale()), throwsFormatException);
+      await expectLater(
+        s.saveParty({
+          'kind': 'passenger',
+          'name': 'تابع جديد',
+          'customer': customer,
+        }),
+        throwsFormatException,
+      );
       expect(s.clearances, hasLength(2));
     },
   );

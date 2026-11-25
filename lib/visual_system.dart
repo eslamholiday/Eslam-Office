@@ -114,6 +114,10 @@ int artIndex(String kind) => switch (kind) {
   'expenses' => 14,
   _ => 15,
 };
+int captionArt(String text, {int? fallback}) =>
+    (displayPreferences['uiIcons'] as Map?)?[text] as int? ??
+    fallback ??
+    titleArt(text);
 int titleArt(String text) {
   if (text.contains('بالغ')) return 16;
   if (text.contains('طفل')) return 17;

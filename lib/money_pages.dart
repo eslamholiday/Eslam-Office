@@ -18,8 +18,8 @@ class StatementsHub extends StatelessWidget {
         title: const UiText('الكشوفات'),
         bottom: const TabBar(
           tabs: [
-            Tab(text: 'الزبائن'),
-            Tab(text: 'جهات الإصدار'),
+            Tab(child: UiText('الزبائن')),
+            Tab(child: UiText('جهات الإصدار')),
           ],
         ),
       ),

@@ -175,8 +175,8 @@ class GeographySettingsPage extends StatelessWidget {
           title: UiText('الدول والمدن والأعلام'),
           bottom: TabBar(
             tabs: [
-              Tab(text: 'الدول'),
-              Tab(text: 'المدن'),
+              Tab(child: UiText('الدول')),
+              Tab(child: UiText('المدن')),
             ],
           ),
         ),
