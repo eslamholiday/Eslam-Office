@@ -1,4 +1,5 @@
 import 'labels.dart';
+import 'input_schema.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -249,8 +250,88 @@ class _EntrySwipeActions extends StatefulWidget {
 class _EntrySwipeActionsState extends State<_EntrySwipeActions> {
   bool open = false;
   double distance = 0;
+  Future<void> actions() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const ArtIcon(13, size: 34),
+              title: const UiText('عرض العملية'),
+              onTap: () {
+                Navigator.pop(ctx);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => EntryDetail(widget.s, widget.entry),
+                  ),
+                );
+              },
+            ),
+            if (widget.entry.kind != 'refund') ...[
+              ListTile(
+                leading: const ArtIcon(61, size: 34),
+                title: const UiText('تعديل العملية'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  newEntry(
+                    context,
+                    widget.s,
+                    widget.entry.kind,
+                    draft: widget.entry,
+                  );
+                },
+              ),
+              ListTile(
+                leading: const ArtIcon(60, size: 34),
+                title: const UiText('نسخ كمسودة'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  final data = Map<String, dynamic>.from(widget.entry.data)
+                    ..remove('id')
+                    ..remove('original')
+                    ..remove('corrects')
+                    ..['posted'] = false
+                    ..['date'] = day(DateTime.now());
+                  newEntry(
+                    context,
+                    widget.s,
+                    widget.entry.kind,
+                    draft: Entry(data),
+                  );
+                },
+              ),
+            ],
+            if (widget.entry.data['customer'] != null)
+              ListTile(
+                leading: const ArtIcon(65, size: 34),
+                title: const UiText('كشف حساب الزبون'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => StatementPage(
+                        widget.s,
+                        widget.entry.data['customer'],
+                      ),
+                    ),
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => GestureDetector(
+    onLongPress: widget.s.settings['longPressEntries'] == false
+        ? null
+        : actions,
     onHorizontalDragStart: widget.s.settings['swipeCards'] == false
         ? null
         : (_) => distance = 0,
@@ -276,6 +357,7 @@ class _EntrySwipeActionsState extends State<_EntrySwipeActions> {
               spacing: 8,
               children: [
                 OutlinedButton.icon(
+                  // Also available without a gesture from the detail screen.
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -320,7 +402,58 @@ class EntriesPage extends StatefulWidget {
 class _EntriesPageState extends State<EntriesPage> {
   String query = '';
   String? currency, kind;
-  bool drafts = false;
+  bool drafts = false, selecting = false;
+  final selected = <int>{};
+  final rowKeys = <int, GlobalKey>{};
+  final visited = <int>{};
+  bool dragValue = true;
+  void dragSelect(Offset position) {
+    for (final item in rowKeys.entries) {
+      final box = item.value.currentContext?.findRenderObject();
+      if (box is RenderBox &&
+          box.attached &&
+          (box.localToGlobal(Offset.zero) & box.size).contains(position) &&
+          visited.add(item.key)) {
+        setState(() {
+          dragValue ? selected.add(item.key) : selected.remove(item.key);
+        });
+      }
+    }
+  }
+
+  void exportSelected(List<Entry> visible) {
+    final rows = visible.where((e) => selected.contains(e.id)).toList();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PdfPage(
+          widget.s,
+          'العمليات المحددة',
+          ['التاريخ', 'العملية', 'الزبون', 'البيع / الحركة'],
+          rows
+              .map(
+                (e) => [
+                  displayDate(e.date, weekday: false),
+                  e.label,
+                  widget.s.name(e.data['customer'] ?? e.data['supplier']),
+                  e.currency.format(
+                    ['ticket', 'hotel', 'visa'].contains(e.kind)
+                        ? e.sale
+                        : e.data['amount'] as int? ?? 0,
+                  ),
+                ],
+              )
+              .toList(),
+          [
+            'عدد العمليات: ${rows.length}',
+            'المسودات للعرض فقط ولا تدخل في الأرصدة.',
+          ],
+          preferences: {...widget.s.settings, 'statementShowPrevious': false},
+        ),
+      ),
+    );
+  }
+
   final searchController = TextEditingController();
   @override
   void dispose() {
@@ -349,10 +482,28 @@ class _EntriesPageState extends State<EntriesPage> {
                 ).contains(query),
           )
           .toList();
+      selected.retainAll(entries.map((e) => e.id!));
       return Scaffold(
         appBar: ClayAppBar(
           title: UiText(widget.kind == null ? 'العمليات' : types[widget.kind]!),
           actions: [
+            if (widget.s.settings['batchSelection'] != false)
+              IconButton(
+                tooltip: selecting ? 'إلغاء التحديد' : 'تحديد عدة عمليات',
+                icon: Icon(selecting ? Icons.close : Icons.checklist),
+                onPressed: () => setState(() {
+                  selecting = !selecting;
+                  selected.clear();
+                }),
+              ),
+            if (selecting)
+              IconButton(
+                tooltip: 'تصدير المحدد',
+                icon: const ArtIcon(65, size: 30),
+                onPressed: selected.isEmpty
+                    ? null
+                    : () => exportSelected(entries),
+              ),
             IconButton(
               tooltip: 'إضافة عملية',
               icon: const Icon(Icons.add),
@@ -399,6 +550,13 @@ class _EntriesPageState extends State<EntriesPage> {
         ),
         body: Column(
           children: [
+            if (selecting)
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: UiText(
+                  'المحدد: ${selected.length} • اسحب من مربع التحديد لتحديد صفوف متتابعة',
+                ),
+              ),
             Padding(
               padding: const EdgeInsets.all(16),
               child: TextField(
@@ -478,7 +636,43 @@ class _EntriesPageState extends State<EntriesPage> {
                                 ),
                               ),
                             ),
-                          EntryTile(widget.s, entries[i]),
+                          if (!selecting)
+                            EntryTile(widget.s, entries[i])
+                          else
+                            KeyedSubtree(
+                              key: rowKeys.putIfAbsent(
+                                entries[i].id!,
+                                GlobalKey.new,
+                              ),
+                              child: Row(
+                                children: [
+                                  GestureDetector(
+                                    onPanStart: (d) {
+                                      visited.clear();
+                                      dragValue = !selected.contains(
+                                        entries[i].id,
+                                      );
+                                      dragSelect(d.globalPosition);
+                                    },
+                                    onPanUpdate: (d) =>
+                                        dragSelect(d.globalPosition),
+                                    child: Checkbox(
+                                      value: selected.contains(entries[i].id),
+                                      onChanged: (v) => setState(() {
+                                        v == true
+                                            ? selected.add(entries[i].id!)
+                                            : selected.remove(entries[i].id);
+                                      }),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: AbsorbPointer(
+                                      child: EntryTile(widget.s, entries[i]),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -608,6 +802,33 @@ class EntryDetail extends StatelessWidget {
                 child: UiText(e.data['notes']),
               ),
           ]),
+          if (inputSpecs(e.kind).any(
+            (f) =>
+                (f.group == 'extras' || f.key == 'internalNote') &&
+                e.data[f.key] != null &&
+                e.data[f.key] != '' &&
+                e.data[f.key] != false,
+          ))
+            Section('خدمات وتفاصيل إضافية', [
+              for (final f in inputSpecs(e.kind).where(
+                (f) =>
+                    (f.group == 'extras' || f.key == 'internalNote') &&
+                    e.data[f.key] != null &&
+                    e.data[f.key] != '' &&
+                    e.data[f.key] != false,
+              ))
+                ListTile(
+                  leading: fieldArtwork(f.label),
+                  title: UiText(f.label),
+                  subtitle: UiText(
+                    f.type == 'date'
+                        ? displayDate(e.data[f.key])
+                        : f.type == 'bool'
+                        ? 'نعم'
+                        : f.choices[e.data[f.key]] ?? e.data[f.key].toString(),
+                  ),
+                ),
+            ]),
           if ((e.data['attachments'] as List? ?? []).isNotEmpty)
             Section(
               'المرفقات',
@@ -701,6 +922,7 @@ class PartiesPage extends StatefulWidget {
 class _PartiesPageState extends State<PartiesPage> {
   String query = '';
   String filter = 'all';
+  double densityScale = 1;
   @override
   Widget build(BuildContext c) => AnimatedBuilder(
     animation: widget.s,
@@ -777,177 +999,203 @@ class _PartiesPageState extends State<PartiesPage> {
             ),
           ],
         ),
-        body: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: TextField(
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.search),
-                  hintText: 'بحث بالاسم أو رقم الهاتف',
-                ),
-                onChanged: (v) => setState(() => query = normalize(v)),
-              ),
-            ),
-            if (['customer', 'supplier'].contains(widget.kind))
+        body: GestureDetector(
+          onScaleStart: widget.s.settings['pinchDensity'] == false
+              ? null
+              : (_) => densityScale = 1,
+          onScaleUpdate: widget.s.settings['pinchDensity'] == false
+              ? null
+              : (d) {
+                  if (d.pointerCount >= 2) densityScale = d.scale;
+                },
+          onScaleEnd: widget.s.settings['pinchDensity'] == false
+              ? null
+              : (_) {
+                  if (densityScale < .8 || densityScale > 1.2) {
+                    widget.s.set('compact', densityScale < .8);
+                    widget.s.set(
+                      'uiDensity',
+                      densityScale < .8 ? 'compact' : 'normal',
+                    );
+                  }
+                },
+          child: Column(
+            children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Wrap(
-                  spacing: 8,
-                  children: [
-                    for (final item in const {
-                      'all': 'الكل',
-                      'owed': 'عليهم رصيد',
-                      'favorites': 'المفضلة',
-                    }.entries)
-                      ChoiceChip(
-                        label: UiText(item.value),
-                        selected: filter == item.key,
-                        onSelected: (_) => setState(() => filter = item.key),
-                      ),
-                  ],
+                padding: const EdgeInsets.all(16),
+                child: TextField(
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.search),
+                    hintText: 'بحث بالاسم أو رقم الهاتف',
+                  ),
+                  onChanged: (v) => setState(() => query = normalize(v)),
                 ),
               ),
-            Expanded(
-              child: rows.isEmpty
-                  ? EmptyState(
-                      'قائمتك فارغة',
-                      'أضف حساباتك لتبدأ العمل.',
-                      icon: Icons.people_outline,
-                      action: () => editParty(c, widget.s, widget.kind),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(12),
-                      key: PageStorageKey('parties-${widget.kind}'),
-                      itemCount: rows.length,
-                      itemBuilder: (c, i) {
-                        final r = rows[i];
-                        return Card(
-                          child: PackPaper(
-                            child: ListTile(
-                              leading: ProfileAvatar(
-                                imagePath: r['profileImage'],
-                                avatar: r['avatar'],
-                                name: partyDisplayName(r),
-                              ),
-                              title: UiText(partyDisplayName(r)),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if ((r['phone'] ?? '').toString().isNotEmpty)
-                                    InkWell(
-                                      onTap: () => phoneActions(c, r['phone']),
-                                      child: UiText(
-                                        normalizePhone(r['phone']),
-                                        textDirection: TextDirection.ltr,
-                                      ),
-                                    ),
-                                  if (widget.kind == 'customer')
-                                    UiText(
-                                      '${widget.s.list('passenger').where((p) => p['customer'] == r['id']).length} مسافرين',
-                                      style: const TextStyle(fontSize: 12),
-                                    ),
-                                  if (widget.kind == 'customer' ||
-                                      widget.s.settings['showListBalances'] ==
-                                          true)
-                                    FutureBuilder<List<int>>(
-                                      future: Future.wait(
-                                        Currency.values.map(
-                                          (v) => widget.s.balance(r['id'], v),
+              if (['customer', 'supplier'].contains(widget.kind))
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Wrap(
+                    spacing: 8,
+                    children: [
+                      for (final item in const {
+                        'all': 'الكل',
+                        'owed': 'عليهم رصيد',
+                        'favorites': 'المفضلة',
+                      }.entries)
+                        ChoiceChip(
+                          label: UiText(item.value),
+                          selected: filter == item.key,
+                          onSelected: (_) => setState(() => filter = item.key),
+                        ),
+                    ],
+                  ),
+                ),
+              Expanded(
+                child: rows.isEmpty
+                    ? EmptyState(
+                        'قائمتك فارغة',
+                        'أضف حساباتك لتبدأ العمل.',
+                        icon: Icons.people_outline,
+                        action: () => editParty(c, widget.s, widget.kind),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(12),
+                        key: PageStorageKey('parties-${widget.kind}'),
+                        itemCount: rows.length,
+                        itemBuilder: (c, i) {
+                          final r = rows[i];
+                          return Card(
+                            child: PackPaper(
+                              child: ListTile(
+                                leading: ProfileAvatar(
+                                  imagePath: r['profileImage'],
+                                  avatar: r['avatar'],
+                                  name: partyDisplayName(r),
+                                ),
+                                title: UiText(partyDisplayName(r)),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    if ((r['phone'] ?? '')
+                                        .toString()
+                                        .isNotEmpty)
+                                      InkWell(
+                                        onTap: () =>
+                                            phoneActions(c, r['phone']),
+                                        child: UiText(
+                                          normalizePhone(r['phone']),
+                                          textDirection: TextDirection.ltr,
                                         ),
                                       ),
-                                      builder: (c, snapshot) => Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: Currency.values.asMap().entries.map((
-                                          item,
-                                        ) {
-                                          final value =
-                                              snapshot.data?[item.key];
-                                          final hidden =
-                                              widget
-                                                  .s
-                                                  .settings['hideAmounts'] ==
-                                              true;
-                                          final label = value == null
-                                              ? '…'
-                                              : value == 0
-                                              ? 'متوازن'
-                                              : value > 0
-                                              ? 'عليه'
-                                              : 'له';
-                                          return Padding(
-                                            padding: const EdgeInsets.only(
-                                              top: 4,
-                                            ),
-                                            child: UiText(
-                                              hidden
-                                                  ? '${item.value.name}: ••••'
-                                                  : '${item.value.name}: $label ${value == null ? '' : item.value.format(value.abs())}',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w600,
-                                                color:
-                                                    hidden ||
-                                                        value == null ||
-                                                        value == 0
-                                                    ? Theme.of(c)
-                                                          .colorScheme
-                                                          .onSurfaceVariant
-                                                    : value > 0
-                                                    ? const Color(0xffa33b36)
-                                                    : const Color(0xff19725a),
+                                    if (widget.kind == 'customer')
+                                      UiText(
+                                        '${widget.s.list('passenger').where((p) => p['customer'] == r['id']).length} مسافرين',
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                    if (widget.kind == 'customer' ||
+                                        widget.s.settings['showListBalances'] ==
+                                            true)
+                                      FutureBuilder<List<int>>(
+                                        future: Future.wait(
+                                          Currency.values.map(
+                                            (v) => widget.s.balance(r['id'], v),
+                                          ),
+                                        ),
+                                        builder: (c, snapshot) => Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: Currency.values.asMap().entries.map((
+                                            item,
+                                          ) {
+                                            final value =
+                                                snapshot.data?[item.key];
+                                            final hidden =
+                                                widget
+                                                    .s
+                                                    .settings['hideAmounts'] ==
+                                                true;
+                                            final label = value == null
+                                                ? '…'
+                                                : value == 0
+                                                ? 'متوازن'
+                                                : value > 0
+                                                ? 'عليه'
+                                                : 'له';
+                                            return Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 4,
                                               ),
-                                            ),
-                                          );
-                                        }).toList(),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (r['favorite'] == true)
-                                    const Icon(
-                                      Icons.star,
-                                      color: Colors.amber,
-                                      size: 20,
-                                    ),
-                                  if ([
-                                    'customer',
-                                    'supplier',
-                                  ].contains(widget.kind))
-                                    IconButton(
-                                      tooltip: 'كشف سريع',
-                                      icon: const Icon(
-                                        Icons.description_outlined,
-                                      ),
-                                      onPressed: () => Navigator.push(
-                                        c,
-                                        MaterialPageRoute(
-                                          builder: (_) =>
-                                              StatementPage(widget.s, r['id']),
+                                              child: UiText(
+                                                hidden
+                                                    ? '${item.value.name}: ••••'
+                                                    : '${item.value.name}: $label ${value == null ? '' : item.value.format(value.abs())}',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                  color:
+                                                      hidden ||
+                                                          value == null ||
+                                                          value == 0
+                                                      ? Theme.of(c)
+                                                            .colorScheme
+                                                            .onSurfaceVariant
+                                                      : value > 0
+                                                      ? const Color(0xffa33b36)
+                                                      : const Color(0xff19725a),
+                                                ),
+                                              ),
+                                            );
+                                          }).toList(),
                                         ),
                                       ),
-                                    ),
-                                  const Icon(Icons.chevron_left),
-                                ],
-                              ),
-                              onTap: () => Navigator.push(
-                                c,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      AccountPage(widget.s, r['id']),
+                                  ],
+                                ),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (r['favorite'] == true)
+                                      const Icon(
+                                        Icons.star,
+                                        color: Colors.amber,
+                                        size: 20,
+                                      ),
+                                    if ([
+                                      'customer',
+                                      'supplier',
+                                    ].contains(widget.kind))
+                                      IconButton(
+                                        tooltip: 'كشف سريع',
+                                        icon: const Icon(
+                                          Icons.description_outlined,
+                                        ),
+                                        onPressed: () => Navigator.push(
+                                          c,
+                                          MaterialPageRoute(
+                                            builder: (_) => StatementPage(
+                                              widget.s,
+                                              r['id'],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    const Icon(Icons.chevron_left),
+                                  ],
+                                ),
+                                onTap: () => Navigator.push(
+                                  c,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        AccountPage(widget.s, r['id']),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        );
-                      },
-                    ),
-            ),
-          ],
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
         ),
       );
     },

@@ -418,6 +418,56 @@ class ExperienceSettingsPage extends StatelessWidget {
                     onChanged: (v) => s.set('ambientSpeed', v),
                   ),
                 ]),
+                Section('إيماءات العمل', [
+                  toggle(
+                    'ضغط مطوّل لخيارات العملية',
+                    'longPressEntries',
+                    Icons.touch_app,
+                  ),
+                  toggle(
+                    'ترتيب المسافرين بالسحب',
+                    'reorderPassengers',
+                    Icons.drag_handle,
+                  ),
+                  toggle(
+                    'سحب المسارات الأخيرة للتعبئة',
+                    'dragRoutes',
+                    Icons.route,
+                  ),
+                  toggle(
+                    'ضغط مطوّل لاختصارات التاريخ',
+                    'dateShortcuts',
+                    Icons.calendar_month,
+                  ),
+                  toggle('ضغط مطوّل لنسخ المبالغ', 'copyAmounts', Icons.copy),
+                  toggle(
+                    'ضغطتان لإخفاء أرصدة الرئيسية',
+                    'doubleTapBalance',
+                    Icons.visibility_off,
+                  ),
+                  toggle(
+                    'إصبعان لكثافة قائمة الحسابات',
+                    'pinchDensity',
+                    Icons.pinch,
+                  ),
+                  toggle(
+                    'تحديد عدة عمليات وتصديرها',
+                    'batchSelection',
+                    Icons.checklist,
+                  ),
+                  toggle(
+                    'ترتيب اختصارات الرئيسية بالسحب',
+                    'homeDragShortcuts',
+                    Icons.drag_indicator,
+                  ),
+                  toggle(
+                    'إيماءات المعاينة اللحظية',
+                    'statementGestures',
+                    Icons.zoom_in,
+                    subtitle:
+                        'تكبير بإصبعين • سحب الصفحات • سحب العنوان لتغيير ارتفاع المعاينة',
+                  ),
+                ]),
                 Section('التنقل والحركة', [
                   toggle(
                     'السحب بين الصفحات الرئيسية',

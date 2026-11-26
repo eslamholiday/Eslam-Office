@@ -42,7 +42,12 @@ const choiceArtwork = <String, Map<String, int>>{
   'partyType': {'customer': 20, 'supplier': 6},
   'travelerType': {'ADT': 16, 'CHD': 17, 'INF': 18},
   'ticketType': {'ticket': 0, 'change': 4},
-  'tripType': {'oneWay': 0, 'roundTrip': 21},
+  'tripType': {'oneWay': 32, 'roundTrip': 33},
+  'cabin': {'economy': 37, 'business': 38, 'first': 38},
+  'bookingStatus': {'pending': 39, 'confirmed': 67, 'issued': 0},
+  'roomType': {'single': 2, 'double': 42, 'twin': 42, 'suite': 2},
+  'visaStatus': {'new': 48, 'review': 50, 'issued': 51, 'rejected': 49},
+  'documentStatus': {'missing': 49, 'complete': 67},
   'commissionMode': {'percent': 22, 'fee': 14},
 };
 int choiceArt(String? field, Object? value, String caption) =>
@@ -208,40 +213,48 @@ class AmountBox extends StatelessWidget {
   final Color? color;
   const AmountBox(this.label, this.value, {super.key, this.color});
   @override
-  Widget build(BuildContext c) => Container(
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topRight,
-        end: Alignment.bottomLeft,
-        colors: [
-          (color ?? Theme.of(c).colorScheme.secondary).withValues(alpha: .16),
-          (color ?? Theme.of(c).colorScheme.secondary).withValues(alpha: .04),
-        ],
-      ),
-      border: Border.all(
-        color: (color ?? Theme.of(c).colorScheme.secondary).withValues(
-          alpha: .2,
+  Widget build(BuildContext c) => GestureDetector(
+    onLongPress: displayPreferences['copyAmounts'] == false
+        ? null
+        : () async {
+            await Clipboard.setData(ClipboardData(text: value));
+            if (c.mounted) message(c, 'تم نسخ المبلغ');
+          },
+    child: Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
+          colors: [
+            (color ?? Theme.of(c).colorScheme.secondary).withValues(alpha: .16),
+            (color ?? Theme.of(c).colorScheme.secondary).withValues(alpha: .04),
+          ],
         ),
-      ),
-      borderRadius: BorderRadius.circular(16),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        UiText(label, style: Theme.of(c).textTheme.labelLarge),
-        const SizedBox(height: 8),
-        FittedBox(
-          child: UiText(
-            value,
-            textDirection: TextDirection.ltr,
-            style: Theme.of(c).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: color ?? Theme.of(c).colorScheme.primary,
-            ),
+        border: Border.all(
+          color: (color ?? Theme.of(c).colorScheme.secondary).withValues(
+            alpha: .2,
           ),
         ),
-      ],
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          UiText(label, style: Theme.of(c).textTheme.labelLarge),
+          const SizedBox(height: 8),
+          FittedBox(
+            child: UiText(
+              value,
+              textDirection: TextDirection.ltr,
+              style: Theme.of(c).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: color ?? Theme.of(c).colorScheme.primary,
+              ),
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -297,7 +310,7 @@ Widget textField(
     controller: controller,
     decoration: InputDecoration(
       labelText: uiLabel(label),
-      prefixIcon: Icon(fieldIcon(label)),
+      prefixIcon: fieldArtwork(label),
       floatingLabelBehavior: FloatingLabelBehavior.always,
     ),
     keyboardType: number
@@ -328,6 +341,28 @@ class DateField extends StatelessWidget {
   Widget build(BuildContext c) => Padding(
     padding: const EdgeInsets.only(bottom: 12),
     child: InkWell(
+      onLongPress: displayPreferences['dateShortcuts'] == false
+          ? null
+          : () async {
+              final offset = await showModalBottomSheet<int>(
+                context: c,
+                showDragHandle: true,
+                builder: (ctx) => SafeArea(
+                  child: Wrap(
+                    children: [
+                      for (final item in [(0, 'اليوم'), (1, 'غداً')])
+                        ListTile(
+                          leading: const ArtIcon(24, size: 32),
+                          title: UiText(item.$2),
+                          onTap: () => Navigator.pop(ctx, item.$1),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+              if (offset != null)
+                onChanged(day(DateTime.now().add(Duration(days: offset))));
+            },
       onTap: () async {
         final selected = await showDatePicker(
           context: c,
@@ -340,7 +375,7 @@ class DateField extends StatelessWidget {
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: uiLabel(label),
-          prefixIcon: Icon(fieldIcon(label)),
+          prefixIcon: fieldArtwork(label),
           floatingLabelBehavior: FloatingLabelBehavior.always,
           suffixIcon: value != null && optional
               ? IconButton(
@@ -579,7 +614,7 @@ class PickField extends StatelessWidget {
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: uiLabel(label),
-          prefixIcon: Icon(fieldIcon(label)),
+          prefixIcon: fieldArtwork(label),
           floatingLabelBehavior: FloatingLabelBehavior.always,
           suffixIcon: Row(
             mainAxisSize: MainAxisSize.min,

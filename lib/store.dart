@@ -209,6 +209,12 @@ class Store extends ChangeNotifier {
       await s.set('visualPack', 'office');
       await s.set('office22', true);
     }
+    if (s.settings['clay23'] != true) {
+      await s.set('visualPack', 'clay');
+      await s.set('ambientLevel', 0);
+      await s.set('clay23', true);
+    }
+    if (s.settings['visualPack'] == 'office') await s.set('visualPack', 'clay');
     return s;
   }
 

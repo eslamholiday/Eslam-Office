@@ -13,6 +13,7 @@ import 'ambient_motion.dart';
 import 'geography.dart';
 import 'labels.dart';
 import 'office_desk.dart';
+import 'follow_up.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -264,6 +265,9 @@ class HomePage extends StatelessWidget {
       'movements',
       'review',
     ];
+    final shortcutOrder = List<String>.from(
+      s.settings['homeShortcutOrder'] ?? shortcutKeys,
+    );
     final visibleShortcuts = [
       for (var i = 0; i < shortcuts.length; i++)
         if (!List<String>.from(
@@ -271,6 +275,11 @@ class HomePage extends StatelessWidget {
         ).contains(shortcutKeys[i]))
           shortcuts[i],
     ];
+    visibleShortcuts.sort(
+      (a, b) => shortcutOrder
+          .indexOf(shortcutKeys[shortcuts.indexOf(a)])
+          .compareTo(shortcutOrder.indexOf(shortcutKeys[shortcuts.indexOf(b)])),
+    );
     final sales = s.entries.where((e) => e.posted);
     final counts = {
       'تذاكر': sales
@@ -413,7 +422,7 @@ class HomePage extends StatelessWidget {
                 onTap: () => showAboutDialog(
                   context: c,
                   applicationName: 'Eslam Money',
-                  applicationVersion: '2.2.0',
+                  applicationVersion: '2.3.0',
                   children: [
                     const UiText(
                       'Eslam Holiday\nEslamholiday.com\n07713414312\nجميع الحقوق محفوظة 2026',
@@ -430,6 +439,17 @@ class HomePage extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            Card(
+              child: ListTile(
+                leading: const ArtIcon(63),
+                title: const UiText('متابعة الشغل'),
+                subtitle: const UiText(
+                  'المعلّق • المستندات • الاستحقاقات • الجوازات',
+                ),
+                trailing: const Icon(Icons.chevron_left),
+                onTap: () => open(FollowUpPage(s)),
+              ),
+            ),
             const ServiceBanner(
               kind: 'expense',
               title: 'أهلًا إسلام',
@@ -537,33 +557,51 @@ class HomePage extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                ...visibleShortcuts.map(
-                  (e) => ActionChip(
-                    avatar: Icon(e.$2),
-                    label: UiText(e.$1),
-                    onPressed: () => open(e.$3),
-                  ),
-                ),
-                if (!List<String>.from(
-                  s.settings['homeShortcutHidden'] ?? [],
-                ).contains('about'))
-                  ActionChip(
-                    avatar: const Icon(Icons.info_outline),
-                    label: const UiText('نبذة التطبيق'),
-                    onPressed: () => showAboutDialog(
-                      context: c,
-                      applicationName: 'Eslam Money',
-                      applicationVersion: '2.2.0',
-                      children: [
-                        const UiText('Eslamholiday.com • 07713414312'),
-                      ],
+            SizedBox(
+              height: 68,
+              child: ReorderableListView(
+                scrollDirection: Axis.horizontal,
+                buildDefaultDragHandles: false,
+                onReorder: (a, b) {
+                  if (b > a) b--;
+                  final order = visibleShortcuts
+                      .map((e) => shortcutKeys[shortcuts.indexOf(e)])
+                      .toList();
+                  order.insert(b, order.removeAt(a));
+                  s.set('homeShortcutOrder', [
+                    ...order,
+                    ...shortcutKeys.where((k) => !order.contains(k)),
+                  ]);
+                },
+                children: [
+                  for (var i = 0; i < visibleShortcuts.length; i++)
+                    Padding(
+                      key: ValueKey(visibleShortcuts[i].$1),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Center(
+                        child: ReorderableDelayedDragStartListener(
+                          index: i,
+                          enabled: s.settings['homeDragShortcuts'] != false,
+                          child: ActionChip(
+                            avatar: ArtIcon(
+                              artIndex(switch (shortcutKeys[shortcuts.indexOf(
+                                visibleShortcuts[i],
+                              )]) {
+                                'passengers' => 'passenger',
+                                'suppliers' => 'supplier',
+                                'review' => 'review',
+                                _ => 'operations',
+                              }),
+                              size: 28,
+                            ),
+                            label: UiText(visibleShortcuts[i].$1),
+                            onPressed: () => open(visibleShortcuts[i].$3),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
             Row(
               children: [
@@ -596,52 +634,62 @@ class HomePage extends StatelessWidget {
                         (key) => SizedBox(
                           width: (constraints.maxWidth - 12) / 2,
                           child: Card(
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(18),
-                              onTap: () => open(
-                                key == 'payable'
-                                    ? SupplierBalances(s)
-                                    : key == 'expenses'
-                                    ? ExpensesPage(s)
-                                    : key == 'owed'
-                                    ? PartiesPage(s, 'customer')
-                                    : ReportsPage(s),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(14),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    UiText(
-                                      labels[key]!,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13,
-                                      ),
+                            child: GestureDetector(
+                              onDoubleTap:
+                                  s.settings['doubleTapBalance'] == false
+                                  ? null
+                                  : () => s.set(
+                                      'hideAmounts',
+                                      s.settings['hideAmounts'] != true,
                                     ),
-                                    const SizedBox(height: 12),
-                                    for (var i = 0; i < 2; i++)
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 2,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(18),
+                                onTap: () => open(
+                                  key == 'payable'
+                                      ? SupplierBalances(s)
+                                      : key == 'expenses'
+                                      ? ExpensesPage(s)
+                                      : key == 'owed'
+                                      ? PartiesPage(s, 'customer')
+                                      : ReportsPage(s),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(14),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      UiText(
+                                        labels[key]!,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
                                         ),
-                                        child: FittedBox(
-                                          fit: BoxFit.scaleDown,
-                                          child: AmountMotionText(
-                                            s.settings['hideAmounts'] == true
-                                                ? '••••'
-                                                : Currency.values[i].format(
-                                                    snap.data?[i][key] ?? 0,
-                                                  ),
-                                            textDirection: TextDirection.ltr,
-                                            style: const TextStyle(
-                                              fontSize: 22,
-                                              fontWeight: FontWeight.w700,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      for (var i = 0; i < 2; i++)
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 2,
+                                          ),
+                                          child: FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            child: AmountMotionText(
+                                              s.settings['hideAmounts'] == true
+                                                  ? '••••'
+                                                  : Currency.values[i].format(
+                                                      snap.data?[i][key] ?? 0,
+                                                    ),
+                                              textDirection: TextDirection.ltr,
+                                              style: const TextStyle(
+                                                fontSize: 22,
+                                                fontWeight: FontWeight.w700,
+                                              ),
                                             ),
                                           ),
                                         ),
-                                      ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),

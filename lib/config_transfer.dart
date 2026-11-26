@@ -15,6 +15,7 @@ class ConfigTransfer {
         'personalExpenseSeed',
         'experience21',
         'office22',
+        'clay23',
         'logo',
         'statementTemplatesOwner',
       ].contains(key) &&

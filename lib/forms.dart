@@ -75,6 +75,7 @@ class _PartyFormState extends State<PartyForm> {
   late String? travelerType =
       widget.party?['travelerType'] ??
       (widget.s.settings['defaults_${widget.kind}'] as Map?)?['travelerType'];
+  late String? passportExpiry = widget.party?['passportExpiry'];
   bool busy = false;
   final Set<String> revealed = {};
   final Map<String, GlobalKey> anchors = {};
@@ -142,6 +143,11 @@ class _PartyFormState extends State<PartyForm> {
       'name' => textField(name, label),
       'phone' => textField(phone, label, number: true),
       'passport' => textField(passport, label),
+      'passportExpiry' => DateField(
+        label,
+        passportExpiry,
+        (v) => setState(() => passportExpiry = v),
+      ),
       'travelerType' => Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: ChoiceField<String>(
@@ -152,7 +158,7 @@ class _PartyFormState extends State<PartyForm> {
               : () => setState(() => travelerType = null),
           decoration: InputDecoration(
             labelText: label,
-            prefixIcon: Icon(fieldIcon(label)),
+            prefixIcon: fieldArtwork(label),
           ),
           items:
               inputChoices(
@@ -213,6 +219,7 @@ class _PartyFormState extends State<PartyForm> {
     'phone': normalizePhone(phone.text),
     'notes': notes.text,
     'passport': passport.text,
+    'passportExpiry': passportExpiry,
     'customer': customer,
     'attachments': attachments,
     'profileImage': profileImage,
@@ -509,6 +516,11 @@ class _EntryFormState extends State<EntryForm> {
     if (widget.party != null) {
       d[widget.supplier ? 'supplier' : 'customer'] = widget.party;
     }
+    for (final f in inputSpecs(
+      widget.kind,
+    ).where((f) => ['text', 'multiline'].contains(f.type))) {
+      tc(f.key, '${d[f.key] ?? ''}');
+    }
     for (final key in [
       'notes',
       'hotelName',
@@ -687,6 +699,11 @@ class _EntryFormState extends State<EntryForm> {
     ]) {
       v[key] = tc(key).text.trim();
     }
+    for (final f in inputSpecs(
+      widget.kind,
+    ).where((f) => ['text', 'multiline'].contains(f.type))) {
+      v[f.key] = tc(f.key).text.trim();
+    }
     if (widget.kind == 'ticket') {
       v['rate'] = decimalUnits(tc('rate').text, 2);
       v['fee'] = money(tc('fee').text, currency);
@@ -788,6 +805,16 @@ class _EntryFormState extends State<EntryForm> {
         }
       }
       final savedId = await widget.s.saveEntry(v, id: widget.draft?.id);
+      if (widget.kind == 'ticket' && v['from'] is int && v['to'] is int) {
+        final routes = List<Map<String, dynamic>>.from(
+          (widget.s.settings['recentRoutes'] as List? ?? []).map(
+            (r) => Map<String, dynamic>.from(r),
+          ),
+        );
+        routes.removeWhere((r) => r['from'] == v['from'] && r['to'] == v['to']);
+        routes.insert(0, {'from': v['from'], 'to': v['to']});
+        await widget.s.set('recentRoutes', routes.take(8).toList());
+      }
       unawaited(Experience.fire('save'));
       recoveryTimer?.cancel();
       await widget.s.set(recoveryKey, null);
@@ -878,58 +905,68 @@ class _EntryFormState extends State<EntryForm> {
         const SizedBox(height: 8),
         if (ids.isEmpty)
           const UiText('لم تحدد أسماء بعد؛ العدد المالي من خانات الخدمة.'),
-        Wrap(
-          spacing: 8,
-          runSpacing: 4,
-          children: ids
-              .map(
-                (id) => InputChip(
-                  label: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: UiText(
-                          widget.s.name(id),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+        ReorderableListView(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          buildDefaultDragHandles: false,
+          onReorder: (a, b) => setState(() {
+            if (b > a) b--;
+            ids.insert(b, ids.removeAt(a));
+            d['passengers'] = ids;
+            d['passenger'] = null;
+          }),
+          children: [
+            for (var i = 0; i < ids.length; i++)
+              ListTile(
+                key: ValueKey(ids[i]),
+                contentPadding: EdgeInsets.zero,
+                leading: const ArtIcon(19, size: 32),
+                title: UiText(widget.s.name(ids[i])),
+                subtitle: UiText(
+                  typeLabels[widget.s.parties
+                          .where((r) => r['id'] == ids[i])
+                          .firstOrNull?['travelerType']] ??
+                      '',
+                ),
+                onTap: widget.preview
+                    ? null
+                    : () async {
+                        final person = widget.s.parties
+                            .where((r) => r['id'] == ids[i])
+                            .firstOrNull;
+                        if (person != null)
+                          await editParty(
+                            context,
+                            widget.s,
+                            'passenger',
+                            party: person,
+                          );
+                        if (mounted) setState(() {});
+                      },
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'إزالة من العملية',
+                      icon: const Icon(Icons.close),
+                      onPressed: () => setState(() {
+                        ids.removeAt(i);
+                        d['passengers'] = ids;
+                        d['passenger'] = null;
+                      }),
+                    ),
+                    if (widget.s.settings['reorderPassengers'] != false)
+                      ReorderableDragStartListener(
+                        index: i,
+                        child: const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: Icon(Icons.drag_handle),
                         ),
                       ),
-                      if (typeLabels.containsKey(
-                        widget.s.parties
-                            .where((r) => r['id'] == id)
-                            .firstOrNull?['travelerType'],
-                      ))
-                        UiText(
-                          ' · ${typeLabels[widget.s.parties.where((r) => r['id'] == id).firstOrNull?['travelerType']]}',
-                        ),
-                    ],
-                  ),
-                  onPressed: widget.preview
-                      ? null
-                      : () async {
-                          final person = widget.s.parties
-                              .where((r) => r['id'] == id)
-                              .firstOrNull;
-                          if (person != null) {
-                            await editParty(
-                              context,
-                              widget.s,
-                              'passenger',
-                              party: person,
-                            );
-                          }
-                          if (mounted) {
-                            setState(() {});
-                          }
-                        },
-                  onDeleted: () => setState(() {
-                    ids.remove(id);
-                    d['passengers'] = ids;
-                    d['passenger'] = null;
-                  }),
+                  ],
                 ),
-              )
-              .toList(),
+              ),
+          ],
         ),
         Wrap(
           spacing: 8,
@@ -1318,7 +1355,7 @@ class _EntryFormState extends State<EntryForm> {
     }
     if (f.key == 'tripType') {
       return ListTile(
-        leading: const Icon(Icons.route_rounded),
+        leading: ArtIcon(d['return'] == null ? 32 : 33, size: 36),
         title: UiText(label),
         subtitle: UiText(d['return'] == null ? 'ذهاب فقط' : 'ذهاب وعودة'),
       );
@@ -1368,6 +1405,9 @@ class _EntryFormState extends State<EntryForm> {
       return SwitchListTile(
         contentPadding: EdgeInsets.zero,
         title: UiText(label),
+        secondary: serviceFieldArt(label) == null
+            ? null
+            : ArtIcon(serviceFieldArt(label)!, size: 36),
         subtitle: f.key == 'personal'
             ? const UiText('الشخصي لا يخصم من صافي ربح المكتب')
             : null,
@@ -1432,7 +1472,7 @@ class _EntryFormState extends State<EntryForm> {
         initialValue: d[f.key]?.toString(),
         decoration: InputDecoration(
           labelText: label,
-          prefixIcon: Icon(fieldIcon(label)),
+          prefixIcon: fieldArtwork(label),
         ),
         items: choices.entries
             .map((e) => DropdownMenuItem(value: e.key, child: UiText(e.value)))
@@ -1569,6 +1609,8 @@ class _EntryFormState extends State<EntryForm> {
     return Section(
       inputGroupLabels[group] ?? group,
       [
+        if (group == 'travel' && widget.kind == 'ticket' && !widget.preview)
+          recentRoutes(),
         for (final f in regular)
           if (routePair && (f.key == 'from' || f.key == 'to')) ...[
             if (f.key == routeFirst)
@@ -1624,6 +1666,14 @@ class _EntryFormState extends State<EntryForm> {
           UiText(
             'عدد الليالي: ${DateTime.parse(d['checkOut']).difference(DateTime.parse(d['checkIn'])).inDays}',
           ),
+        if (group == 'movement' && widget.kind == 'settlement')
+          const ListTile(
+            leading: ArtIcon(56, size: 36),
+            title: UiText('دفعة كاملة أو جزئية'),
+            subtitle: UiText(
+              'أدخل المبلغ المقبوض أو المدفوع فقط؛ المتبقي يظهر بكشف الحساب.',
+            ),
+          ),
         if (group == 'payment')
           const UiText(
             'طريقة الدفع وصف للعملية؛ تسجيل القبض أو الدفع من التسويات.',
@@ -1634,6 +1684,67 @@ class _EntryFormState extends State<EntryForm> {
       subtitle: subtitle,
       initiallyExpanded:
           layout.expanded(group) || fields.any((f) => revealed.contains(f.key)),
+    );
+  }
+
+  Widget recentRoutes() {
+    final routes = (widget.s.settings['recentRoutes'] as List? ?? [])
+        .whereType<Map>()
+        .where(
+          (r) =>
+              widget.s.refs.any((ref) => ref['id'] == r['from']) &&
+              widget.s.refs.any((ref) => ref['id'] == r['to']),
+        )
+        .toList();
+    if (routes.isEmpty) return const SizedBox.shrink();
+    void apply(Map r) => setState(() {
+      d['from'] = r['from'];
+      d['to'] = r['to'];
+    });
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const UiText('المسارات الأخيرة — اضغط للتعبئة'),
+        Wrap(
+          spacing: 6,
+          runSpacing: 4,
+          children: routes.map((r) {
+            final caption =
+                '${widget.s.reference(r['from'])} إلى ${widget.s.reference(r['to'])}';
+            final chip = ActionChip(
+              avatar: const ArtIcon(32, size: 26),
+              label: UiText(caption),
+              onPressed: () => apply(r),
+            );
+            return widget.s.settings['dragRoutes'] == false
+                ? chip
+                : LongPressDraggable<Map>(
+                    data: r,
+                    feedback: Material(
+                      elevation: 5,
+                      borderRadius: BorderRadius.circular(20),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: UiText(caption),
+                      ),
+                    ),
+                    child: chip,
+                  );
+          }).toList(),
+        ),
+        if (widget.s.settings['dragRoutes'] != false)
+          DragTarget<Map>(
+            onAcceptWithDetails: (details) => apply(details.data),
+            builder: (_, candidates, _) => AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              padding: const EdgeInsets.all(10),
+              color: candidates.isEmpty
+                  ? Colors.transparent
+                  : Colors.teal.withValues(alpha: .15),
+              child: const UiText('أو اسحب المسار هنا لتعبئة المغادرة والوصول'),
+            ),
+          ),
+      ],
     );
   }
 

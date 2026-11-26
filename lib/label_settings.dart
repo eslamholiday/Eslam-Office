@@ -17,7 +17,7 @@ Future<int?> chooseUiIcon(BuildContext context, int selected) =>
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 4,
           ),
-          itemCount: 32,
+          itemCount: 68,
           itemBuilder: (_, index) => InkWell(
             onTap: () => Navigator.pop(ctx, index),
             child: Container(

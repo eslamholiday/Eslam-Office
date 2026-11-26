@@ -1,4 +1,5 @@
 import 'labels.dart';
+import 'follow_up.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -119,6 +120,7 @@ class SettingsPage extends StatelessWidget {
           ),
         ]),
         Section('العمليات والحسابات', [
+          tile(c, 'متابعة الشغل', 63, FollowUpPage(s)),
           tile(
             c,
             'الأرقام والتواريخ والحفظ',
@@ -1041,7 +1043,7 @@ class AboutPage extends StatelessWidget {
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
         ),
-        const UiText('2.0.0 • فكرة وإشراف إسلام', textAlign: TextAlign.center),
+        const UiText('2.3.0 • فكرة وإشراف إسلام', textAlign: TextAlign.center),
         const SizedBox(height: 24),
         const UiText(
           'إدارة مكتب السفر والحسابات\nحفظ محلي • دولار ودينار • بحث موحّد',

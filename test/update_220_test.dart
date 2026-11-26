@@ -7,7 +7,6 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:eslam_office/main.dart';
-import 'package:eslam_office/office_desk.dart';
 import 'package:eslam_office/forms.dart';
 import 'package:eslam_office/pages.dart';
 import 'package:eslam_office/settings.dart';
@@ -20,7 +19,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   sqfliteFfiInit();
   test(
-    'office migration preserves ledger, then respects a later theme choice',
+    'clay migration preserves ledger, then respects a later theme choice',
     () async {
       final dir = await Directory.systemTemp.createTemp('office-22-');
       final path = '${dir.path}/office.db';
@@ -39,11 +38,11 @@ void main() {
         'direction': 1,
         'posted': true,
       });
-      await s.db.delete('settings', where: 'key=?', whereArgs: ['office22']);
+      await s.db.delete('settings', where: 'key=?', whereArgs: ['clay23']);
       final before = await s.db.query('ledger');
       await s.db.close();
       s = await Store.open(factory: databaseFactoryFfi, path: path);
-      expect(s.settings['visualPack'], 'office');
+      expect(s.settings['visualPack'], 'clay');
       expect(await s.db.query('ledger'), before);
       await s.set('visualPack', 'glass');
       await s.db.close();
@@ -123,8 +122,8 @@ void main() {
       );
       await mount(StatementPage(s, customer));
     }
-    await t.runAsync(() => s.set('visualPack', 'office'));
-    await mount(OfficeDesk(s), screenshot: 'home');
+    await t.runAsync(() => s.set('visualPack', 'clay'));
+    await mount(HomePage(s), screenshot: 'home');
     await t.runAsync(() => s.db.close());
   });
 

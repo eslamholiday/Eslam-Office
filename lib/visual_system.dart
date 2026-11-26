@@ -50,29 +50,6 @@ class VisualPack {
 }
 
 const visualPacks = <String, VisualPack>{
-  'office': VisualPack(
-    id: 'office',
-    extraIcons: 'assets/visuals/clay/icons_extra.webp',
-    name: 'المكتب المجسّم',
-    icons: 'assets/visuals/clay/icons.webp',
-    scenes: 'assets/visuals/clay/scenes.webp',
-    primary: Color(0xff174632),
-    secondary: Color(0xff986c2b),
-    canvas: Color(0xff56321f),
-    surface: Color(0xfff4e8d0),
-    radius: 16,
-    fieldRadius: 10,
-    buttonRadius: 10,
-    heroRadius: 16,
-    elevation: 4,
-    routeOffset: .035,
-    categoryColors: [
-      Color(0xff174632),
-      Color(0xff8a3a29),
-      Color(0xff92632f),
-      Color(0xff39634b),
-    ],
-  ),
   'glass': VisualPack(
     id: 'glass',
     name: 'الفضاء الهادئ',
@@ -145,6 +122,8 @@ int captionArt(String text, {int? fallback}) =>
     fallback ??
     titleArt(text);
 int titleArt(String text) {
+  final specialized = serviceFieldArt(text);
+  if (specialized != null) return specialized;
   if (text.contains('العمليات') || text.contains('الحركات')) return 13;
   if (text.contains('بالغ')) return 16;
   if (text.contains('طفل')) return 17;
@@ -412,6 +391,16 @@ class ArtIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     LabelScope.watch(context);
+    if (index >= 32 && illustrationsEnabled) {
+      return SizedBox.square(
+        dimension: size,
+        child: AtlasArt(
+          asset: 'assets/visuals/clay/service_icons.png',
+          index: (index - 32).clamp(0, 35),
+          columns: 6,
+        ),
+      );
+    }
     if (officeTheme) {
       return OfficeSurface(
         material: 3,
@@ -426,57 +415,63 @@ class ArtIcon extends StatelessWidget {
         ),
       );
     }
-    return SizedBox.square(
-      dimension: size,
-      child: illustrationsEnabled
-          ? AmbientMotion(
-              seed: index,
-              child: AtlasArt(
-                asset: index >= 16
-                    ? activePack.extraIcons ?? activePack.icons
-                    : activePack.icons,
-                index: index % 16,
-                columns: 4,
+    return AnimatedSwitcher(
+      duration: Duration(
+        milliseconds: displayPreferences['reduceMotion'] == true ? 0 : 180,
+      ),
+      child: SizedBox.square(
+        key: ValueKey(index),
+        dimension: size,
+        child: illustrationsEnabled
+            ? AmbientMotion(
+                seed: index,
+                child: AtlasArt(
+                  asset: index >= 16
+                      ? activePack.extraIcons ?? activePack.icons
+                      : activePack.icons,
+                  index: index % 16,
+                  columns: 4,
+                ),
+              )
+            : Icon(
+                switch (index) {
+                  16 => Icons.person,
+                  17 => Icons.child_care,
+                  18 => Icons.baby_changing_station,
+                  19 => Icons.luggage,
+                  20 => Icons.badge_outlined,
+                  21 => Icons.route,
+                  22 => Icons.calculate_outlined,
+                  23 => Icons.notes,
+                  24 => Icons.calendar_month,
+                  25 => Icons.public,
+                  26 => Icons.home_rounded,
+                  27 => Icons.save,
+                  28 => Icons.search,
+                  29 => Icons.filter_alt,
+                  30 => Icons.fact_check,
+                  31 => Icons.edit_document,
+                  0 => Icons.flight,
+                  1 => Icons.badge,
+                  2 => Icons.hotel,
+                  3 => Icons.wallet,
+                  4 => Icons.swap_horiz,
+                  5 => Icons.people,
+                  6 => Icons.business,
+                  7 => Icons.bar_chart,
+                  9 => Icons.palette,
+                  10 => Icons.volume_up,
+                  11 => Icons.vibration,
+                  12 => Icons.swipe,
+                  13 => Icons.receipt_long,
+                  14 => Icons.paid,
+                  15 => Icons.archive,
+                  _ => Icons.settings,
+                },
+                size: size * .7,
+                color: artColor(index),
               ),
-            )
-          : Icon(
-              switch (index) {
-                16 => Icons.person,
-                17 => Icons.child_care,
-                18 => Icons.baby_changing_station,
-                19 => Icons.luggage,
-                20 => Icons.badge_outlined,
-                21 => Icons.route,
-                22 => Icons.calculate_outlined,
-                23 => Icons.notes,
-                24 => Icons.calendar_month,
-                25 => Icons.public,
-                26 => Icons.home_rounded,
-                27 => Icons.save,
-                28 => Icons.search,
-                29 => Icons.filter_alt,
-                30 => Icons.fact_check,
-                31 => Icons.edit_document,
-                0 => Icons.flight,
-                1 => Icons.badge,
-                2 => Icons.hotel,
-                3 => Icons.wallet,
-                4 => Icons.swap_horiz,
-                5 => Icons.people,
-                6 => Icons.business,
-                7 => Icons.bar_chart,
-                9 => Icons.palette,
-                10 => Icons.volume_up,
-                11 => Icons.vibration,
-                12 => Icons.swipe,
-                13 => Icons.receipt_long,
-                14 => Icons.paid,
-                15 => Icons.archive,
-                _ => Icons.settings,
-              },
-              size: size * .7,
-              color: artColor(index),
-            ),
+      ),
     );
   }
 }
@@ -1208,4 +1203,59 @@ class TicketShape extends RoundedRectangleBorder {
       );
     return Path.combine(PathOperation.difference, body, holes);
   }
+}
+
+// Stable semantic artwork for controls; icons do not infer business rules.
+int? serviceFieldArt(String label) {
+  const labels = <String, int>{
+    'ذهاب فقط': 32,
+    'ذهاب وعودة': 33,
+    'الترانزيت': 34,
+    'تغيير موعد': 35,
+    'الأمتعة': 36,
+    'المقعد': 37,
+    'درجة السفر': 38,
+    'حالة الحجز': 39,
+    'تاريخ الدخول': 40,
+    'تاريخ الخروج': 41,
+    'نوع الغرفة': 42,
+    'إفطار': 43,
+    'عدد الليالي': 44,
+    'تمديد الإقامة': 45,
+    'الفاوجر': 46,
+    'خدمة النقل': 47,
+    'طلب الفيزا': 48,
+    'المستندات': 49,
+    'قيد التدقيق': 50,
+    'صادرة': 51,
+    'رقم الجواز': 52,
+    'انتهاء الجواز': 53,
+    'ربط مسافر': 54,
+    'مجموعة سفر': 55,
+    'دفعة جزئية': 56,
+    'موعد استحقاق': 57,
+    'مستحقات الإصدار': 58,
+    'افتتاحي': 59,
+    'مسودة': 60,
+    'تعديل العملية': 61,
+    'ملاحظة داخلية': 62,
+    'سجل التعديلات': 63,
+    'المرفقات': 64,
+    'مشاركة': 65,
+    'التحويل': 66,
+  };
+  for (final e in labels.entries) {
+    if (label.contains(e.key)) return e.value;
+  }
+  return null;
+}
+
+Widget fieldArtwork(String label) {
+  final index = serviceFieldArt(label);
+  return index == null
+      ? Icon(fieldIcon(label))
+      : Padding(
+          padding: const EdgeInsets.all(7),
+          child: ArtIcon(index, size: 30),
+        );
 }

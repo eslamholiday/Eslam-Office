@@ -76,6 +76,7 @@ const inputGroupLabels = {
   'notes': 'الملاحظات والمرفقات',
   'identity': 'البيانات الأساسية',
   'profile': 'صورة / شخصية الحساب',
+  'extras': 'خدمات وتفاصيل إضافية',
 };
 
 List<InputSpec> inputSpecs(String scope) {
@@ -100,6 +101,12 @@ List<InputSpec> inputSpecs(String scope) {
           reference: 'customer',
         ),
         const InputSpec('passport', 'رقم الجواز', 'identity'),
+        const InputSpec(
+          'passportExpiry',
+          'انتهاء الجواز',
+          'identity',
+          type: 'date',
+        ),
       ],
       const InputSpec('notes', 'ملاحظات', 'notes', type: 'multiline'),
       const InputSpec('attachments', 'المرفقات', 'notes', type: 'attachments'),
@@ -282,6 +289,23 @@ List<InputSpec> inputSpecs(String scope) {
       ),
       const InputSpec('depart', 'تاريخ الذهاب', 'travel', type: 'date'),
       const InputSpec('return', 'تاريخ العودة', 'travel', type: 'date'),
+      const InputSpec('transit', 'محطة الترانزيت', 'extras'),
+      const InputSpec('baggage', 'الأمتعة المسموحة', 'extras'),
+      const InputSpec('seat', 'المقعد', 'extras'),
+      const InputSpec(
+        'cabin',
+        'درجة السفر',
+        'extras',
+        type: 'choice',
+        choices: {'economy': 'اقتصادية', 'business': 'أعمال', 'first': 'أولى'},
+      ),
+      const InputSpec(
+        'bookingStatus',
+        'حالة الحجز',
+        'extras',
+        type: 'choice',
+        choices: {'pending': 'معلّق', 'confirmed': 'مؤكد', 'issued': 'صادر'},
+      ),
     ],
     if (scope == 'hotel') ...[
       const InputSpec(
@@ -294,6 +318,27 @@ List<InputSpec> inputSpecs(String scope) {
       const InputSpec('rooms', 'عدد الغرف', 'travel', type: 'count'),
       const InputSpec('people', 'عدد الأشخاص', 'travel', type: 'count'),
       const InputSpec('meals', 'الوجبات', 'travel'),
+      const InputSpec(
+        'roomType',
+        'نوع الغرفة',
+        'extras',
+        type: 'choice',
+        choices: {
+          'single': 'مفردة',
+          'double': 'مزدوجة',
+          'twin': 'سريران منفصلان',
+          'suite': 'جناح',
+        },
+      ),
+      const InputSpec('breakfast', 'إفطار مشمول', 'extras', type: 'bool'),
+      const InputSpec('transfer', 'خدمة النقل وتفاصيلها', 'extras'),
+      const InputSpec('voucher', 'رقم الفاوجر', 'extras'),
+      const InputSpec(
+        'extensionUntil',
+        'تمديد الإقامة إلى',
+        'extras',
+        type: 'date',
+      ),
     ],
     if (scope == 'visa') ...[
       const InputSpec('applyDate', 'تاريخ التقديم', 'travel', type: 'date'),
@@ -301,6 +346,31 @@ List<InputSpec> inputSpecs(String scope) {
       const InputSpec('expiry', 'تاريخ الانتهاء', 'travel', type: 'date'),
       const InputSpec('days', 'عدد الأيام', 'travel', type: 'count'),
       const InputSpec('entriesCount', 'عدد الدخولات', 'travel', type: 'count'),
+      const InputSpec(
+        'visaStatus',
+        'حالة طلب الفيزا',
+        'extras',
+        type: 'choice',
+        choices: {
+          'new': 'طلب جديد',
+          'review': 'قيد التدقيق',
+          'issued': 'صادرة',
+          'rejected': 'مرفوضة',
+        },
+      ),
+      const InputSpec(
+        'documentStatus',
+        'حالة المستندات',
+        'extras',
+        type: 'choice',
+        choices: {'missing': 'مستند ناقص', 'complete': 'مكتملة'},
+      ),
+      const InputSpec(
+        'missingDocuments',
+        'المستندات المطلوبة',
+        'extras',
+        type: 'multiline',
+      ),
     ],
     if (['settlement', 'opening', 'expense', 'funding'].contains(scope))
       const InputSpec(
@@ -356,6 +426,14 @@ List<InputSpec> inputSpecs(String scope) {
       type: 'multiline',
     ),
     const InputSpec('attachments', 'المرفقات', 'notes', type: 'attachments'),
+    if (sale)
+      const InputSpec('dueDate', 'موعد استحقاق الزبون', 'extras', type: 'date'),
+    const InputSpec(
+      'internalNote',
+      'ملاحظة داخلية لا تظهر بالكشف',
+      'notes',
+      type: 'multiline',
+    ),
   ];
 }
 
@@ -419,7 +497,7 @@ class InputLayout {
       fieldConfig(f.key)['required'] ?? f.requiredByDefault;
   bool expanded(String group) =>
       (config['expanded'] as Map?)?[group] ??
-      !['child', 'infant', 'notes'].contains(group);
+      !['child', 'infant', 'notes', 'extras'].contains(group);
   List<String> missing(Map<String, dynamic> data) => fields
       .where((f) {
         if (!requiredField(f) || !applicable(f, data)) {

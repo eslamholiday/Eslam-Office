@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:convert';
+import 'live_statement.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
@@ -223,531 +225,588 @@ class _StatementPageState extends State<StatementPage> {
     super.dispose();
   }
 
+  PdfPage statementModel() {
+    if (from != null && to != null && from!.compareTo(to!) > 0) {
+      throw const FormatException('بداية الفترة بعد نهايتها');
+    }
+    final target = mode.startsWith('all')
+        ? Currency.values.byName(mode.substring(3))
+        : null;
+    final exchange = target == null ? 0 : decimalUnits(rate.text, 0),
+        permille = target == null ? 0 : decimalUnits(fee.text, 2);
+    if (target != null && exchange <= 0) {
+      throw const FormatException('أدخل سعر الصرف');
+    }
+    options['statementMode'] = mode;
+    final allHistory = includeDrafts
+        ? widget.s.entries
+              .where(
+                (e) =>
+                    e.data['customer'] == widget.party ||
+                    e.data['supplier'] == widget.party,
+              )
+              .toList()
+        : widget.s.history(widget.party);
+    allHistory.sort(
+      (a, b) =>
+          a.date == b.date ? a.id!.compareTo(b.id!) : a.date.compareTo(b.date),
+    );
+    final history = allHistory
+        .where(
+          (e) =>
+              (kinds.isEmpty || kinds.contains(e.kind)) &&
+              (passenger == null || e.passengers.contains(passenger)),
+        )
+        .where(
+          (e) =>
+              mode == 'original' || target != null || e.currency.name == mode,
+        )
+        .toList();
+    final openings = <Currency, int>{for (final c in Currency.values) c: 0};
+    final totals = <Currency, int>{for (final c in Currency.values) c: 0};
+    for (final e in history) {
+      if (from != null && e.date.compareTo(from!) < 0) {
+        openings[e.currency] =
+            openings[e.currency]! + widget.s.movement(e, widget.party);
+      }
+    }
+    totals.addAll(openings);
+    final columns = options['statementDetailLayout'] == 'columns'
+        ? orderedStatementDetails(options)
+              .where(
+                (key) =>
+                    showStatementDetail(options, key) &&
+                    history.any(
+                      (e) => statementDetailValues(
+                        widget.s,
+                        e,
+                        options,
+                      ).containsKey(key),
+                    ),
+              )
+              .toList()
+        : <String>[];
+    final rows = <List<String>>[];
+    String render(Map<Currency, int> amounts) {
+      if (target != null) {
+        final value = amounts.entries.fold<int>(
+          0,
+          (sum, p) => sum + displayConvert(p.value, p.key, target, exchange),
+        );
+        return target.format(value);
+      }
+      return amounts.entries
+          .where((p) => mode == 'original' || p.key.name == mode)
+          .map((p) => p.key.format(p.value))
+          .join('\n');
+    }
+
+    if (options['statementShowPrevious'] != false) {
+      rows.add([
+        '—',
+        'رصيد سابق للفترة',
+        render(openings),
+        render(totals),
+        ...columns.map((_) => ''),
+      ]);
+    }
+    for (final e in history.where(
+      (e) =>
+          (from == null || e.date.compareTo(from!) >= 0) &&
+          (to == null || e.date.compareTo(to!) <= 0),
+    )) {
+      final move = widget.s.movement(e, widget.party);
+      totals[e.currency] = totals[e.currency]! + move;
+      final detail = statementDescription(
+        widget.s,
+        e,
+        options,
+        details: options['statementDetailLayout'] != 'columns',
+      );
+      rows.add([
+        displayDate(e.date, weekday: false),
+        detail,
+        target == null
+            ? e.currency.format(move)
+            : target.format(displayConvert(move, e.currency, target, exchange)),
+        render(totals),
+        ...columns.map(
+          (key) => statementDetailValues(widget.s, e, options)[key] ?? '',
+        ),
+      ]);
+    }
+    final summary = <String>[
+      if (options['statementShowFinal'] != false)
+        'الرصيد النهائي: ${render(totals)}',
+    ];
+    if (permille != 0) {
+      if (target != null) {
+        final total = totals.entries.fold<int>(
+          0,
+          (sum, p) => sum + displayConvert(p.value, p.key, target, exchange),
+        );
+        final charge = roundedRatio(total * permille, 100000);
+        if (options['statementShowFee'] != false) {
+          summary.add('عمولة التحويل ${fee.text}‰: ${target.format(charge)}');
+        }
+        if (options['statementShowFinal'] != false) {
+          summary.add('الإجمالي للعرض: ${target.format(total + charge)}');
+        }
+      } else {
+        final fees = {
+          for (final p in totals.entries)
+            p.key: roundedRatio(p.value * permille, 100000),
+        };
+        if (options['statementShowFee'] != false) {
+          summary.add('عمولة التحويل ${fee.text}‰: ${render(fees)}');
+        }
+        if (options['statementShowFinal'] != false) {
+          summary.add(
+            'الإجمالي للعرض: ${render({for (final p in totals.entries) p.key: p.value + fees[p.key]!})}',
+          );
+        }
+      }
+    }
+    final foot = [
+      if (target != null && options['statementShowExchange'] != false)
+        'تحويل العرض: 100 USD = ${Currency.IQD.format(exchange)}',
+      if ((target != null || permille != 0) &&
+          options['statementShowExchange'] != false)
+        'التحويل وعمولته للعرض فقط؛ الأرصدة الأصلية محفوظة.',
+      if (kinds.isNotEmpty || passenger != null)
+        'كشف مصفّى؛ الرصيد يخص العمليات المعروضة فقط.',
+      if (options['statementShowPeriod'] != false)
+        'الفترة: ${from == null ? 'من البداية' : displayDate(from, weekday: false)} — '
+            '${to == null ? 'كامل السجل' : displayDate(to, weekday: false)}',
+    ];
+    return PdfPage(
+      widget.s,
+      'كشف حساب ${widget.s.name(widget.party)}',
+      [
+        if (options['statementShowDate'] != false) 'التاريخ',
+        'العملية',
+        'الحركة',
+        if (options['statementShowBalance'] != false) 'الرصيد',
+        ...columns.map((key) => uiLabel(statementDetails[key]!, options)),
+      ],
+      rows
+          .map(
+            (r) => [
+              if (options['statementShowDate'] != false) r[0],
+              r[1],
+              r[2],
+              if (options['statementShowBalance'] != false) r[3],
+              ...r.skip(4),
+            ],
+          )
+          .toList(),
+      [...summary, ...foot],
+      preferences: Map<String, dynamic>.from(options),
+    );
+  }
+
   Future<void> preview() async {
     try {
-      if (from != null && to != null && from!.compareTo(to!) > 0) {
-        throw const FormatException('بداية الفترة بعد نهايتها');
-      }
-      final target = mode.startsWith('all')
-          ? Currency.values.byName(mode.substring(3))
-          : null;
-      final exchange = target == null ? 0 : decimalUnits(rate.text, 0),
-          permille = target == null ? 0 : decimalUnits(fee.text, 2);
-      if (target != null && exchange <= 0) {
-        throw const FormatException('أدخل سعر الصرف');
-      }
-      options['statementMode'] = mode;
-      await option('statementMode', mode);
-      final allHistory = includeDrafts
-          ? widget.s.entries
-                .where(
-                  (e) =>
-                      e.data['customer'] == widget.party ||
-                      e.data['supplier'] == widget.party,
-                )
-                .toList()
-          : widget.s.history(widget.party);
-      allHistory.sort(
-        (a, b) => a.date == b.date
-            ? a.id!.compareTo(b.id!)
-            : a.date.compareTo(b.date),
-      );
-      final history = allHistory
-          .where(
-            (e) =>
-                (kinds.isEmpty || kinds.contains(e.kind)) &&
-                (passenger == null || e.passengers.contains(passenger)),
-          )
-          .where(
-            (e) =>
-                mode == 'original' || target != null || e.currency.name == mode,
-          )
-          .toList();
-      final openings = <Currency, int>{for (final c in Currency.values) c: 0};
-      final totals = <Currency, int>{for (final c in Currency.values) c: 0};
-      for (final e in history) {
-        if (from != null && e.date.compareTo(from!) < 0) {
-          openings[e.currency] =
-              openings[e.currency]! + widget.s.movement(e, widget.party);
-        }
-      }
-      totals.addAll(openings);
-      final columns = options['statementDetailLayout'] == 'columns'
-          ? orderedStatementDetails(options)
-                .where(
-                  (key) =>
-                      showStatementDetail(options, key) &&
-                      history.any(
-                        (e) => statementDetailValues(
-                          widget.s,
-                          e,
-                          options,
-                        ).containsKey(key),
-                      ),
-                )
-                .toList()
-          : <String>[];
-      final rows = <List<String>>[];
-      String render(Map<Currency, int> amounts) {
-        if (target != null) {
-          final value = amounts.entries.fold<int>(
-            0,
-            (sum, p) => sum + displayConvert(p.value, p.key, target, exchange),
-          );
-          return target.format(value);
-        }
-        return amounts.entries
-            .where((p) => mode == 'original' || p.key.name == mode)
-            .map((p) => p.key.format(p.value))
-            .join('\n');
-      }
-
-      if (options['statementShowPrevious'] != false) {
-        rows.add([
-          '—',
-          'رصيد سابق للفترة',
-          render(openings),
-          render(totals),
-          ...columns.map((_) => ''),
-        ]);
-      }
-      for (final e in history.where(
-        (e) =>
-            (from == null || e.date.compareTo(from!) >= 0) &&
-            (to == null || e.date.compareTo(to!) <= 0),
-      )) {
-        final move = widget.s.movement(e, widget.party);
-        totals[e.currency] = totals[e.currency]! + move;
-        final detail = statementDescription(
-          widget.s,
-          e,
-          options,
-          details: options['statementDetailLayout'] != 'columns',
-        );
-        rows.add([
-          displayDate(e.date, weekday: false),
-          detail,
-          target == null
-              ? e.currency.format(move)
-              : target.format(
-                  displayConvert(move, e.currency, target, exchange),
-                ),
-          render(totals),
-          ...columns.map(
-            (key) => statementDetailValues(widget.s, e, options)[key] ?? '',
-          ),
-        ]);
-      }
-      final summary = <String>[
-        if (options['statementShowFinal'] != false)
-          'الرصيد النهائي: ${render(totals)}',
-      ];
-      if (permille != 0) {
-        if (target != null) {
-          final total = totals.entries.fold<int>(
-            0,
-            (sum, p) => sum + displayConvert(p.value, p.key, target, exchange),
-          );
-          final charge = roundedRatio(total * permille, 100000);
-          if (options['statementShowFee'] != false) {
-            summary.add('عمولة التحويل ${fee.text}‰: ${target.format(charge)}');
-          }
-          if (options['statementShowFinal'] != false) {
-            summary.add('الإجمالي للعرض: ${target.format(total + charge)}');
-          }
-        } else {
-          final fees = {
-            for (final p in totals.entries)
-              p.key: roundedRatio(p.value * permille, 100000),
-          };
-          if (options['statementShowFee'] != false) {
-            summary.add('عمولة التحويل ${fee.text}‰: ${render(fees)}');
-          }
-          if (options['statementShowFinal'] != false) {
-            summary.add(
-              'الإجمالي للعرض: ${render({for (final p in totals.entries) p.key: p.value + fees[p.key]!})}',
-            );
-          }
-        }
-      }
-      final foot = [
-        if (target != null && options['statementShowExchange'] != false)
-          'تحويل العرض: 100 USD = ${Currency.IQD.format(exchange)}',
-        if ((target != null || permille != 0) &&
-            options['statementShowExchange'] != false)
-          'التحويل وعمولته للعرض فقط؛ الأرصدة الأصلية محفوظة.',
-        if (kinds.isNotEmpty || passenger != null)
-          'كشف مصفّى؛ الرصيد يخص العمليات المعروضة فقط.',
-        if (options['statementShowPeriod'] != false)
-          'الفترة: ${from == null ? 'من البداية' : displayDate(from, weekday: false)} — '
-              '${to == null ? 'كامل السجل' : displayDate(to, weekday: false)}',
-      ];
-      if (mounted) {
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => PdfPage(
-              widget.s,
-              'كشف حساب ${widget.s.name(widget.party)}',
-              [
-                if (options['statementShowDate'] != false) 'التاريخ',
-                'العملية',
-                'الحركة',
-                if (options['statementShowBalance'] != false) 'الرصيد',
-                ...columns.map(
-                  (key) => uiLabel(statementDetails[key]!, options),
-                ),
-              ],
-              rows
-                  .map(
-                    (r) => [
-                      if (options['statementShowDate'] != false) r[0],
-                      r[1],
-                      r[2],
-                      if (options['statementShowBalance'] != false) r[3],
-                      ...r.skip(4),
-                    ],
-                  )
-                  .toList(),
-              [...summary, ...foot],
-              preferences: options,
-            ),
-          ),
-        );
-      }
+      final page = statementModel();
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => page));
     } catch (e) {
       if (mounted) message(context, e);
     }
   }
 
   @override
-  Widget build(BuildContext c) => Scaffold(
-    appBar: const ClayAppBar(title: UiText('إعداد كشف الحساب')),
-    body: ListView(
-      padding: const EdgeInsets.all(14),
-      children: [
-        Section(widget.s.name(widget.party), [
-          ChoiceField<String>(
-            initialValue: mode,
-            decoration: const InputDecoration(
-              labelText: 'عرض العملة',
-              prefixIcon: Icon(Icons.payments_outlined),
-            ),
-            items: const [
-              DropdownMenuItem(
-                value: 'original',
-                child: UiText('كل عملة بقيمتها الأصلية'),
-              ),
-              DropdownMenuItem(value: 'USD', child: UiText('USD فقط')),
-              DropdownMenuItem(value: 'IQD', child: UiText('IQD فقط')),
-              DropdownMenuItem(
-                value: 'allUSD',
-                child: UiText('عرض الكل بالدولار'),
-              ),
-              DropdownMenuItem(
-                value: 'allIQD',
-                child: UiText('عرض الكل بالدينار'),
-              ),
-            ],
-            onChanged: (v) {
-              mode = v!;
-              option('statementMode', mode);
-            },
+  Widget build(BuildContext c) {
+    PdfPage? model;
+    String? error;
+    try {
+      model = statementModel();
+    } catch (e) {
+      error = e.toString().replaceFirst('FormatException: ', '');
+    }
+    return Scaffold(
+      appBar: const ClayAppBar(title: UiText('إعداد كشف الحساب')),
+      body: Column(
+        children: [
+          LiveStatementPreview(
+            fingerprint: model == null
+                ? error!
+                : jsonEncode([
+                    model.headers,
+                    model.rows,
+                    model.summary,
+                    model.preferences,
+                  ]),
+            buildPdf: model == null
+                ? null
+                : () => model!.document(PdfPageFormat.a4),
+            error: error,
+            gestures: widget.s.settings['statementGestures'] != false,
+            onOpen: preview,
           ),
-          if (mode.startsWith('all'))
-            pair(
-              textField(rate, '100 USD = دينار', number: true, grouped: true),
-              textField(fee, 'عمولة التحويل ‰', number: true),
-            ),
-          SwitchListTile(
-            title: const UiText('تخصيص لهذا الزبون'),
-            subtitle: UiText(
-              personalScope
-                  ? 'تُحفظ التغييرات لهذا الزبون فقط'
-                  : 'تُحفظ إعدادات الكشف تلقائيًا لجميع الحسابات',
-            ),
-            value: personalScope,
-            onChanged: setScope,
-          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(14),
+              children: [
+                Section(widget.s.name(widget.party), [
+                  ChoiceField<String>(
+                    initialValue: mode,
+                    decoration: const InputDecoration(
+                      labelText: 'عرض العملة',
+                      prefixIcon: Icon(Icons.payments_outlined),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'original',
+                        child: UiText('كل عملة بقيمتها الأصلية'),
+                      ),
+                      DropdownMenuItem(value: 'USD', child: UiText('USD فقط')),
+                      DropdownMenuItem(value: 'IQD', child: UiText('IQD فقط')),
+                      DropdownMenuItem(
+                        value: 'allUSD',
+                        child: UiText('عرض الكل بالدولار'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'allIQD',
+                        child: UiText('عرض الكل بالدينار'),
+                      ),
+                    ],
+                    onChanged: (v) {
+                      mode = v!;
+                      option('statementMode', mode);
+                    },
+                  ),
+                  if (mode.startsWith('all'))
+                    pair(
+                      textField(
+                        rate,
+                        '100 USD = دينار',
+                        number: true,
+                        grouped: true,
+                      ),
+                      textField(fee, 'عمولة التحويل ‰', number: true),
+                    ),
+                  SwitchListTile(
+                    title: const UiText('تخصيص لهذا الزبون'),
+                    subtitle: UiText(
+                      personalScope
+                          ? 'تُحفظ التغييرات لهذا الزبون فقط'
+                          : 'تُحفظ إعدادات الكشف تلقائيًا لجميع الحسابات',
+                    ),
+                    value: personalScope,
+                    onChanged: setScope,
+                  ),
 
-          ChoiceField<String>(
-            initialValue: options['statementPreset'] ?? 'detailed',
-            decoration: const InputDecoration(labelText: 'نمط الكشف'),
-            items: const [
-              DropdownMenuItem(value: 'brief', child: UiText('مختصر')),
-              DropdownMenuItem(value: 'detailed', child: UiText('مفصّل')),
-            ],
-            onChanged: (v) async {
-              await option('statementPreset', v);
-              for (final key in statementDetails.keys) {
-                await option('statementDetail_$key', v != 'brief');
-              }
-            },
-          ),
-        ]),
-        Section(
-          'الفترة والفلاتر',
-          [
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children:
-                  const {
-                        'all': 'من البداية',
-                        'today': 'اليوم',
-                        'week': 'هذا الأسبوع',
-                        'month': 'هذا الشهر',
-                        'previous': 'الشهر السابق',
-                        'year': 'هذه السنة',
-                      }.entries
-                      .map(
-                        (e) => ChoiceChip(
-                          label: UiText(e.value),
-                          selected: quickRange == e.key,
-                          onSelected: (_) => applyQuickRange(e.key),
-                        ),
-                      )
-                      .toList(),
-            ),
-            const SizedBox(height: 12),
-            TravelRangeField(
-              start: from,
-              end: to,
-              label: 'فترة الكشف',
-              onChanged: (r) {
-                from = r.start;
-                to = r.end;
-                quickRange = 'custom';
-                option('statementQuickRange', quickRange);
-                option('statementFrom', from);
-                option('statementTo', to);
-              },
-            ),
-            Wrap(
-              spacing: 6,
-              runSpacing: 4,
-              children: types.entries
-                  .where((e) => e.key != 'change')
-                  .map(
-                    (e) => FilterChip(
-                      label: UiText(e.value),
-                      selected: kinds.contains(e.key),
-                      onSelected: (v) {
-                        v ? kinds.add(e.key) : kinds.remove(e.key);
-                        option('statementKinds', kinds.toList());
+                  ChoiceField<String>(
+                    initialValue: options['statementPreset'] ?? 'detailed',
+                    decoration: const InputDecoration(labelText: 'نمط الكشف'),
+                    items: const [
+                      DropdownMenuItem(value: 'brief', child: UiText('مختصر')),
+                      DropdownMenuItem(
+                        value: 'detailed',
+                        child: UiText('مفصّل'),
+                      ),
+                    ],
+                    onChanged: (v) async {
+                      await option('statementPreset', v);
+                      for (final key in statementDetails.keys) {
+                        await option('statementDetail_$key', v != 'brief');
+                      }
+                    },
+                  ),
+                ]),
+                Section(
+                  'الفترة والفلاتر',
+                  [
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children:
+                          const {
+                                'all': 'من البداية',
+                                'today': 'اليوم',
+                                'week': 'هذا الأسبوع',
+                                'month': 'هذا الشهر',
+                                'previous': 'الشهر السابق',
+                                'year': 'هذه السنة',
+                              }.entries
+                              .map(
+                                (e) => ChoiceChip(
+                                  label: UiText(e.value),
+                                  selected: quickRange == e.key,
+                                  onSelected: (_) => applyQuickRange(e.key),
+                                ),
+                              )
+                              .toList(),
+                    ),
+                    const SizedBox(height: 12),
+                    TravelRangeField(
+                      start: from,
+                      end: to,
+                      label: 'فترة الكشف',
+                      onChanged: (r) {
+                        from = r.start;
+                        to = r.end;
+                        quickRange = 'custom';
+                        option('statementQuickRange', quickRange);
+                        option('statementFrom', from);
+                        option('statementTo', to);
                       },
                     ),
-                  )
-                  .toList(),
-            ),
-            ChoiceField<int>(
-              initialValue: passenger,
-              decoration: const InputDecoration(labelText: 'المسافر'),
-              onClear: () => setState(() => passenger = null),
-              items: widget.s
-                  .list('passenger')
-                  .where(
-                    (p) => widget.s
-                        .history(widget.party)
-                        .any((e) => e.passengers.contains(p['id'])),
-                  )
-                  .map(
-                    (p) => DropdownMenuItem<int>(
-                      value: p['id'],
-                      child: UiText(p['name']),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: types.entries
+                          .where((e) => e.key != 'change')
+                          .map(
+                            (e) => FilterChip(
+                              label: UiText(e.value),
+                              selected: kinds.contains(e.key),
+                              onSelected: (v) {
+                                v ? kinds.add(e.key) : kinds.remove(e.key);
+                                option('statementKinds', kinds.toList());
+                              },
+                            ),
+                          )
+                          .toList(),
                     ),
-                  )
-                  .toList(),
-              onChanged: (v) => setState(() => passenger = v),
-            ),
-            SwitchListTile(
-              title: const UiText('تضمين المسودات للعرض فقط'),
-              value: includeDrafts,
-              onChanged: (v) {
-                includeDrafts = v;
-                option('statementIncludeDrafts', v);
-              },
-            ),
-          ],
-          collapsible: true,
-          subtitle: from == null && to == null
-              ? 'كامل الحساب'
-              : '${from ?? 'من البداية'} ← ${to ?? 'إلى اليوم'}',
-        ),
-        Section('تفاصيل وأعمدة الكشف', [
-          ChoiceField<String>(
-            initialValue: options['statementDetailLayout'] ?? 'inline',
-            decoration: const InputDecoration(labelText: 'طريقة عرض التفاصيل'),
-            items: const [
-              DropdownMenuItem(
-                value: 'inline',
-                child: UiText('تفاصيل تحت اسم العملية'),
-              ),
-              DropdownMenuItem(value: 'columns', child: UiText('أعمدة مستقلة')),
-            ],
-            onChanged: (v) => option('statementDetailLayout', v),
-          ),
-          ...statementOptions.entries.map(
-            (e) => SwitchListTile(
-              title: UiText(e.value),
-              value: e.key == 'statementShowNotes'
-                  ? options[e.key] == true
-                  : options[e.key] != false,
-              onChanged: (v) => option(e.key, v),
-            ),
-          ),
-          ReorderableListView(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            onReorder: (a, b) {
-              final order = orderedStatementDetails(options);
-              if (b > a) b--;
-              order.insert(b, order.removeAt(a));
-              option('statementDetailOrder', order);
-            },
-            children: [
-              for (final key in orderedStatementDetails(options))
-                SwitchListTile(
-                  key: ValueKey(key),
-                  secondary: const Icon(Icons.drag_handle),
-                  title: UiText(statementDetails[key]!),
-                  value: showStatementDetail(options, key),
-                  onChanged: (v) => option('statementDetail_$key', v),
+                    ChoiceField<int>(
+                      initialValue: passenger,
+                      decoration: const InputDecoration(labelText: 'المسافر'),
+                      onClear: () => setState(() => passenger = null),
+                      items: widget.s
+                          .list('passenger')
+                          .where(
+                            (p) => widget.s
+                                .history(widget.party)
+                                .any((e) => e.passengers.contains(p['id'])),
+                          )
+                          .map(
+                            (p) => DropdownMenuItem<int>(
+                              value: p['id'],
+                              child: UiText(p['name']),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) => setState(() => passenger = v),
+                    ),
+                    SwitchListTile(
+                      title: const UiText('تضمين المسودات للعرض فقط'),
+                      value: includeDrafts,
+                      onChanged: (v) {
+                        includeDrafts = v;
+                        option('statementIncludeDrafts', v);
+                      },
+                    ),
+                  ],
+                  collapsible: true,
+                  subtitle: from == null && to == null
+                      ? 'كامل الحساب'
+                      : '${from ?? 'من البداية'} ← ${to ?? 'إلى اليوم'}',
                 ),
-            ],
-          ),
-        ], collapsible: true),
-        Section('تنسيق الكشف', [
-          ChoiceField<String>(
-            initialValue: options['statementFont'] ?? 'naskh',
-            decoration: const InputDecoration(labelText: 'الخط العربي'),
-            items: const [
-              DropdownMenuItem(value: 'naskh', child: UiText('نسخ عربي واضح')),
-              DropdownMenuItem(value: 'sans', child: UiText('عربي حديث')),
-              DropdownMenuItem(value: 'cairo', child: UiText('Cairo')),
-            ],
-            onChanged: (v) => option('statementFont', v),
-          ),
-          const UiText('حجم الخط'),
-          Slider(
-            min: 9,
-            max: 16,
-            divisions: 7,
-            value: (options['statementFontSize'] as num? ?? 12)
-                .toDouble()
-                .clamp(9, 16),
-            onChanged: (v) => option('statementFontSize', v),
-          ),
-          const UiText('تباعد السطور'),
-          Slider(
-            min: 1,
-            max: 1.7,
-            divisions: 7,
-            value: (options['statementLineSpacing'] as num? ?? 1.25)
-                .toDouble()
-                .clamp(1, 1.7),
-            onChanged: (v) => option('statementLineSpacing', v),
-          ),
-          ChoiceField<String>(
-            initialValue: options['statementPaper'] ?? 'a4',
-            decoration: const InputDecoration(labelText: 'حجم الصفحة'),
-            items: const [
-              DropdownMenuItem(value: 'a4', child: UiText('A4')),
-              DropdownMenuItem(value: 'a5', child: UiText('A5')),
-              DropdownMenuItem(value: 'letter', child: UiText('Letter')),
-            ],
-            onChanged: (v) => option('statementPaper', v),
-          ),
-          SwitchListTile(
-            title: const UiText('اتجاه أفقي'),
-            value: options['statementLandscape'] == true,
-            onChanged: (v) => option('statementLandscape', v),
-          ),
-          SwitchListTile(
-            title: const UiText('الحركة بعمودي عليه / له'),
-            value: options['statementSplitMovement'] == true,
-            onChanged: (v) => option('statementSplitMovement', v),
-          ),
-        ], collapsible: true),
-        Section('قوالب الكشف', [
-          ...Map<String, dynamic>.from(
-            widget.s.settings['statementTemplates'] ?? {},
-          ).entries.map(
-            (e) => ListTile(
-              leading: const Icon(Icons.style_outlined),
-              title: UiText(e.key),
-              onTap: () async {
-                await applyTemplate(e.value as Map);
-              },
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    tooltip: 'القالب الافتراضي',
-                    icon: Icon(
-                      widget.s.settings['statementDefaultTemplate'] == e.key
-                          ? Icons.star
-                          : Icons.star_border,
+                Section('تفاصيل وأعمدة الكشف', [
+                  ChoiceField<String>(
+                    initialValue: options['statementDetailLayout'] ?? 'inline',
+                    decoration: const InputDecoration(
+                      labelText: 'طريقة عرض التفاصيل',
                     ),
-                    onPressed: () async {
-                      await applyTemplate(e.value as Map);
-                      await widget.s.set(
-                        'statementDefaultTemplate',
-                        widget.s.settings['statementDefaultTemplate'] == e.key
-                            ? null
-                            : e.key,
-                      );
-                      if (mounted) setState(() {});
-                    },
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'inline',
+                        child: UiText('تفاصيل تحت اسم العملية'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'columns',
+                        child: UiText('أعمدة مستقلة'),
+                      ),
+                    ],
+                    onChanged: (v) => option('statementDetailLayout', v),
                   ),
-                  IconButton(
-                    tooltip: 'حذف القالب',
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: () async {
-                      final templates = Map<String, dynamic>.from(
-                        widget.s.settings['statementTemplates'] ?? {},
-                      )..remove(e.key);
-                      await widget.s.set('statementTemplates', templates);
-                      if (widget.s.settings['statementDefaultTemplate'] ==
-                          e.key) {
-                        await widget.s.set('statementDefaultTemplate', null);
-                      }
-                      if (mounted) setState(() {});
-                    },
+                  ...statementOptions.entries.map(
+                    (e) => SwitchListTile(
+                      title: UiText(e.value),
+                      value: e.key == 'statementShowNotes'
+                          ? options[e.key] == true
+                          : options[e.key] != false,
+                      onChanged: (v) => option(e.key, v),
+                    ),
                   ),
-                ],
-              ),
+                  ReorderableListView(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    onReorder: (a, b) {
+                      final order = orderedStatementDetails(options);
+                      if (b > a) b--;
+                      order.insert(b, order.removeAt(a));
+                      option('statementDetailOrder', order);
+                    },
+                    children: [
+                      for (final key in orderedStatementDetails(options))
+                        SwitchListTile(
+                          key: ValueKey(key),
+                          secondary: const Icon(Icons.drag_handle),
+                          title: UiText(statementDetails[key]!),
+                          value: showStatementDetail(options, key),
+                          onChanged: (v) => option('statementDetail_$key', v),
+                        ),
+                    ],
+                  ),
+                ], collapsible: true),
+                Section('تنسيق الكشف', [
+                  ChoiceField<String>(
+                    initialValue: options['statementFont'] ?? 'naskh',
+                    decoration: const InputDecoration(labelText: 'الخط العربي'),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'naskh',
+                        child: UiText('نسخ عربي واضح'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'sans',
+                        child: UiText('عربي حديث'),
+                      ),
+                      DropdownMenuItem(value: 'cairo', child: UiText('Cairo')),
+                    ],
+                    onChanged: (v) => option('statementFont', v),
+                  ),
+                  const UiText('حجم الخط'),
+                  Slider(
+                    min: 9,
+                    max: 16,
+                    divisions: 7,
+                    value: (options['statementFontSize'] as num? ?? 12)
+                        .toDouble()
+                        .clamp(9, 16),
+                    onChanged: (v) => option('statementFontSize', v),
+                  ),
+                  const UiText('تباعد السطور'),
+                  Slider(
+                    min: 1,
+                    max: 1.7,
+                    divisions: 7,
+                    value: (options['statementLineSpacing'] as num? ?? 1.25)
+                        .toDouble()
+                        .clamp(1, 1.7),
+                    onChanged: (v) => option('statementLineSpacing', v),
+                  ),
+                  ChoiceField<String>(
+                    initialValue: options['statementPaper'] ?? 'a4',
+                    decoration: const InputDecoration(labelText: 'حجم الصفحة'),
+                    items: const [
+                      DropdownMenuItem(value: 'a4', child: UiText('A4')),
+                      DropdownMenuItem(value: 'a5', child: UiText('A5')),
+                      DropdownMenuItem(
+                        value: 'letter',
+                        child: UiText('Letter'),
+                      ),
+                    ],
+                    onChanged: (v) => option('statementPaper', v),
+                  ),
+                  SwitchListTile(
+                    title: const UiText('اتجاه أفقي'),
+                    value: options['statementLandscape'] == true,
+                    onChanged: (v) => option('statementLandscape', v),
+                  ),
+                  SwitchListTile(
+                    title: const UiText('الحركة بعمودي عليه / له'),
+                    value: options['statementSplitMovement'] == true,
+                    onChanged: (v) => option('statementSplitMovement', v),
+                  ),
+                ], collapsible: true),
+                Section('قوالب الكشف', [
+                  ...Map<String, dynamic>.from(
+                    widget.s.settings['statementTemplates'] ?? {},
+                  ).entries.map(
+                    (e) => ListTile(
+                      leading: const Icon(Icons.style_outlined),
+                      title: UiText(e.key),
+                      onTap: () async {
+                        await applyTemplate(e.value as Map);
+                      },
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            tooltip: 'القالب الافتراضي',
+                            icon: Icon(
+                              widget.s.settings['statementDefaultTemplate'] ==
+                                      e.key
+                                  ? Icons.star
+                                  : Icons.star_border,
+                            ),
+                            onPressed: () async {
+                              await applyTemplate(e.value as Map);
+                              await widget.s.set(
+                                'statementDefaultTemplate',
+                                widget.s.settings['statementDefaultTemplate'] ==
+                                        e.key
+                                    ? null
+                                    : e.key,
+                              );
+                              if (mounted) setState(() {});
+                            },
+                          ),
+                          IconButton(
+                            tooltip: 'حذف القالب',
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: () async {
+                              final templates = Map<String, dynamic>.from(
+                                widget.s.settings['statementTemplates'] ?? {},
+                              )..remove(e.key);
+                              await widget.s.set(
+                                'statementTemplates',
+                                templates,
+                              );
+                              if (widget
+                                      .s
+                                      .settings['statementDefaultTemplate'] ==
+                                  e.key) {
+                                await widget.s.set(
+                                  'statementDefaultTemplate',
+                                  null,
+                                );
+                              }
+                              if (mounted) setState(() {});
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: saveTemplate,
+                    icon: const Icon(Icons.bookmark_add_outlined),
+                    label: const UiText('حفظ الإعدادات كقالب'),
+                  ),
+                ], collapsible: true),
+                const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: UiText(
+                    'كشف الزبون لا يتضمن التكلفة أو الربح أو العمولة الداخلية.',
+                  ),
+                ),
+                FilledButton.icon(
+                  onPressed: preview,
+                  icon: const Icon(Icons.preview_outlined),
+                  label: const UiText('فتح الكشف والمشاركة'),
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.push(
+                    c,
+                    MaterialPageRoute(
+                      builder: (_) => const SavedStatementsPage(),
+                    ),
+                  ),
+                  icon: const Icon(Icons.photo_library_outlined),
+                  label: const UiText('الكشوف المحفوظة كصور'),
+                ),
+              ],
             ),
           ),
-          TextButton.icon(
-            onPressed: saveTemplate,
-            icon: const Icon(Icons.bookmark_add_outlined),
-            label: const UiText('حفظ الإعدادات كقالب'),
-          ),
-        ], collapsible: true),
-        const Padding(
-          padding: EdgeInsets.all(8),
-          child: UiText(
-            'كشف الزبون لا يتضمن التكلفة أو الربح أو العمولة الداخلية.',
-          ),
-        ),
-        FilledButton.icon(
-          onPressed: preview,
-          icon: const Icon(Icons.preview_outlined),
-          label: const UiText('معاينة الكشف'),
-        ),
-        const SizedBox(height: 10),
-        OutlinedButton.icon(
-          onPressed: () => Navigator.push(
-            c,
-            MaterialPageRoute(builder: (_) => const SavedStatementsPage()),
-          ),
-          icon: const Icon(Icons.photo_library_outlined),
-          label: const UiText('الكشوف المحفوظة كصور'),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }
 
 class PdfPage extends StatelessWidget {
