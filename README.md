@@ -1,3 +1,12 @@
+## Eslam Money 2.3.0
+
+Returns the default appearance to colorful clay and removes the office theme from the selector. Adds 36 service icons (68 icons available for customization) and saved optional fields for baggage, seat, cabin, transit, booking status, room type, breakfast, transfer, voucher, stay extension, visa/document status, customer due date, internal notes and passport expiry.
+
+- Follow-up page filters pending bookings, missing documents, visa review/issuance, due dates, active stays, expiring passports, drafts and attachments. Service status and due dates do not post payments or change approval.
+- Statement settings show a pinned live rendering of the same native PDF used for export. Changes debounce briefly, clear stale pages, and reject late old renders; page navigation, zoom, expand/collapse and export remain available.
+- Optional gestures: entry context menu, draft duplication, reorder passengers and home shortcuts, drag saved routes, date shortcuts, amount copy, balance privacy, account-list density, batch selection/export and statement controls. All have independent settings and visible alternatives.
+- Existing entry IDs and separate USD/IQD balances are preserved. Internal notes, cost and profit are excluded from customer statements.
+
 # Eslam Money 2.2.0
 
 تحديث واجهة المكتب المجسّم مبني على 2.1.1، مع بقاء الحسابات والعمليات الأصلية.

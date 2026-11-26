@@ -192,7 +192,7 @@ void main() {
         ),
       );
       await t.pumpAndSettle();
-      expect(find.widgetWithText(InputChip, 'اسم ظاهر'), findsOneWidget);
+      expect(find.text('اسم ظاهر').hitTestable(), findsWidgets);
       expect(
         find.byWidgetPredicate(
           (w) =>

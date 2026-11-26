@@ -293,6 +293,11 @@ void main() {
     expect(find.text('تفعيل الاهتزاز'), findsOneWidget);
     await t.tap(find.widgetWithText(Tab, 'الإيماءات'));
     await t.pumpAndSettle();
+    await t.scrollUntilVisible(
+      find.text('السحب على بطاقة العملية'),
+      250,
+      scrollable: find.byType(Scrollable).last,
+    );
     expect(find.text('السحب على بطاقة العملية'), findsOneWidget);
     expect(t.takeException(), isNull);
     await t.pumpWidget(const SizedBox());

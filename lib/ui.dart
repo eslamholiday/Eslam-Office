@@ -360,8 +360,9 @@ class DateField extends StatelessWidget {
                   ),
                 ),
               );
-              if (offset != null)
+              if (offset != null) {
                 onChanged(day(DateTime.now().add(Duration(days: offset))));
+              }
             },
       onTap: () async {
         final selected = await showDatePicker(

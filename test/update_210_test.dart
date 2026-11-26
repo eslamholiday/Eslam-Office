@@ -498,6 +498,7 @@ void main() {
     'ambient artwork moves at rest and reduced motion removes the transform',
     (t) async {
       AmbientRuntime.enabled = true;
+      await t.runAsync(() => s.set('ambientLevel', 2));
       await t.pumpWidget(
         host(
           const Scaffold(

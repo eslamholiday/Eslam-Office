@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'labels.dart';
 import 'domain.dart';
 import 'store.dart';
 import 'ui.dart';
@@ -54,12 +55,13 @@ class _FollowUpPageState extends State<FollowUpPage> {
             },
           )
           .toList();
-      if (filter == 'due')
+      if (filter == 'due') {
         entries.sort(
           (a, b) => a.data['dueDate'].toString().compareTo(
             b.data['dueDate'].toString(),
           ),
         );
+      }
       final people =
           widget.s
               .list('passenger')

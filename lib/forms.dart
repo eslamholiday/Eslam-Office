@@ -934,13 +934,14 @@ class _EntryFormState extends State<EntryForm> {
                         final person = widget.s.parties
                             .where((r) => r['id'] == ids[i])
                             .firstOrNull;
-                        if (person != null)
+                        if (person != null) {
                           await editParty(
                             context,
                             widget.s,
                             'passenger',
                             party: person,
                           );
+                        }
                         if (mounted) setState(() {});
                       },
                 trailing: Row(

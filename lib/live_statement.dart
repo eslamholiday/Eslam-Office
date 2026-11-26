@@ -66,13 +66,23 @@ class _LiveStatementPreviewState extends State<LiveStatementPreview> {
 
   Future<void> render(int token, Future<Uint8List> Function() builder) async {
     try {
-      final bytes = await builder();
+      if (widget.rasterize == null) {
+        // Register the native page callback before the first raster job.
+        final capabilities = await Printing.info().timeout(
+          const Duration(seconds: 10),
+        );
+        if (!capabilities.canRaster) throw StateError('PDF raster unavailable');
+      }
+      final bytes = await builder().timeout(const Duration(seconds: 15));
       if (!mounted || token != revision) return;
       final result = <Uint8List>[];
       if (widget.rasterize != null) {
         result.addAll(await widget.rasterize!(bytes));
       } else {
-        await for (final raster in Printing.raster(bytes, dpi: 85)) {
+        await for (final raster in Printing.raster(
+          bytes,
+          dpi: 85,
+        ).timeout(const Duration(seconds: 15))) {
           if (!mounted || token != revision) return;
           result.add(await raster.toPng());
         }
@@ -85,11 +95,12 @@ class _LiveStatementPreviewState extends State<LiveStatementPreview> {
       });
       if (pager.hasClients) pager.jumpToPage(0);
     } catch (_) {
-      if (mounted && token == revision)
+      if (mounted && token == revision) {
         setState(() {
           pending = false;
           failure = 'تعذّر تحديث المعاينة. اضغط إعادة المحاولة.';
         });
+      }
     }
   }
 
@@ -123,8 +134,9 @@ class _LiveStatementPreviewState extends State<LiveStatementPreview> {
           GestureDetector(
             onVerticalDragEnd: widget.gestures
                 ? (d) {
-                    if ((d.primaryVelocity ?? 0).abs() > 80)
+                    if ((d.primaryVelocity ?? 0).abs() > 80) {
                       setState(() => expanded = d.primaryVelocity! > 0);
+                    }
                   }
                 : null,
             child: ListTile(

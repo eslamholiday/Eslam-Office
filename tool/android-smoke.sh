@@ -141,6 +141,12 @@ adb('shell','am','start','-W','-n',pkg+'/com.eslamholiday.eslam_office.MainActiv
 tap('الزبائن')
 tap('حساب تجريبي')
 tap('كشف الحساب')
+for _ in range(20):
+    live_state = dump().decode()
+    if '1 / ' in live_state: break
+    time.sleep(1)
+assert 'معاينة لحظية للكشف' in live_state, 'Inline statement preview is missing'
+assert '1 / ' in live_state, 'Inline PDF did not rasterize'
 Path('smoke-output/statement-settings.png').write_bytes(adb('exec-out','screencap','-p'))
 tap('فتح ومشاركة', scroll=False); time.sleep(5)
 Path('smoke-output/statement-preview.png').write_bytes(adb('exec-out','screencap','-p'))
