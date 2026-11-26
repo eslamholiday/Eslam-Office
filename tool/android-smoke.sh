@@ -68,7 +68,11 @@ def tap(label, scroll=True):
         Path('smoke-output/missing-control.xml').write_bytes(xml)
         Path('smoke-output/missing-control.png').write_bytes(adb('exec-out', 'screencap', '-p'))
     assert nodes, f'Missing control: {label}'
-    nodes.sort(key=lambda n: len(n.get('text', '') + n.get('content-desc', '')))
+    def target_score(n):
+        captions = (n.get('text', '') + '\n' + n.get('content-desc', '')).splitlines()
+        exact = any(line.strip() == label for line in captions)
+        return (not exact, n.get('clickable') != 'true', sum(map(len, captions)))
+    nodes.sort(key=target_score)
     points = [int(v) for v in re.findall(r'\d+', nodes[0].get('bounds', ''))]
     assert len(points) == 4, label
     adb('shell', 'input', 'tap', str((points[0] + points[2]) // 2), str((points[1] + points[3]) // 2))
