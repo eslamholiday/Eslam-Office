@@ -136,7 +136,7 @@ int artIndex(String kind) => switch (kind) {
   'sound' => 10,
   'haptic' => 11,
   'gesture' => 12,
-  'statements' || 'review' => 13,
+  'statements' || 'review' || 'operations' => 13,
   'expenses' => 14,
   _ => 15,
 };
@@ -145,6 +145,7 @@ int captionArt(String text, {int? fallback}) =>
     fallback ??
     titleArt(text);
 int titleArt(String text) {
+  if (text.contains('العمليات') || text.contains('الحركات')) return 13;
   if (text.contains('بالغ')) return 16;
   if (text.contains('طفل')) return 17;
   if (text.contains('رضيع')) return 18;
@@ -788,7 +789,7 @@ ThemeData packTheme(Brightness brightness, Map<String, dynamic> preferences) {
     dialogTheme: theme.dialogTheme.copyWith(backgroundColor: officePaper),
     chipTheme: theme.chipTheme.copyWith(
       backgroundColor: officePaper,
-      selectedColor: const Color(0xffb7c7a1),
+      selectedColor: dark ? const Color(0xff31563d) : const Color(0xffb7c7a1),
       labelStyle: TextStyle(fontFamily: 'Cairo', color: officeInk),
     ),
     filledButtonTheme: FilledButtonThemeData(
