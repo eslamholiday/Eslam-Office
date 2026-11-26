@@ -1381,6 +1381,29 @@ class _EntryFormState extends State<EntryForm> {
       f,
       current: d[f.key],
     );
+    if (f.key == 'currency' && choices.isNotEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            UiText(label),
+            Wrap(
+              spacing: 8,
+              children: choices.entries
+                  .map(
+                    (e) => ChoiceChip(
+                      label: UiText(e.value),
+                      selected: d[f.key] == e.key,
+                      onSelected: (_) => setState(() => d[f.key] = e.key),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ],
+        ),
+      );
+    }
     if (f.key == 'ticketType' && choices.isNotEmpty && choices.length <= 3) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 14),
@@ -1432,6 +1455,73 @@ class _EntryFormState extends State<EntryForm> {
     );
   }
 
+  Widget routeCity(InputSpec spec) {
+    final selected = widget.s.refs
+        .where((r) => r['id'] == d[spec.key])
+        .firstOrNull;
+    return KeyedSubtree(
+      key: anchors.putIfAbsent(spec.key, GlobalKey.new),
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        child: InkWell(
+          onTap: widget.preview
+              ? null
+              : () async {
+                  var id = await chooseListItem(
+                    context,
+                    layout.label(spec),
+                    widget.s.refs
+                        .where(
+                          (r) =>
+                              r['kind'] == 'city' &&
+                              (r['archived'] == 0 || r['id'] == d[spec.key]),
+                        )
+                        .toList(),
+                    d[spec.key],
+                    add: true,
+                    store: widget.s,
+                    listKey: 'city',
+                  );
+                  if (!mounted || id == null) return;
+                  if (id == -2) {
+                    id = await addReference(context, widget.s, 'city');
+                  }
+                  if (mounted && id != null) {
+                    setState(() => d[spec.key] = id! < 0 ? null : id);
+                  }
+                },
+          child: PackPaper(
+            child: Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                children: [
+                  UiText(
+                    layout.label(spec),
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                  const SizedBox(height: 6),
+                  CityLandmark(selected?['name'] ?? ''),
+                  const SizedBox(height: 5),
+                  UiText(
+                    selected?['name'] ?? 'اختر المدينة',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                    ),
+                  ),
+                  if ((selected?['code'] ?? '').toString().isNotEmpty)
+                    UiText(selected!['code'], textDirection: TextDirection.ltr),
+                  const Icon(Icons.expand_more, size: 18),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   bool showField(InputSpec f) =>
       revealed.contains(f.key) ||
       (layout.mode(f) != 'hidden' && layout.applicable(f, d));
@@ -1468,16 +1558,59 @@ class _EntryFormState extends State<EntryForm> {
     final subtitle = group == 'passengers' && ids.isNotEmpty
         ? ids.map(widget.s.name).join('، ')
         : null;
+    final routePair =
+        group == 'travel' &&
+        widget.kind == 'ticket' &&
+        regular.any((f) => f.key == 'from') &&
+        regular.any((f) => f.key == 'to');
+    final routeFirst = routePair
+        ? regular.firstWhere((f) => f.key == 'from' || f.key == 'to').key
+        : null;
     return Section(
       inputGroupLabels[group] ?? group,
       [
-        ...regular.map(input),
+        for (final f in regular)
+          if (routePair && (f.key == 'from' || f.key == 'to')) ...[
+            if (f.key == routeFirst)
+              LayoutBuilder(
+                builder: (context, box) {
+                  final origin = regular.firstWhere((f) => f.key == 'from');
+                  final destination = regular.firstWhere((f) => f.key == 'to');
+                  final swap = IconButton(
+                    tooltip: 'تبديل المغادرة والوصول',
+                    icon: const Icon(Icons.swap_horiz),
+                    onPressed: () => setState(() {
+                      final from = d['from'];
+                      d['from'] = d['to'];
+                      d['to'] = from;
+                    }),
+                  );
+                  if (box.maxWidth < 330) {
+                    return Column(
+                      children: [
+                        routeCity(origin),
+                        Align(alignment: Alignment.center, child: swap),
+                        routeCity(destination),
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Expanded(child: routeCity(origin)),
+                      swap,
+                      Expanded(child: routeCity(destination)),
+                    ],
+                  );
+                },
+              ),
+          ] else
+            input(f),
         if (details.isNotEmpty)
           ExpansionTile(
             title: const UiText('تفاصيل إضافية'),
             children: details.map(input).toList(),
           ),
-        if (group == 'travel' && widget.kind == 'ticket')
+        if (group == 'travel' && widget.kind == 'ticket' && !routePair)
           TextButton.icon(
             icon: const Icon(Icons.swap_horiz),
             label: const UiText('تبديل المغادرة والوصول'),
@@ -1511,22 +1644,67 @@ class _EntryFormState extends State<EntryForm> {
           : UiText(calcError!, style: const TextStyle(color: Colors.red));
     }
     if (compact) {
-      return Wrap(
-        spacing: 16,
-        runSpacing: 4,
-        children: [
-          UiText('البيع ${currency.format(totals.sale)}'),
-          UiText('الكلفة ${currency.format(totals.cost)}'),
-          UiText(
-            'الربح ${currency.format(totals.profit)}',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: totals.profit < 0 ? Colors.red : const Color(0xff23836c),
+      return Card(
+        margin: EdgeInsets.zero,
+        shape: const TicketShape(),
+        child: PackPaper(
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: IntrinsicHeight(
+              child: Row(
+                children: [
+                  for (final item in [
+                    (
+                      'البيع',
+                      totals.sale,
+                      Theme.of(context).colorScheme.onSurface,
+                    ),
+                    (
+                      'الكلفة',
+                      totals.cost,
+                      Theme.of(context).colorScheme.onSurface,
+                    ),
+                    (
+                      'الربح',
+                      totals.profit,
+                      totals.profit < 0 ? Colors.red : const Color(0xff23836c),
+                    ),
+                  ])
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 5),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            UiText(
+                              item.$1,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            const SizedBox(height: 4),
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: UiText(
+                                currency.format(item.$2),
+                                textDirection: TextDirection.ltr,
+                                style: TextStyle(
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.w800,
+                                  color: item.$3,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
-        ],
+        ),
       );
     }
+
     return Section('النتيجة المباشرة', [
       pair(
         AmountBox('البيع', currency.format(totals.sale)),

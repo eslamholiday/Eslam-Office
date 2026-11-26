@@ -2,6 +2,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'domain.dart';
+import 'office_material.dart';
+export 'office_material.dart';
 import 'ambient_motion.dart';
 import 'labels.dart';
 
@@ -48,6 +50,29 @@ class VisualPack {
 }
 
 const visualPacks = <String, VisualPack>{
+  'office': VisualPack(
+    id: 'office',
+    extraIcons: 'assets/visuals/clay/icons_extra.webp',
+    name: 'المكتب المجسّم',
+    icons: 'assets/visuals/clay/icons.webp',
+    scenes: 'assets/visuals/clay/scenes.webp',
+    primary: Color(0xff174632),
+    secondary: Color(0xff986c2b),
+    canvas: Color(0xff56321f),
+    surface: Color(0xfff4e8d0),
+    radius: 16,
+    fieldRadius: 10,
+    buttonRadius: 10,
+    heroRadius: 16,
+    elevation: 4,
+    routeOffset: .035,
+    categoryColors: [
+      Color(0xff174632),
+      Color(0xff8a3a29),
+      Color(0xff92632f),
+      Color(0xff39634b),
+    ],
+  ),
   'glass': VisualPack(
     id: 'glass',
     name: 'الفضاء الهادئ',
@@ -86,6 +111,7 @@ const visualPacks = <String, VisualPack>{
 };
 VisualPack get activePack =>
     visualPacks[displayPreferences['visualPack']] ?? visualPacks['clay']!;
+bool get officeTheme => activePack.id == 'office';
 const coral = Color(0xffef635a),
     teal = Color(0xff089b9e),
     violet = Color(0xff9b68cf);
@@ -344,6 +370,40 @@ class _AtlasPainter extends CustomPainter {
       old.fit != fit;
 }
 
+IconData officeIcon(int index) => switch (index) {
+  0 => Icons.flight,
+  1 => Icons.badge_outlined,
+  2 => Icons.hotel,
+  3 || 14 => Icons.account_balance_wallet_outlined,
+  4 => Icons.swap_horiz,
+  5 => Icons.people,
+  6 => Icons.business,
+  7 => Icons.bar_chart,
+  8 => Icons.settings,
+  9 => Icons.palette_outlined,
+  10 => Icons.volume_up,
+  11 => Icons.vibration,
+  12 => Icons.swipe,
+  13 => Icons.receipt_long,
+  15 => Icons.inventory_2_outlined,
+  16 => Icons.person,
+  17 => Icons.child_care,
+  18 => Icons.child_friendly,
+  19 => Icons.luggage,
+  20 => Icons.badge,
+  21 => Icons.route,
+  22 => Icons.calculate_outlined,
+  23 => Icons.notes,
+  24 => Icons.calendar_month,
+  25 => Icons.public,
+  26 => Icons.home,
+  27 => Icons.save,
+  28 => Icons.search,
+  29 => Icons.filter_alt,
+  30 => Icons.fact_check,
+  _ => Icons.edit_document,
+};
+
 class ArtIcon extends StatelessWidget {
   final int index;
   final double size;
@@ -351,6 +411,20 @@ class ArtIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     LabelScope.watch(context);
+    if (officeTheme) {
+      return OfficeSurface(
+        material: 3,
+        radius: BorderRadius.circular(10),
+        child: SizedBox.square(
+          dimension: size,
+          child: Icon(
+            officeIcon(index),
+            color: const Color(0xff34271a),
+            size: size * .62,
+          ),
+        ),
+      );
+    }
     return SizedBox.square(
       dimension: size,
       child: illustrationsEnabled
@@ -461,7 +535,9 @@ ThemeData packTheme(Brightness brightness, Map<String, dynamic> preferences) {
                 )
               : 1,
         );
-  final ink = dark
+  final ink = pack.id == 'office'
+      ? (dark ? const Color(0xfff4e8d0) : const Color(0xff32291f))
+      : dark
       ? (glass ? const Color(0xffeef5ff) : const Color(0xfffff0e4))
       : glass
       ? const Color(0xff1c3155)
@@ -484,7 +560,7 @@ ThemeData packTheme(Brightness brightness, Map<String, dynamic> preferences) {
             ? (glass ? const Color(0xff102547) : const Color(0xff422c30))
             : Colors.white,
       );
-  return ThemeData(
+  final theme = ThemeData(
     useMaterial3: true,
     fontFamily: 'Cairo',
     brightness: brightness,
@@ -668,6 +744,87 @@ ThemeData packTheme(Brightness brightness, Map<String, dynamic> preferences) {
       ),
     ),
   );
+  if (pack.id != 'office') return theme;
+  final officeInk = dark ? const Color(0xfff4e8d0) : const Color(0xff32291f);
+  final officePaper = dark ? const Color(0xff2c281f) : pack.surface;
+  final officeScheme = theme.colorScheme.copyWith(
+    primary: dark ? const Color(0xffb8d4b0) : primary,
+    secondary: dark ? const Color(0xffd1b47a) : pack.secondary,
+    onSurface: officeInk,
+    surface: officePaper,
+    onPrimary: dark ? const Color(0xff173828) : Colors.white,
+  );
+  return theme.copyWith(
+    scaffoldBackgroundColor: Colors.transparent,
+    colorScheme: officeScheme,
+    textTheme: theme.textTheme.apply(
+      bodyColor: officeInk,
+      displayColor: officeInk,
+    ),
+    cardTheme: theme.cardTheme.copyWith(
+      color: officePaper,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Color(0xffb39460)),
+      ),
+    ),
+    navigationBarTheme: theme.navigationBarTheme.copyWith(
+      backgroundColor: dark ? const Color(0xff143426) : const Color(0xfff1e4c7),
+      indicatorColor: const Color(0xffbca16b).withValues(alpha: .3),
+    ),
+    inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+      fillColor: dark ? const Color(0xff342d22) : const Color(0xfff7efd9),
+      labelStyle: TextStyle(
+        fontFamily: 'Cairo',
+        color: officeInk,
+        fontSize: 13,
+      ),
+      prefixIconColor: officeScheme.secondary,
+      suffixIconColor: officeScheme.secondary,
+    ),
+    bottomSheetTheme: theme.bottomSheetTheme.copyWith(
+      backgroundColor: officePaper,
+    ),
+    dialogTheme: theme.dialogTheme.copyWith(backgroundColor: officePaper),
+    chipTheme: theme.chipTheme.copyWith(
+      backgroundColor: officePaper,
+      selectedColor: const Color(0xffb7c7a1),
+      labelStyle: TextStyle(fontFamily: 'Cairo', color: officeInk),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        backgroundColor: const Color(0xff174632),
+        foregroundColor: const Color(0xfffff1d3),
+        minimumSize: const Size(0, 50),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: const BorderSide(color: Color(0xffb39460)),
+        ),
+      ),
+    ),
+    listTileTheme: theme.listTileTheme.copyWith(
+      titleTextStyle: TextStyle(
+        fontFamily: 'Cairo',
+        fontWeight: FontWeight.w700,
+        fontSize: 14,
+        color: officeInk,
+      ),
+      subtitleTextStyle: TextStyle(
+        fontFamily: 'Cairo',
+        fontSize: 12,
+        color: officeInk,
+      ),
+    ),
+  );
+}
+
+class PackPaper extends StatelessWidget {
+  final Widget child;
+  const PackPaper({super.key, required this.child});
+  @override
+  Widget build(BuildContext context) => officeTheme
+      ? OfficeSurface(radius: BorderRadius.circular(16), child: child)
+      : child;
 }
 
 class ClayAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -691,6 +848,30 @@ class ClayAppBar extends StatelessWidget implements PreferredSizeWidget {
       Size.fromHeight(kToolbarHeight + (bottom?.preferredSize.height ?? 0) + 8);
   @override
   Widget build(BuildContext context) {
+    if (officeTheme) {
+      return AppBar(
+        title: title,
+        leading: leading,
+        actions: actions,
+        bottom: bottom,
+        automaticallyImplyLeading: automaticallyImplyLeading,
+        centerTitle: centerTitle,
+        toolbarHeight: kToolbarHeight + 8,
+        backgroundColor: const Color(0xff174632),
+        foregroundColor: const Color(0xffffedc9),
+        titleTextStyle: const TextStyle(
+          fontFamily: 'Cairo',
+          fontSize: 21,
+          fontWeight: FontWeight.w800,
+          color: Color(0xffffedc9),
+        ),
+        flexibleSpace: const OfficeSurface(
+          material: 1,
+          stitched: true,
+          child: SizedBox.expand(),
+        ),
+      );
+    }
     final index = titleArt(widgetCaption(title));
     final glass = activePack.id == 'glass';
     final dark = Theme.of(context).brightness == Brightness.dark;
@@ -786,6 +967,65 @@ class ServiceBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     LabelScope.watch(context);
+    if (officeTheme) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: Material(
+          color: const Color(0xff174632),
+          borderRadius: BorderRadius.circular(16),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: OfficeSurface(
+              material: 1,
+              stitched: true,
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Row(
+                  children: [
+                    Icon(
+                      kind == 'home'
+                          ? Icons.menu_book
+                          : kind == 'hotel'
+                          ? Icons.hotel
+                          : kind == 'visa'
+                          ? Icons.badge_outlined
+                          : Icons.flight,
+                      color: const Color(0xffd8ba80),
+                      size: 36,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          UiText(
+                            title,
+                            style: const TextStyle(
+                              color: Color(0xffffedc9),
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          if (subtitle.isNotEmpty)
+                            UiText(
+                              subtitle,
+                              style: const TextStyle(
+                                color: Color(0xffe0cfab),
+                                fontSize: 12,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     final index = artIndex(kind), color = artColor(index);
     final dark = Theme.of(context).brightness == Brightness.dark;
     return Padding(

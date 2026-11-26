@@ -12,6 +12,7 @@ import 'experience.dart';
 import 'ambient_motion.dart';
 import 'geography.dart';
 import 'labels.dart';
+import 'office_desk.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -129,9 +130,12 @@ class OfficeApp extends StatelessWidget {
                 MediaQuery.disableAnimationsOf(c) ||
                 s.settings['reduceMotion'] == true,
           ),
-          child: LabelScope(
-            notifier: s,
-            child: MotionGate(child: ExperienceTapRegion(child: child!)),
+          child: OfficeSurface(
+            material: officeTheme ? 0 : 2,
+            child: LabelScope(
+              notifier: s,
+              child: MotionGate(child: ExperienceTapRegion(child: child!)),
+            ),
           ),
         ),
         home: Shell(s),
@@ -154,13 +158,17 @@ class _ShellState extends State<Shell> {
     'customers' => PartiesPage(widget.s, 'customer'),
     'statements' => StatementsHub(widget.s),
     'settings' => SettingsPage(widget.s),
+    'operations' => EntriesPage(widget.s),
     _ => HomePage(widget.s),
   };
   @override
   Widget build(BuildContext c) {
-    final order = List<String>.from(
-      widget.s.settings['navOrder'] ?? navLabels.keys.toList(),
-    );
+    final order = <String>{
+      ...List<String>.from(
+        widget.s.settings['navOrder'] ?? navLabels.keys.toList(),
+      ),
+      ...navLabels.keys,
+    }.toList();
     final hidden = List<String>.from(widget.s.settings['navHidden'] ?? []);
     final visible = order
         .where((k) => navLabels.containsKey(k) && !hidden.contains(k))
@@ -239,6 +247,7 @@ class HomePage extends StatelessWidget {
   const HomePage(this.s, {super.key});
   @override
   Widget build(BuildContext c) {
+    if (officeTheme) return OfficeDesk(s);
     void open(Widget page) =>
         Navigator.push(c, MaterialPageRoute(builder: (_) => page));
     final shortcuts = <(String, IconData, Widget)>[
@@ -404,7 +413,7 @@ class HomePage extends StatelessWidget {
                 onTap: () => showAboutDialog(
                   context: c,
                   applicationName: 'Eslam Money',
-                  applicationVersion: '2.1.1',
+                  applicationVersion: '2.2.0',
                   children: [
                     const UiText(
                       'Eslam Holiday\nEslamholiday.com\n07713414312\nجميع الحقوق محفوظة 2026',
@@ -548,7 +557,7 @@ class HomePage extends StatelessWidget {
                     onPressed: () => showAboutDialog(
                       context: c,
                       applicationName: 'Eslam Money',
-                      applicationVersion: '2.1.1',
+                      applicationVersion: '2.2.0',
                       children: [
                         const UiText('Eslamholiday.com • 07713414312'),
                       ],

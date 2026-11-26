@@ -8,7 +8,6 @@ import 'ui.dart';
 import 'input_settings.dart';
 import 'input_schema.dart';
 import 'experience_settings.dart';
-import 'experience.dart';
 import 'geography_settings.dart';
 import 'geography.dart';
 import 'clearance.dart';
@@ -43,6 +42,7 @@ const navLabels = {
   'home': 'الرئيسية',
   'customers': 'الزبائن',
   'statements': 'الكشوفات',
+  'operations': 'العمليات',
   'settings': 'الإعدادات',
 };
 const fieldNames = {
@@ -87,44 +87,12 @@ class SettingsPage extends StatelessWidget {
     int art,
     Widget page, [
     String? subtitle,
-  ]) => Tactile(
-    child: Card(
-      child: InkWell(
-        onTap: () => Navigator.push(c, MaterialPageRoute(builder: (_) => page)),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  ArtIcon(captionArt(title, fallback: art), size: 48),
-                  const Spacer(),
-                  const Icon(Icons.chevron_left_rounded, size: 18),
-                ],
-              ),
-              const SizedBox(height: 8),
-              UiText(
-                title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13,
-                ),
-              ),
-              if (subtitle != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: UiText(
-                    subtitle,
-                    style: Theme.of(c).textTheme.bodySmall,
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    ),
+  ]) => ListTile(
+    leading: ArtIcon(captionArt(title, fallback: art), size: 34),
+    title: UiText(title),
+    subtitle: subtitle == null ? null : UiText(subtitle),
+    trailing: const Icon(Icons.chevron_left_rounded),
+    onTap: () => Navigator.push(c, MaterialPageRoute(builder: (_) => page)),
   );
   @override
   Widget build(BuildContext c) => Scaffold(
@@ -141,60 +109,62 @@ class SettingsPage extends StatelessWidget {
     body: ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const Padding(
-          padding: EdgeInsets.only(bottom: 14),
-          child: Row(
-            children: [
-              ArtIcon(8, size: 64),
-              SizedBox(width: 12),
-              Expanded(
-                child: UiText(
-                  'خلّي التطبيق على راحتك',
-                  style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Section('الإدخال والقوائم', [
-          pair(
-            tile(
-              c,
-              'تخصيص كل الإدخالات والقوائم',
-              13,
-              InputCenterPage(s),
-              'إخفاء • ترتيب • افتراضيات',
-            ),
-            tile(
-              c,
-              'سلوك الإدخال',
-              12,
-              InputBehaviorPage(s),
-              'بحث • اختيار • حفظ',
-            ),
+        Section('المكتب والكشوف', [
+          tile(
+            c,
+            'بيانات المكتب والشعار والكشوف',
+            6,
+            OfficeSettings(s),
+            'بيانات المكتب • الشعار • تفضيلات الكشف',
           ),
         ]),
-        Section('العناوين والأعلام والتخصيصات', [
-          pair(
-            tile(c, 'العناوين ومحتويات القوائم', 23, UiLabelsPage(s)),
-            tile(c, 'الدول والمدن والأعلام', 25, GeographySettingsPage(s)),
+        Section('العمليات والحسابات', [
+          tile(
+            c,
+            'الأرقام والتواريخ والحفظ',
+            14,
+            PreferencesPage(s),
+            'تنسيق الأرقام • سلوك الحفظ • الافتراضيات',
           ),
-          tile(c, 'نقل تخصيصات التطبيق', 31, ConfigTransferPage(s)),
+          tile(c, 'عمولات الطيران وجهات الإصدار', 7, RulesPage(s)),
         ]),
-        Section('المظهر والتنقل', [
-          pair(
-            tile(c, 'الثيمات والألوان والخطوط', 9, AppearancePage(s)),
-            tile(c, 'الرئيسية وشريط التنقل', 0, LayoutPage(s)),
+        Section('الحقول والقوائم', [
+          tile(
+            c,
+            'تخصيص كل الإدخالات والقوائم',
+            13,
+            InputCenterPage(s),
+            'إظهار • ترتيب • مطلوب • قيم افتراضية',
           ),
-          pair(
-            tile(c, 'الصوت', 10, ExperienceSettingsPage(s)),
-            tile(
-              c,
-              'الاهتزاز',
-              11,
-              ExperienceSettingsPage(s, initial: 'haptic'),
-            ),
+          tile(
+            c,
+            'سلوك الإدخال',
+            12,
+            InputBehaviorPage(s),
+            'بحث • مفضلة • آخر الاختيارات',
           ),
+          tile(c, 'العناوين ومحتويات القوائم', 23, UiLabelsPage(s)),
+          tile(c, 'الدول والمدن والأعلام', 25, GeographySettingsPage(s)),
+        ]),
+        Section('المظهر والتنقّل', [
+          tile(
+            c,
+            'الثيمات والألوان والخطوط',
+            9,
+            AppearancePage(s),
+            'الثيم الحالي: ${activePack.name}',
+          ),
+          tile(c, 'الرئيسية وشريط التنقل', 26, LayoutPage(s)),
+        ]),
+        Section('الصوت والحركة', [
+          tile(
+            c,
+            'الصوت',
+            10,
+            ExperienceSettingsPage(s),
+            'اختيار الصوت • المستوى • تجربة',
+          ),
+          tile(c, 'الاهتزاز', 11, ExperienceSettingsPage(s, initial: 'haptic')),
           tile(
             c,
             'الإيماءات والحركة',
@@ -202,20 +172,12 @@ class SettingsPage extends StatelessWidget {
             ExperienceSettingsPage(s, initial: 'gesture'),
           ),
         ]),
-        Section('المكتب والكشوف والحساب', [
-          pair(
-            tile(c, 'الأرقام والتواريخ والحفظ', 14, PreferencesPage(s)),
-            tile(c, 'بيانات المكتب والشعار والكشوف', 6, OfficeSettings(s)),
-          ),
-          tile(c, 'عمولات الطيران وجهات الإصدار', 7, RulesPage(s)),
+        Section('البيانات والسجل', [
+          tile(c, 'نقل تخصيصات التطبيق', 31, ConfigTransferPage(s)),
+          tile(c, 'المحذوفات / الأرشيف', 15, ArchivePage(s)),
+          tile(c, 'سجل التعديلات', 13, AuditPage(s)),
         ]),
-        Section('السجل والتطبيق', [
-          pair(
-            tile(c, 'المحذوفات / الأرشيف', 15, ArchivePage(s)),
-            tile(c, 'سجل التعديلات', 13, AuditPage(s)),
-          ),
-          tile(c, 'حول Eslam Money', 0, AboutPage(s)),
-        ]),
+        Section('التطبيق', [tile(c, 'حول Eslam Money', 0, AboutPage(s))]),
       ],
     ),
   );
@@ -235,9 +197,10 @@ class LayoutPage extends StatelessWidget {
   Widget build(BuildContext c) => AnimatedBuilder(
     animation: s,
     builder: (c, _) {
-      final nav = List<String>.from(
-        s.settings['navOrder'] ?? navLabels.keys.toList(),
-      );
+      final nav = <String>{
+        ...List<String>.from(s.settings['navOrder'] ?? navLabels.keys.toList()),
+        ...navLabels.keys,
+      }.toList();
       final hidden = List<String>.from(s.settings['navHidden'] ?? []);
       final cards = List<String>.from(
         s.settings['homeCards'] ?? ['owed', 'profit', 'payable', 'expenses'],

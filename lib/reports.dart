@@ -79,10 +79,15 @@ class _StatementPageState extends State<StatementPage> {
   int? passenger;
   bool includeDrafts = false;
   Map<String, dynamic> options = {};
+  bool personalScope = false;
+  bool loadingOptions = false;
   @override
   void initState() {
     super.initState();
     options = Map<String, dynamic>.from(widget.s.settings);
+    final personal = widget.s.settings['statementScoped_${widget.party}'];
+    personalScope = personal is Map;
+    if (personal is Map) options.addAll(Map<String, dynamic>.from(personal));
     mode = options['statementMode'] ?? 'original';
     rate.text = options['statementExchangeRate']?.toString() ?? '150000';
     fee.text = options['statementExchangeFee']?.toString() ?? '';
@@ -99,9 +104,48 @@ class _StatementPageState extends State<StatementPage> {
   }
 
   Future<void> option(String key, dynamic value) async {
+    if (loadingOptions) return;
     options[key] = value;
-    // All accounts use the last saved presentation settings.
-    await widget.s.set(key, value);
+    if (personalScope) {
+      final personal = Map<String, dynamic>.from(
+        widget.s.settings['statementScoped_${widget.party}'] ?? {},
+      );
+      personal[key] = value;
+      await widget.s.set('statementScoped_${widget.party}', personal);
+    } else {
+      await widget.s.set(key, value);
+    }
+    if (mounted) setState(() {});
+  }
+
+  Future<void> setScope(bool personal) async {
+    personalScope = personal;
+    if (personal) {
+      await widget.s.set('statementScoped_${widget.party}', {
+        for (final e in options.entries)
+          if (e.key.startsWith('statement') &&
+              !e.key.startsWith('statementScoped_') &&
+              !e.key.startsWith('statement_party_') &&
+              e.key != 'statementTemplates')
+            e.key: e.value,
+      });
+    } else {
+      await widget.s.set('statementScoped_${widget.party}', null);
+      loadingOptions = true;
+      options = Map<String, dynamic>.from(widget.s.settings);
+      mode = options['statementMode'] ?? 'original';
+      quickRange = options['statementQuickRange'] ?? 'all';
+      final range = quickRange == 'custom'
+          ? <String?>[options['statementFrom'], options['statementTo']]
+          : quickDateRange(quickRange);
+      from = range[0];
+      to = range[1];
+      kinds = Set<String>.from(options['statementKinds'] ?? <String>[]);
+      includeDrafts = options['statementIncludeDrafts'] == true;
+      rate.text = options['statementExchangeRate']?.toString() ?? '150000';
+      fee.text = options['statementExchangeFee']?.toString() ?? '';
+      loadingOptions = false;
+    }
     if (mounted) setState(() {});
   }
 
@@ -415,10 +459,17 @@ class _StatementPageState extends State<StatementPage> {
               textField(rate, '100 USD = دينار', number: true, grouped: true),
               textField(fee, 'عمولة التحويل ‰', number: true),
             ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: UiText('تُحفظ إعدادات الكشف تلقائيًا لجميع الحسابات'),
+          SwitchListTile(
+            title: const UiText('تخصيص لهذا الزبون'),
+            subtitle: UiText(
+              personalScope
+                  ? 'تُحفظ التغييرات لهذا الزبون فقط'
+                  : 'تُحفظ إعدادات الكشف تلقائيًا لجميع الحسابات',
+            ),
+            value: personalScope,
+            onChanged: setScope,
           ),
+
           ChoiceField<String>(
             initialValue: options['statementPreset'] ?? 'detailed',
             decoration: const InputDecoration(labelText: 'نمط الكشف'),
@@ -1256,6 +1307,109 @@ class PdfPage extends StatelessWidget {
     await Gallery.shareImages(paths);
   }
 
+  Future<void> exportSheet(BuildContext context) async {
+    var format = 'pdf';
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, set) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const UiText(
+                  'مشاركة الكشف',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
+                ),
+                const SizedBox(height: 14),
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(
+                      value: 'pdf',
+                      label: UiText('PDF'),
+                      icon: Icon(Icons.picture_as_pdf),
+                    ),
+                    ButtonSegment(
+                      value: 'image',
+                      label: UiText('صورة'),
+                      icon: Icon(Icons.image_outlined),
+                    ),
+                  ],
+                  selected: {format},
+                  onSelectionChanged: (v) => set(() => format = v.first),
+                ),
+                const SizedBox(height: 12),
+                UiText(
+                  format == 'pdf'
+                      ? 'ملف واحد • كل الصفحات'
+                      : 'اختيار الصفحات عند المشاركة',
+                ),
+                const SizedBox(height: 14),
+                FilledButton.icon(
+                  onPressed: () => Navigator.pop(ctx, 'share_$format'),
+                  icon: const Icon(Icons.share_outlined),
+                  label: const UiText('مشاركة الملف'),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => Navigator.pop(ctx, 'save_$format'),
+                        icon: const Icon(Icons.download),
+                        label: const UiText('حفظ'),
+                      ),
+                    ),
+                    if (format == 'pdf') ...[
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.pop(ctx, 'print'),
+                          icon: const Icon(Icons.print_outlined),
+                          label: const UiText('طباعة'),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (action == null || !context.mounted) return;
+    await guarded(context, () async {
+      switch (action) {
+        case 'share_pdf':
+          await Printing.sharePdf(
+            bytes: await document(PdfPageFormat.a4),
+            filename: Gallery.safeName('$title.pdf'),
+          );
+        case 'share_image':
+          await shareImages(context);
+        case 'save_image':
+          await saveImages(context, gallery: true);
+        case 'save_pdf':
+          await FilePicker.platform.saveFile(
+            dialogTitle: 'حفظ كشف الحساب',
+            fileName: Gallery.safeName('$title.pdf'),
+            type: FileType.custom,
+            allowedExtensions: ['pdf'],
+            bytes: await document(PdfPageFormat.a4),
+          );
+        case 'print':
+          await Printing.layoutPdf(
+            onLayout: document,
+            name: Gallery.safeName('$title.pdf'),
+          );
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext c) => Scaffold(
     appBar: ClayAppBar(
@@ -1287,59 +1441,23 @@ class PdfPage extends StatelessWidget {
     ),
     bottomNavigationBar: SafeArea(
       child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        padding: const EdgeInsets.all(12),
+        child: Row(
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => guarded(c, () async {
-                      await Printing.layoutPdf(
-                        onLayout: document,
-                        name: Gallery.safeName('$title.pdf'),
-                      );
-                    }),
-                    icon: const Icon(Icons.print_outlined),
-                    label: const UiText('طباعة PDF'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => guarded(c, () async {
-                      await Printing.sharePdf(
-                        bytes: await document(PdfPageFormat.a4),
-                        filename: Gallery.safeName('$title.pdf'),
-                      );
-                    }),
-                    icon: const Icon(Icons.share_outlined),
-                    label: const UiText('مشاركة PDF'),
-                  ),
-                ),
-              ],
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.pop(c),
+                icon: const Icon(Icons.edit_outlined),
+                label: const UiText('تعديل'),
+              ),
             ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: () =>
-                        guarded(c, () => saveImages(c, gallery: true)),
-                    icon: const Icon(Icons.download_outlined),
-                    label: const UiText('حفظ الصورة'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: () => guarded(c, () => shareImages(c)),
-                    icon: const Icon(Icons.ios_share_rounded),
-                    label: const UiText('مشاركة الصورة'),
-                  ),
-                ),
-              ],
+            const SizedBox(width: 10),
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: () => exportSheet(c),
+                icon: const Icon(Icons.share_outlined),
+                label: const UiText('مشاركة'),
+              ),
             ),
           ],
         ),

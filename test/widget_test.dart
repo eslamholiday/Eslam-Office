@@ -23,6 +23,8 @@ void main() {
     final s = (await tester.runAsync(
       () => Store.open(factory: databaseFactoryFfi, path: inMemoryDatabasePath),
     ))!;
+    // This regression covers the retained clay layout. Office is tested separately.
+    await tester.runAsync(() => s.set('visualPack', 'clay'));
     final font = FontLoader('Cairo')
       ..addFont(rootBundle.load('assets/fonts/Cairo.ttf'));
     await font.load();

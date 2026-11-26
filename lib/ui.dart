@@ -91,8 +91,9 @@ class Section extends StatelessWidget {
   @override
   Widget build(BuildContext c) {
     LabelScope.watch(c);
-    return collapsible
+    final section = collapsible
         ? Card(
+            color: officeTheme ? Colors.transparent : null,
             child: ExpansionTile(
               leading: ArtIcon(
                 (displayPreferences['uiIcons'] as Map?)?[title] as int? ??
@@ -119,6 +120,7 @@ class Section extends StatelessWidget {
             ),
           )
         : Card(
+            color: officeTheme ? Colors.transparent : null,
             child: Padding(
               padding: EdgeInsets.all(
                 displayPreferences['compactForms'] == true ? 10 : 18,
@@ -152,6 +154,7 @@ class Section extends StatelessWidget {
               ),
             ),
           );
+    return PackPaper(child: section);
   }
 }
 
@@ -365,6 +368,7 @@ Future<int?> chooseListItem(
   String? listKey,
 }) async {
   var query = '';
+  var scope = 'all';
   final favorites = List<int>.from(store?.settings['favorites_$listKey'] ?? []);
   final recent = List<int>.from(store?.settings['recent_$listKey'] ?? []);
   final showFavorites = store?.settings['pickerFavorites'] != false;
@@ -375,6 +379,11 @@ Future<int?> chooseListItem(
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, set) {
         final rows = items
+            .where(
+              (r) =>
+                  scope == 'all' ||
+                  (scope == 'recent' ? recent : favorites).contains(r['id']),
+            )
             .where(
               (r) => normalize(
                 '${r['name']} ${r['phone'] ?? ''} ${r['code'] ?? ''}',
@@ -408,7 +417,7 @@ Future<int?> chooseListItem(
               bottom: MediaQuery.viewInsetsOf(ctx).bottom,
             ),
             child: SizedBox(
-              height: MediaQuery.sizeOf(ctx).height * .65,
+              height: MediaQuery.sizeOf(ctx).height * .78,
               child: Column(
                 children: [
                   UiText(label, style: Theme.of(ctx).textTheme.titleLarge),
@@ -422,6 +431,26 @@ Future<int?> chooseListItem(
                       onChanged: (v) => set(() => query = v),
                     ),
                   ),
+                  if (store != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Wrap(
+                        spacing: 8,
+                        children: [
+                          for (final item in const {
+                            'recent': 'الأخيرة',
+                            'favorites': 'المفضلة',
+                            'all': 'الكل',
+                          }.entries)
+                            if (item.key != 'favorites' || showFavorites)
+                              ChoiceChip(
+                                label: UiText(item.value),
+                                selected: scope == item.key,
+                                onSelected: (_) => set(() => scope = item.key),
+                              ),
+                        ],
+                      ),
+                    ),
                   Row(
                     children: [
                       TextButton(
@@ -567,17 +596,24 @@ class PickField extends StatelessWidget {
         ),
         child: Row(
           children: [
-            CountryBadge(
-              GeoCatalog.recordCode(
-                items.where((r) => r['id'] == value).firstOrNull ?? {},
+            if (listKey == 'city') ...[
+              CityLandmark(
+                items.where((r) => r['id'] == value).firstOrNull?['name'] ?? '',
               ),
-            ),
-            const SizedBox(width: 6),
+              const SizedBox(width: 6),
+            ] else ...[
+              CountryBadge(
+                GeoCatalog.recordCode(
+                  items.where((r) => r['id'] == value).firstOrNull ?? {},
+                ),
+              ),
+              const SizedBox(width: 6),
+            ],
             Expanded(
               child: UiText(
                 items.where((r) => r['id'] == value).firstOrNull?['name'] ??
                     'اختياري',
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
             ),

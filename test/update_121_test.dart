@@ -87,6 +87,8 @@ void main() {
         'about',
       ]),
     );
+    // Keep the previous dashboard's eight shortcuts covered.
+    await t.runAsync(() => s.set('visualPack', 'clay'));
     await t.pumpWidget(host(HomePage(s)));
     await t.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 100)),

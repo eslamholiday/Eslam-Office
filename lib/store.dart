@@ -205,6 +205,10 @@ class Store extends ChangeNotifier {
       await s.set('ambientLevel', 2);
       await s.set('experience21', true);
     }
+    if (s.settings['office22'] != true) {
+      await s.set('visualPack', 'office');
+      await s.set('office22', true);
+    }
     return s;
   }
 

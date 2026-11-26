@@ -14,11 +14,13 @@ class ConfigTransfer {
         'moneyMigration',
         'personalExpenseSeed',
         'experience21',
+        'office22',
         'logo',
         'statementTemplatesOwner',
       ].contains(key) &&
       !key.startsWith('recovery_') &&
-      !key.startsWith('statement_party_');
+      !key.startsWith('statement_party_') &&
+      !key.startsWith('statementScoped_');
   static Map<String, dynamic> exportData(Store s) {
     final settings = <String, dynamic>{
       for (final e in s.settings.entries)
