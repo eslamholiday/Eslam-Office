@@ -108,6 +108,7 @@ class _StatementPageState extends State<StatementPage> {
   Future<void> option(String key, dynamic value) async {
     if (loadingOptions) return;
     options[key] = value;
+    if (mounted) setState(() {});
     if (personalScope) {
       final personal = Map<String, dynamic>.from(
         widget.s.settings['statementScoped_${widget.party}'] ?? {},
@@ -122,6 +123,7 @@ class _StatementPageState extends State<StatementPage> {
 
   Future<void> setScope(bool personal) async {
     personalScope = personal;
+    if (mounted) setState(() {});
     if (personal) {
       await widget.s.set('statementScoped_${widget.party}', {
         for (final e in options.entries)

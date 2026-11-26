@@ -243,12 +243,27 @@ class _ShellState extends State<Shell> {
   }
 }
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   final Store s;
   const HomePage(this.s, {super.key});
   @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  Store get s => widget.s;
+  List<Entry>? summaryEntries;
+  Store? summaryStore;
+  Future<List<Map<String, int>>>? summaryFuture;
+  @override
   Widget build(BuildContext c) {
     if (officeTheme) return OfficeDesk(s);
+    // Appearance and statement controls must not issue new accounting queries.
+    if (!identical(summaryEntries, s.entries) || !identical(summaryStore, s)) {
+      summaryEntries = s.entries;
+      summaryStore = s;
+      summaryFuture = Future.wait(Currency.values.map(s.summary));
+    }
     void open(Widget page) =>
         Navigator.push(c, MaterialPageRoute(builder: (_) => page));
     final shortcuts = <(String, IconData, Widget)>[
@@ -624,7 +639,7 @@ class HomePage extends StatelessWidget {
               ],
             ),
             FutureBuilder<List<Map<String, int>>>(
-              future: Future.wait(Currency.values.map(s.summary)),
+              future: summaryFuture,
               builder: (c, snap) => LayoutBuilder(
                 builder: (c, constraints) => Wrap(
                   spacing: 12,

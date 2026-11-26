@@ -147,14 +147,14 @@ void main() {
       await t.ensureVisible(switcher);
       await t.runAsync(() async {
         await t.tap(switcher);
-        await Future<void>.delayed(const Duration(milliseconds: 100));
+        await s.flushSettings();
       });
       await t.pumpAndSettle();
       expect(s.settings['statementScoped_$customer'], isA<Map>());
       expect(s.settings['statementMode'], 'original');
       await t.runAsync(() async {
         await t.tap(switcher);
-        await Future<void>.delayed(const Duration(milliseconds: 100));
+        await s.flushSettings();
       });
       await t.pumpAndSettle();
       expect(s.settings['statementScoped_$customer'], isNull);
